@@ -1,0 +1,217 @@
+
+# ─────────────────────────────────────────────
+#  MCP Knowledge Server — Base Compose (shared)
+#  Extend with docker-compose.dev.yml or docker-compose.prod.yml
+# ─────────────────────────────────────────────
+
+networks:
+  mcp_net:
+    driver: bridge
+
+services:
+
+  # ── MySQL ─────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: mcp_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+      - ./services/mysql_init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - mcp_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── Redis ─────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: mcp_redis
+    restart: unless-stopped
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - ./data/redis:/data
+      - ./services/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - mcp_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── ChromaDB ──────────────────────────────
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: mcp_chromadb
+    restart: unless-stopped
+    environment:
+      IS_PERSISTENT: "TRUE"
+      ANONYMIZED_TELEMETRY: "FALSE"
+    volumes:
+      - ./data/chromadb:/chroma/chroma
+    networks:
+      - mcp_net
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/8000 && echo -e \"GET /api/v2/heartbeat HTTP/1.1\\r\\nHost: localhost:8000\\r\\nConnection: close\\r\\n\\r\\n\" >&3 && cat <&3 | grep -q \"200 OK\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── Neo4j ─────────────────────────────────
+  neo4j:
+    image: neo4j:5-community
+    container_name: mcp_neo4j
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD}
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1G
+    volumes:
+      - ./data/neo4j/data:/data
+      - ./data/neo4j/logs:/logs
+      - ./data/neo4j/import:/import
+      - ./data/neo4j/plugins:/plugins
+    networks:
+      - mcp_net
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "${NEO4J_PASSWORD}", "RETURN 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # ── MCP Server ────────────────────────────
+  mcp-server:
+    image: mcp_server_in_cec-mcp-server:latest
+    build:
+      context: ./services/mcp_server
+      dockerfile: Dockerfile
+    container_name: mcp_server
+    restart: unless-stopped
+    env_file: .env
+    networks:
+      - mcp_net
+    depends_on:
+      chromadb:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+
+  # ── Backoffice API ────────────────────────
+  backoffice-api:
+    image: mcp_server_in_cec-backoffice-api:latest
+    build:
+      context: ./services/backoffice_api
+      dockerfile: Dockerfile
+    container_name: mcp_backoffice_api
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data/uploads:/app/uploads
+    networks:
+      - mcp_net
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+
+  # ── Celery Worker ─────────────────────────
+  celery-worker:
+    image: mcp_server_in_cec-celery-worker:latest
+    build:
+      context: ./services/backoffice_api
+      dockerfile: Dockerfile.worker
+    container_name: mcp_celery_worker
+    restart: unless-stopped
+    env_file: .env
+    command: celery -A tasks.celery_app worker --loglevel=info --concurrency=4 -Q default,ingestion,graph
+    volumes:
+      - ./data/uploads:/app/uploads
+    networks:
+      - mcp_net
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+
+  # ── Celery Beat (Scheduler) ───────────────
+  celery-beat:
+    image: mcp_server_in_cec-celery-worker:latest
+    build:
+      context: ./services/backoffice_api
+      dockerfile: Dockerfile.worker
+    container_name: mcp_celery_beat
+    restart: unless-stopped
+    env_file: .env
+    command: celery -A tasks.celery_app beat --loglevel=info
+    volumes:
+      - ./data/uploads:/app/uploads
+    networks:
+      - mcp_net
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Backoffice UI ─────────────────────────
+  backoffice-ui:
+    image: mcp_server_in_cec-backoffice-ui:latest
+    build:
+      context: ./services/backoffice_ui
+      dockerfile: Dockerfile
+    container_name: mcp_backoffice_ui
+    restart: unless-stopped
+    networks:
+      - mcp_net
+
+  # ── Backup Service ────────────────────────
+  backup-service:
+    image: alpine:3.19
+    container_name: mcp_backup
+    restart: unless-stopped
+    volumes:
+      - ./data/mysql:/data/mysql:ro
+      - ./data/neo4j:/data/neo4j:ro
+      - ./data/chromadb:/data/chromadb:ro
+      - ./data/redis:/data/redis:ro
+      - ./backups:/backups
+      - ./services/backup_service/backup.sh:/backup.sh:ro
+      - ./services/backup_service/crontab:/etc/crontabs/root:ro
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+    entrypoint: ["/bin/sh", "-c", "apk add --no-cache mysql-client gzip tar && crond -f -l 2"]
+    networks:
+      - mcp_net
+    depends_on:
+      mysql:
+        condition: service_healthy

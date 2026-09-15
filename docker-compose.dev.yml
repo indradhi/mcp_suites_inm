@@ -1,0 +1,78 @@
+# ─────────────────────────────────────────────
+#  Development overrides — local laptop
+#  Usage: make dev
+# ─────────────────────────────────────────────
+
+services:
+
+  mysql:
+    ports:
+      - "3309:3306"
+
+  redis:
+    ports:
+      - "6380:6379"
+
+  chromadb:
+    ports:
+      - "8100:8000"
+
+  neo4j:
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+
+  mcp-server:
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./services/mcp_server:/app
+    environment:
+      LOG_LEVEL: DEBUG
+      RELOAD: "true"
+    command: uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+
+  backoffice-api:
+    ports:
+      - "8002:8000"
+    volumes:
+      - ./services/backoffice_api:/app
+      - ./data/uploads:/app/uploads
+    extra_hosts:
+      - "pianaru:172.16.21.66"
+    environment:
+      LOG_LEVEL: DEBUG
+      RELOAD: "true"
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  celery-worker:
+    environment:
+      LOG_LEVEL: DEBUG
+    volumes:
+      - ./services/backoffice_api:/app
+      - ./data/uploads:/app/uploads
+    extra_hosts:
+      - "pianaru:172.16.21.66"
+
+  backoffice-ui:
+    image: mcp_server_in_cec-backoffice-ui:latest
+    build:
+      context: ./services/backoffice_ui
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./services/backoffice_ui/src:/app/src
+      - ./services/backoffice_ui/vite.config.js:/app/vite.config.js
+    command: npm run dev -- --host 0.0.0.0
+
+  oracle-db:
+    image: gvenzl/oracle-free:slim
+    ports:
+      - "1521:1521"
+    environment:
+      ORACLE_PASSWORD: "oracle_password"
+      APP_USER: "mcp_user"
+      APP_USER_PASSWORD: "mcp_password"
+    volumes:
+      - ./services/oracle_init:/container-entrypoint-initdb.d

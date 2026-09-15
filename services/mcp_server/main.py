@@ -1,0 +1,774 @@
+import os
+import json
+import logging
+import asyncio
+from typing import Dict, Any, List, Optional
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request, HTTPException, status
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from sse_starlette.sse import EventSourceResponse
+from pydantic import BaseModel, Field
+
+from vector_client import VectorClient
+from graph_client import GraphClient
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger("mcp_server")
+
+vector_client = VectorClient()
+graph_client = GraphClient()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Initializing MCP Server connections...")
+    try:
+        vector_client.get_collection()
+        logger.info("Connected to ChromaDB successfully.")
+    except Exception as e:
+        logger.warning(f"Could not immediately connect to ChromaDB: {e}")
+
+    try:
+        graph_client.get_driver()
+        logger.info("Connected to Neo4j successfully.")
+    except Exception as e:
+        logger.warning(f"Could not immediately connect to Neo4j: {e}")
+
+    yield
+
+    logger.info("Shutting down MCP Server connections...")
+    await graph_client.close()
+
+app = FastAPI(
+    title="MCP Knowledge & Network Server",
+    description="Model Context Protocol Server for OpenWebUI with Vector Search and Network Relation Profiling",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ── Available Tools Definition (MCP / OpenWebUI schema) ───────────────
+TOOLS_METADATA = [
+    {
+        "name": "search_knowledge_base",
+        "description": "Search the knowledge base vector store for documents, PDFs (with OCR), spreadsheets, Word docs, web search results, and database records relevant to the query.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The search query or concept to find relevant knowledge for."
+                },
+                "max_results": {
+                    "type": "integer",
+                    "description": "Maximum number of chunks to return (default 5).",
+                    "default": 5
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "get_entity_network_profile",
+        "description": "Retrieve comprehensive entity profile, attributes, and 1-hop relationship network from the knowledge graph.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "entity_name": {
+                    "type": "string",
+                    "description": "The exact or partial name of the person, organization, system, or entity to profile."
+                }
+            },
+            "required": ["entity_name"]
+        }
+    },
+    {
+        "name": "analyze_data_relationship",
+        "description": "Analyze network path and multi-hop connections between two data entities to generate contextual reasoning insights.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "source_entity": {
+                    "type": "string",
+                    "description": "The starting entity."
+                },
+                "target_entity": {
+                    "type": "string",
+                    "description": "The destination entity."
+                },
+                "max_depth": {
+                    "type": "integer",
+                    "description": "Maximum path search depth (default 3).",
+                    "default": 3
+                }
+            },
+            "required": ["source_entity", "target_entity"]
+        }
+    },
+    {
+        "name": "get_graph_network_insights",
+        "description": "Retrieve high-level network topology insights, top central hubs, and influential entities across the knowledge graph.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Number of top central entities to inspect.",
+                    "default": 10
+                }
+            }
+        }
+    },
+    {
+        "name": "get_knowledge_orchestration_guidelines",
+        "description": "Retrieve official AI guidelines, operational rules, query routing strategy, and active knowledge catalog for processing user input and searching information across the knowledge base.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Optional user query or topic to receive tailored routing instructions and tool recommendations."
+                },
+                "include_catalog": {
+                    "type": "boolean",
+                    "description": "Whether to include the full directory of active knowledge sources (default true).",
+                    "default": True
+                }
+            }
+        }
+    },
+    {
+        "name": "orchestrate_knowledge_search",
+        "description": "Orchestrate a multi-source intelligent search across all knowledge sources (Vector Store, Knowledge Graph, and dynamic Database/API sources) according to AI search guidelines. Analyzes user input, queries relevant sources simultaneously, extracts entity relationships, suggests or invokes real-time tools, and returns a consolidated, grounded context package with guidelines for final response generation.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The search query or user input to orchestrate across knowledge base sources."
+                },
+                "search_strategy": {
+                    "type": "string",
+                    "description": "Search strategy: 'hybrid' (vector + graph + tool matching, default), 'semantic_only' (vector docs only), 'graph_only' (entities & relations only), or 'comprehensive'.",
+                    "default": "hybrid"
+                },
+                "source_types": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Filter by source types: ['file', 'database', 'api', 'website', 'websearch']."
+                },
+                "max_results": {
+                    "type": "integer",
+                    "description": "Maximum number of document chunks to retrieve per search (default 5).",
+                    "default": 5
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "recognize_face",
+        "description": "Recognize and identify a person's face from an image (provided as a local file path or Base64 string) against enrolled face records in the knowledge base.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "image": {
+                    "type": "string",
+                    "description": "Image input as local file path, URL, or Base64 encoded string (supports raw base64 or data:image/...;base64)."
+                },
+                "min_confidence": {
+                    "type": "number",
+                    "description": "Minimum similarity confidence threshold (0.0 to 1.0, default 0.60) to consider a positive match.",
+                    "default": 0.60
+                },
+                "max_candidates": {
+                    "type": "integer",
+                    "description": "Maximum number of closest matching face candidates to return (default 3).",
+                    "default": 3
+                }
+            },
+            "required": ["image"]
+        }
+    },
+    {
+        "name": "compare_faces",
+        "description": "Compare two face images (provided as file paths or Base64 strings) to determine if they belong to the same person and calculate similarity confidence.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "image_a": {
+                    "type": "string",
+                    "description": "First image as local file path or Base64 string."
+                },
+                "image_b": {
+                    "type": "string",
+                    "description": "Second image as local file path or Base64 string."
+                },
+                "threshold": {
+                    "type": "number",
+                    "description": "Similarity threshold to consider faces as the same person (default 0.70).",
+                    "default": 0.70
+                }
+            },
+            "required": ["image_a", "image_b"]
+        }
+    },
+    {
+        "name": "enroll_face",
+        "description": "Enroll and index a new face profile into the biometric face recognition knowledge base with person identity and metadata.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "image": {
+                    "type": "string",
+                    "description": "Face photo as local file path or Base64 string."
+                },
+                "person_name": {
+                    "type": "string",
+                    "description": "Full name of the person."
+                },
+                "person_id": {
+                    "type": "string",
+                    "description": "Optional unique identifier (e.g. employee ID, national ID, student ID)."
+                },
+                "metadata": {
+                    "type": "object",
+                    "description": "Optional metadata dictionary (e.g. {'department': 'Finance', 'role': 'Manager'})."
+                }
+            },
+            "required": ["image", "person_name"]
+        }
+    },
+    {
+        "name": "list_enrolled_faces",
+        "description": "List all enrolled face profiles and identities stored in the face recognition knowledge base.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of face profiles to retrieve (default 50).",
+                    "default": 50
+                }
+            }
+        }
+    }
+]
+
+# ── Health & Tools Endpoints ──────────────────────────────────────────
+
+BACKOFFICE_API_URL = os.getenv("BACKOFFICE_API_URL", "http://backoffice-api:8000")
+_cached_dynamic_tools: List[Dict[str, Any]] = []
+_dynamic_tools_last_fetch: float = 0.0
+
+async def fetch_dynamic_api_tools() -> List[Dict[str, Any]]:
+    global _cached_dynamic_tools, _dynamic_tools_last_fetch
+    import time
+    import httpx
+    now = time.time()
+    if _cached_dynamic_tools and (now - _dynamic_tools_last_fetch < 10.0):
+        return _cached_dynamic_tools
+
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            resp = await client.get(f"{BACKOFFICE_API_URL}/api/knowledge/api-tools")
+            if resp.status_code == 200:
+                data = resp.json()
+                raw_tools = data.get("tools", [])
+                converted_tools = []
+                for item in raw_tools:
+                    tool_name = item.get("name")
+                    source_type = item.get("source_type", "api")
+                    default_desc = f"Dynamic Database query tool for {item.get('title')}" if source_type == "database" else f"Dynamic API tool for {item.get('title')}"
+                    description = item.get("description") or default_desc
+                    params_list = item.get("parameters", [])
+
+                    properties = {}
+                    required_fields = []
+                    for p in params_list:
+                        p_name = p.get("name")
+                        if not p_name:
+                            continue
+                        p_type = p.get("type", "string").lower()
+                        schema_type = "string"
+                        if p_type in ["integer", "int"]:
+                            schema_type = "integer"
+                        elif p_type in ["number", "float"]:
+                            schema_type = "number"
+                        elif p_type in ["boolean", "bool"]:
+                            schema_type = "boolean"
+
+                        properties[p_name] = {
+                            "type": schema_type,
+                            "description": p.get("description") or f"Parameter {p_name}"
+                        }
+                        if p.get("required"):
+                            required_fields.append(p_name)
+
+                    converted_tools.append({
+                        "name": tool_name,
+                        "description": description,
+                        "parameters": {
+                            "type": "object",
+                            "properties": properties,
+                            "required": required_fields
+                        },
+                        "_source_id": item.get("source_id"),
+                        "_config": item.get("config")
+                    })
+                _cached_dynamic_tools = converted_tools
+                _dynamic_tools_last_fetch = now
+                return _cached_dynamic_tools
+    except Exception as e:
+        logger.debug(f"Could not fetch dynamic API tools from backoffice: {e}")
+
+    return _cached_dynamic_tools
+
+async def get_all_tools_metadata() -> List[Dict[str, Any]]:
+    dynamic = await fetch_dynamic_api_tools()
+    clean_dynamic = [
+        {
+            "name": t["name"],
+            "description": t["description"],
+            "parameters": t["parameters"]
+        }
+        for t in dynamic
+    ]
+    return TOOLS_METADATA + clean_dynamic
+
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "service": "mcp-server",
+        "version": "1.0.0"
+    }
+
+@app.get("/tools")
+async def list_tools():
+    all_tools = await get_all_tools_metadata()
+    return {"tools": all_tools}
+
+class ToolCallRequest(BaseModel):
+    name: str
+    arguments: Dict[str, Any] = Field(default_factory=dict)
+
+async def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+    import httpx
+    if name == "search_knowledge_base":
+        query = args.get("query", "")
+        max_results = int(args.get("max_results", 5))
+        if not query:
+            return {"error": "Query parameter is required"}
+        results = await vector_client.search_knowledge(query_text=query, n_results=max_results)
+        return {
+            "tool": name,
+            "query": query,
+            "count": len(results),
+            "results": results
+        }
+
+    elif name == "get_entity_network_profile":
+        entity_name = args.get("entity_name", "")
+        if not entity_name:
+            return {"error": "entity_name parameter is required"}
+        profile = await graph_client.get_entity_profile(entity_name=entity_name)
+        return {
+            "tool": name,
+            "entity": entity_name,
+            "found": bool(profile),
+            "profile": profile
+        }
+
+    elif name == "analyze_data_relationship":
+        src = args.get("source_entity", "")
+        dst = args.get("target_entity", "")
+        depth = int(args.get("max_depth", 3))
+        if not src or not dst:
+            return {"error": "Both source_entity and target_entity are required"}
+        connections = await graph_client.find_connections(src, dst, max_depth=depth)
+        return {
+            "tool": name,
+            "source": src,
+            "target": dst,
+            "connections": connections
+        }
+
+    elif name == "get_graph_network_insights":
+        limit = int(args.get("limit", 10))
+        insights = await graph_client.get_network_insights(limit=limit)
+        return {
+            "tool": name,
+            "insights": insights
+        }
+
+    elif name in ["get_knowledge_orchestration_guidelines", "get_knowledge_guidelines"]:
+        query = args.get("query")
+        include_catalog = args.get("include_catalog", True)
+
+        # 1. Attempt delegating to Backoffice API for full DB metadata
+        try:
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                params = {"include_catalog": str(include_catalog).lower()}
+                if query:
+                    params["query"] = str(query)
+                res = await client.get(f"{BACKOFFICE_API_URL}/api/knowledge/orchestration-guidelines", params=params)
+                if res.status_code == 200:
+                    data = res.json()
+                    data["tool"] = name
+                    return data
+        except Exception as e:
+            logger.debug(f"Backoffice guidelines fetch exception ({e}), falling back to local synthesis")
+
+        # 2. Local Fallback Execution
+        dynamic_tools = await fetch_dynamic_api_tools()
+        tools_list = [
+            {
+                "tool_name": t["name"],
+                "description": t["description"],
+                "parameters": t["parameters"].get("properties", {})
+            }
+            for t in dynamic_tools
+        ]
+        return {
+            "tool": name,
+            "status": "success (local synthesis)",
+            "guidelines": {
+                "core_mission": "Enterprise AI Knowledge Orchestrator. Uphold strict grounding, attribute all sources, and route queries to the most authoritative source.",
+                "input_processing_protocol": [
+                    {
+                        "step": 1,
+                        "phase": "Query Intent Classification",
+                        "rules": [
+                            "Classify query into factual document search, graph network inquiry, or live database/API lookup.",
+                            "Extract key named entities, proper nouns, dates, and identifiers."
+                        ]
+                    },
+                    {
+                        "step": 2,
+                        "phase": "Source Routing Decision Tree",
+                        "rules": [
+                            "Rule A: For live land/asset ownership or database records, invoke matching tools (e.g. cari_tanah_bpn, db_*).",
+                            "Rule B: For relationships between people or companies, query Neo4j with 'get_entity_network_profile' or 'analyze_data_relationship'.",
+                            "Rule C: For documents, policies, and files, query ChromaDB with 'search_knowledge_base' or 'orchestrate_knowledge_search'."
+                        ]
+                    },
+                    {
+                        "step": 3,
+                        "phase": "Grounding & Citations",
+                        "rules": [
+                            "Always cite Source Name and Document ID / Tool Name.",
+                            "Do NOT invent or hallucinate missing data. Acknowledge missing records truthfully: 'Data tidak ditemukan dalam basis pengetahuan yang terhubung.'",
+                            "Treat live API/Database tools as real-time source of truth."
+                        ]
+                    }
+                ]
+            },
+            "catalog": {
+                "available_ai_tools": tools_list,
+                "vector_store": "ChromaDB (collection: knowledge_base)",
+                "knowledge_graph": "Neo4j Graph Database"
+            },
+            "query_recommendations": {
+                "query": query,
+                "suggested_action": "Use 'orchestrate_knowledge_search' for automated multi-source retrieval."
+            } if query else None
+        }
+
+    elif name == "orchestrate_knowledge_search":
+        query = args.get("query", "")
+        if not query:
+            return {"error": "query parameter is required"}
+        strategy = args.get("search_strategy", "hybrid")
+        max_results = int(args.get("max_results", 5))
+        source_types = args.get("source_types")
+
+        # 1. Attempt delegating to Backoffice API
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                res = await client.post(
+                    f"{BACKOFFICE_API_URL}/api/knowledge/orchestrate-search",
+                    json={
+                        "query": query,
+                        "search_strategy": strategy,
+                        "source_types": source_types,
+                        "max_results": max_results
+                    }
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    data["tool"] = name
+                    return data
+        except Exception as e:
+            logger.debug(f"Backoffice orchestrate-search exception ({e}), falling back to local synthesis")
+
+        # 2. Local Fallback Multi-Source Orchestration
+        vector_results = []
+        if strategy in ["hybrid", "semantic_only", "comprehensive"]:
+            vector_results = await vector_client.search_knowledge(query_text=query, n_results=max_results)
+
+        graph_entities = []
+        if strategy in ["hybrid", "graph_only", "comprehensive"]:
+            import re
+            words = [w.strip() for w in re.findall(r'\w+', query) if len(w) >= 3]
+            for w in words[:4]:
+                prof = await graph_client.get_entity_profile(entity_name=w)
+                if prof:
+                    graph_entities.append(prof)
+
+        dynamic_tools = await fetch_dynamic_api_tools()
+        applicable_tools = []
+        q_lower = query.lower()
+        for t in dynamic_tools:
+            t_name = t["name"].lower()
+            t_desc = t["description"].lower()
+            if t_name in q_lower or any(kw in q_lower for kw in t_desc.split() if len(kw) > 4):
+                applicable_tools.append({
+                    "tool_name": t["name"],
+                    "description": t["description"],
+                    "parameters": t["parameters"]
+                })
+
+        return {
+            "tool": name,
+            "query": query,
+            "strategy_applied": strategy,
+            "retrieved_documents": vector_results,
+            "graph_entities": graph_entities,
+            "applicable_tools": applicable_tools,
+            "ai_guidelines": [
+                f"Retrieved {len(vector_results)} document chunk(s) and {len(graph_entities)} graph entity profile(s).",
+                "Ground your answer strictly in these findings. Cite document IDs and source names.",
+                "If information is missing, clearly state that it is not found in the knowledge repository."
+            ]
+        }
+
+    elif name == "recognize_face":
+        image_input = args.get("image")
+        if not image_input:
+            return {"error": "image parameter (file path or base64) is required"}
+        try:
+            async with httpx.AsyncClient(timeout=35.0) as client:
+                res = await client.post(
+                    f"{BACKOFFICE_API_URL}/api/face/recognize",
+                    json={
+                        "image": image_input,
+                        "min_confidence": float(args.get("min_confidence", 0.60)),
+                        "max_candidates": int(args.get("max_candidates", 3))
+                    }
+                )
+                data = res.json()
+                data["tool"] = name
+                return data
+        except Exception as e:
+            return {"tool": name, "error": f"Failed to execute face recognition: {str(e)}"}
+
+    elif name == "compare_faces":
+        img_a = args.get("image_a")
+        img_b = args.get("image_b")
+        if not img_a or not img_b:
+            return {"error": "Both image_a and image_b parameters are required"}
+        try:
+            async with httpx.AsyncClient(timeout=35.0) as client:
+                res = await client.post(
+                    f"{BACKOFFICE_API_URL}/api/face/compare",
+                    json={
+                        "image_a": img_a,
+                        "image_b": img_b,
+                        "threshold": float(args.get("threshold", 0.70))
+                    }
+                )
+                data = res.json()
+                data["tool"] = name
+                return data
+        except Exception as e:
+            return {"tool": name, "error": f"Failed to execute face comparison: {str(e)}"}
+
+    elif name == "enroll_face":
+        img = args.get("image")
+        name_val = args.get("person_name")
+        if not img or not name_val:
+            return {"error": "Both image and person_name are required"}
+        try:
+            async with httpx.AsyncClient(timeout=35.0) as client:
+                res = await client.post(
+                    f"{BACKOFFICE_API_URL}/api/face/enroll",
+                    json={
+                        "image": img,
+                        "person_name": name_val,
+                        "person_id": args.get("person_id"),
+                        "metadata": args.get("metadata", {})
+                    }
+                )
+                data = res.json()
+                data["tool"] = name
+                return data
+        except Exception as e:
+            return {"tool": name, "error": f"Failed to enroll face: {str(e)}"}
+
+    elif name == "list_enrolled_faces":
+        limit = int(args.get("limit", 50))
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                res = await client.get(
+                    f"{BACKOFFICE_API_URL}/api/face/enrolled",
+                    params={"limit": limit}
+                )
+                data = res.json()
+                data["tool"] = name
+                return data
+        except Exception as e:
+            return {"tool": name, "error": f"Failed to list enrolled faces: {str(e)}"}
+
+    else:
+        # Check dynamic API tools
+        dynamic_tools = await fetch_dynamic_api_tools()
+        matched_tool = next((t for t in dynamic_tools if t["name"] == name), None)
+        if matched_tool:
+            source_id = matched_tool.get("_source_id")
+            try:
+                async with httpx.AsyncClient(timeout=35.0) as client:
+                    res = await client.post(
+                        f"{BACKOFFICE_API_URL}/api/knowledge/api-tools/{source_id}/execute",
+                        json={"arguments": args}
+                    )
+                    res_data = res.json()
+                    return {
+                        "tool": name,
+                        "source_id": source_id,
+                        "success": res.status_code == 200 and res_data.get("success", True),
+                        "status_code": res_data.get("status_code", res.status_code),
+                        "arguments": args,
+                        "data": res_data.get("data"),
+                        "text": res_data.get("text")
+                    }
+            except Exception as e:
+                return {"tool": name, "error": f"Failed to execute dynamic tool: {str(e)}"}
+
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Tool '{name}' not recognized"
+        )
+
+@app.post("/call_tool")
+async def call_tool_endpoint(call: ToolCallRequest):
+    result = await execute_tool(call.name, call.arguments)
+    return JSONResponse(content=result)
+
+# ── JSON-RPC 2.0 & SSE Support for OpenWebUI / Claude / MCP Clients ──
+
+class JsonRpcRequest(BaseModel):
+    jsonrpc: str = "2.0"
+    id: Optional[Any] = None
+    method: str
+    params: Optional[Dict[str, Any]] = None
+
+@app.post("/rpc")
+async def rpc_endpoint(req: JsonRpcRequest):
+    method = req.method
+    params = req.params or {}
+
+    if method == "initialize":
+        return {
+            "jsonrpc": "2.0",
+            "id": req.id,
+            "result": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {
+                    "tools": {"listChanged": False},
+                    "resources": {},
+                    "prompts": {}
+                },
+                "serverInfo": {
+                    "name": "mcp-knowledge-server",
+                    "version": "1.0.0"
+                }
+            }
+        }
+
+    elif method == "tools/list":
+        all_tools = await get_all_tools_metadata()
+        return {
+            "jsonrpc": "2.0",
+            "id": req.id,
+            "result": {
+                "tools": [
+                    {
+                        "name": t["name"],
+                        "description": t["description"],
+                        "inputSchema": t["parameters"]
+                    }
+                    for t in all_tools
+                ]
+            }
+        }
+
+    elif method == "tools/call":
+        tool_name = params.get("name")
+        tool_args = params.get("arguments", {})
+        try:
+            output = await execute_tool(tool_name, tool_args)
+            return {
+                "jsonrpc": "2.0",
+                "id": req.id,
+                "result": {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": json.dumps(output, indent=2)
+                        }
+                    ]
+                }
+            }
+        except Exception as e:
+            return {
+                "jsonrpc": "2.0",
+                "id": req.id,
+                "error": {
+                    "code": -32603,
+                    "message": str(e)
+                }
+            }
+
+    else:
+        return {
+            "jsonrpc": "2.0",
+            "id": req.id,
+            "error": {
+                "code": -32601,
+                "message": f"Method {method} not found"
+            }
+        }
+
+# OpenWebUI SSE Endpoint
+@app.get("/sse")
+async def sse_endpoint(request: Request):
+    async def event_generator():
+        # Send initial endpoint information
+        init_event = {
+            "type": "endpoint",
+            "endpoint": "/rpc"
+        }
+        yield {
+            "event": "endpoint",
+            "data": json.dumps(init_event)
+        }
+
+        # Keep-alive heartbeat
+        while True:
+            if await request.is_disconnected():
+                break
+            await asyncio.sleep(15)
+            yield {
+                "event": "ping",
+                "data": "{}"
+            }
+
+    return EventSourceResponse(event_generator())

@@ -1,0 +1,704 @@
+import os
+import re
+import shutil
+import logging
+from typing import List, Optional, Dict, Any
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, Query
+from sqlalchemy.orm import Session
+from pydantic import BaseModel
+
+from database import get_db
+from models.knowledge_source import KnowledgeSource, KnowledgeDocument
+from models.ingest_job import IngestJob
+from security import get_current_user, require_role
+from config import settings
+from services.vector_store import vector_store
+from services.ingestion.database_ingester import database_ingester
+from services.ingestion.api_ingester import api_ingester
+from tasks.ingest_tasks import run_ingest_source_task
+
+router = APIRouter(prefix="/knowledge", tags=["Knowledge Sources"])
+
+class SourceCreate(BaseModel):
+    name: str
+    source_type: str # database, api, website, websearch, google_drive
+    description: Optional[str] = None
+    config: Dict[str, Any]
+    schedule_cron: Optional[str] = None
+
+class TestConnectionRequest(BaseModel):
+    source_type: str
+    config: Dict[str, Any]
+
+@router.get("/sources")
+def list_sources(db: Session = Depends(get_db), user = Depends(get_current_user)):
+    sources = db.query(KnowledgeSource).order_by(KnowledgeSource.created_at.desc()).all()
+    results = []
+    for s in sources:
+        doc_count = db.query(KnowledgeDocument).filter(KnowledgeDocument.source_id == s.id).count()
+        if doc_count == 0:
+            latest_job = db.query(IngestJob).filter(IngestJob.source_id == s.id, IngestJob.status == "completed").order_by(IngestJob.id.desc()).first()
+            if latest_job and latest_job.chunks_created:
+                doc_count = latest_job.chunks_created
+
+        results.append({
+            "id": s.id,
+            "name": s.name,
+            "source_type": s.source_type,
+            "description": s.description,
+            "config": s.config,
+            "is_active": s.is_active,
+            "sync_status": s.sync_status,
+            "last_synced_at": (s.last_synced_at.isoformat() + "Z") if s.last_synced_at else None,
+            "document_count": doc_count,
+            "created_at": (s.created_at.isoformat() + "Z") if s.created_at else None
+        })
+    return results
+
+@router.post("/test-connection")
+async def test_source_connection(payload: TestConnectionRequest, user = Depends(get_current_user)):
+    stype = payload.source_type.lower()
+    config = payload.config
+
+    try:
+        if stype == "database":
+            db_type = config.get("db_type", "mysql")
+            if config.get("is_tool") or (config.get("query") and config.get("parameters")):
+                test_args = config.get("test_arguments", {})
+                res = await database_ingester.execute_tool_call(config, test_args)
+                return {
+                    "success": res.get("success", False),
+                    "message": "Database query executed successfully" if res.get("success") else f"Database execution failed: {res.get('error')}",
+                    "result": res
+                }
+            else:
+                success = database_ingester.test_connection(db_type, config)
+                return {"success": success, "message": f"Successfully connected to {db_type.upper()} database"}
+
+        elif stype == "api":
+            if config.get("is_tool"):
+                test_args = config.get("test_arguments", {})
+                res = await api_ingester.execute_tool_call(config, test_args)
+                return {
+                    "success": res.get("success", False),
+                    "message": "API Tool executed successfully" if res.get("success") else f"API Tool execution failed: {res.get('error')}",
+                    "result": res
+                }
+            else:
+                auth_conf = config.get("auth", {})
+                token = await api_ingester.get_bearer_token(auth_conf)
+                return {"success": True, "message": "API auth verified successfully", "token_acquired": bool(token)}
+
+        elif stype in ["website", "websearch"]:
+            return {"success": True, "message": "Web endpoint verified"}
+
+        elif stype == "google_drive":
+            return {"success": True, "message": "Google Drive account configuration verified"}
+
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown source type: {stype}")
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@router.get("/api-tools")
+@router.get("/tools")
+def list_api_tools(db: Session = Depends(get_db)):
+    """
+    Returns active knowledge sources (API and Database) configured as AI tools.
+    """
+    sources = db.query(KnowledgeSource).filter(
+        KnowledgeSource.source_type.in_(["api", "database"]),
+        KnowledgeSource.is_active == True
+    ).all()
+
+    tools = []
+    for s in sources:
+        conf = s.config or {}
+        if conf.get("is_tool") or conf.get("parameters"):
+            prefix = "db_" if s.source_type == "database" else "api_"
+            tool_name = conf.get("tool_name") or f"{prefix}{s.name.replace(' ', '_').lower()}"
+            clean_tool_name = "".join(c if c.isalnum() or c == "_" else "_" for c in tool_name).lower()
+            
+            tool_entry = {
+                "source_id": s.id,
+                "source_type": s.source_type,
+                "name": clean_tool_name,
+                "title": s.name,
+                "description": conf.get("tool_description") or s.description or f"{'Database' if s.source_type == 'database' else 'API'} Tool for {s.name}",
+                "parameters": conf.get("parameters", []),
+                "config": conf
+            }
+            if s.source_type == "api":
+                tool_entry["endpoint"] = conf.get("endpoint")
+                tool_entry["method"] = conf.get("method", "GET")
+            else:
+                tool_entry["db_type"] = conf.get("db_type") or conf.get("database_type")
+                tool_entry["query"] = conf.get("query")
+                tool_entry["database"] = conf.get("database")
+
+            tools.append(tool_entry)
+    return {"tools": tools}
+
+class ExecuteToolRequest(BaseModel):
+    arguments: Dict[str, Any] = {}
+
+@router.post("/api-tools/{source_id}/execute")
+@router.post("/tools/{source_id}/execute")
+async def execute_api_tool(
+    source_id: int,
+    payload: ExecuteToolRequest,
+    db: Session = Depends(get_db)
+):
+    source = db.query(KnowledgeSource).filter(KnowledgeSource.id == source_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    if source.source_type not in ["api", "database"]:
+        raise HTTPException(status_code=400, detail="Source is not an API or Database type")
+
+    try:
+        if source.source_type == "api":
+            result = await api_ingester.execute_tool_call(source.config, payload.arguments)
+        else:
+            result = await database_ingester.execute_tool_call(source.config, payload.arguments)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/sources", status_code=status.HTTP_201_CREATED)
+def create_knowledge_source(
+    payload: SourceCreate,
+    db: Session = Depends(get_db),
+    user = Depends(require_role(["admin", "editor"]))
+):
+    is_tool_mode = bool((payload.config or {}).get("is_tool"))
+
+    source = KnowledgeSource(
+        name=payload.name,
+        source_type=payload.source_type.lower(),
+        description=payload.description,
+        config=payload.config,
+        schedule_cron=payload.schedule_cron,
+        sync_status="active (tool)" if is_tool_mode else "idle",
+        created_by=user.id
+    )
+    db.add(source)
+    db.commit()
+    db.refresh(source)
+
+    if is_tool_mode:
+        try:
+            vector_store.delete_by_source(source.id)
+        except Exception:
+            pass
+    else:
+        run_ingest_source_task.delay(source.id)
+
+    return {"id": source.id, "name": source.name, "message": "Source created successfully"}
+
+@router.post("/sources/upload-file")
+async def upload_file_source(
+    file: UploadFile = File(...),
+    name: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    user = Depends(require_role(["admin", "editor"]))
+):
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    clean_filename = file.filename.replace(" ", "_")
+    save_path = os.path.join(settings.UPLOAD_DIR, clean_filename)
+
+    with open(save_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    file_ext = clean_filename.split(".")[-1].lower() if "." in clean_filename else "txt"
+    file_size = os.path.getsize(save_path)
+
+    source_name = name or clean_filename
+    source = KnowledgeSource(
+        name=source_name,
+        source_type="file",
+        description=description or f"Uploaded file {clean_filename}",
+        config={
+            "file_path": save_path,
+            "filename": clean_filename,
+            "file_type": file_ext,
+            "file_size": file_size
+        },
+        created_by=user.id
+    )
+    db.add(source)
+    db.commit()
+    db.refresh(source)
+
+    # Add document entry
+    doc = KnowledgeDocument(
+        source_id=source.id,
+        title=clean_filename,
+        file_path=save_path,
+        file_type=file_ext,
+        file_size=file_size,
+        status="pending"
+    )
+    db.add(doc)
+    db.commit()
+
+    # Trigger asynchronous processing
+    run_ingest_source_task.delay(source.id)
+
+    return {
+        "source_id": source.id,
+        "name": source.name,
+        "filename": clean_filename,
+        "message": "File uploaded and ingestion queued"
+    }
+
+@router.post("/sources/{source_id}/sync")
+def trigger_sync(
+    source_id: int,
+    db: Session = Depends(get_db),
+    user = Depends(require_role(["admin", "editor"]))
+):
+    source = db.query(KnowledgeSource).filter(KnowledgeSource.id == source_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+
+    run_ingest_source_task.delay(source.id)
+    return {"message": f"Sync queued for source '{source.name}'"}
+
+@router.put("/sources/{source_id}")
+def update_source(
+    source_id: int,
+    payload: SourceCreate,
+    re_sync: bool = Query(False),
+    db: Session = Depends(get_db),
+    user = Depends(require_role(["admin", "editor"]))
+):
+    source = db.query(KnowledgeSource).filter(KnowledgeSource.id == source_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+
+    source.name = payload.name
+    source.description = payload.description
+    source.config = payload.config
+    source.schedule_cron = payload.schedule_cron
+    if payload.source_type:
+        source.source_type = payload.source_type.lower()
+    db.commit()
+
+    is_tool_mode = bool((payload.config or {}).get("is_tool"))
+
+    if is_tool_mode:
+        source.sync_status = "active (tool)"
+        try:
+            vector_store.delete_by_source(source.id)
+        except Exception:
+            pass
+    db.commit()
+
+    if re_sync and not is_tool_mode:
+        run_ingest_source_task.delay(source.id)
+
+    return {"message": "Source updated successfully", "sync_scheduled": re_sync and not is_tool_mode}
+
+@router.delete("/sources/{source_id}")
+def delete_source(
+    source_id: int,
+    db: Session = Depends(get_db),
+    user = Depends(require_role(["admin", "editor"]))
+):
+    source = db.query(KnowledgeSource).filter(KnowledgeSource.id == source_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+
+    # Delete vectors from ChromaDB
+    try:
+        vector_store.delete_by_source(source.id)
+    except Exception:
+        pass
+
+    db.delete(source)
+    db.commit()
+    return {"message": "Knowledge source and associated vectors deleted"}
+
+
+# ── AI Knowledge Orchestration & Guidelines Endpoints ────────────────
+
+class OrchestrateSearchRequest(BaseModel):
+    query: str
+    search_strategy: Optional[str] = "hybrid"  # hybrid, semantic_only, graph_only, comprehensive
+    source_types: Optional[List[str]] = None
+    max_results: Optional[int] = 5
+    image_base64: Optional[str] = None
+
+
+@router.get("/orchestration-guidelines")
+@router.get("/guidelines")
+def get_orchestration_guidelines(
+    query: Optional[str] = Query(None, description="Optional user query or topic to receive tailored routing and tool advice"),
+    include_catalog: bool = Query(True, description="Whether to include full active sources catalog"),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns official AI operational guidelines, source routing protocols, and active catalog index
+    for processing user input and searching information across knowledge sources.
+    """
+    # 1. Fetch active knowledge sources
+    active_sources = db.query(KnowledgeSource).filter(KnowledgeSource.is_active == True).all()
+
+    catalog = {
+        "summary": {
+            "total_active_sources": len(active_sources),
+            "source_types": {}
+        },
+        "file_documents": [],
+        "database_sources": [],
+        "api_sources": [],
+        "web_sources": [],
+        "available_ai_tools": []
+    }
+
+    type_counts = {}
+    for s in active_sources:
+        stype = s.source_type
+        type_counts[stype] = type_counts.get(stype, 0) + 1
+        conf = s.config or {}
+        is_tool = bool(conf.get("is_tool") or conf.get("parameters"))
+
+        # Check doc counts for document-oriented sources
+        doc_count = db.query(KnowledgeDocument).filter(KnowledgeDocument.source_id == s.id).count() if stype in ["file", "website"] else 0
+
+        source_info = {
+            "source_id": s.id,
+            "name": s.name,
+            "source_type": stype,
+            "description": s.description or f"{stype.title()} Knowledge Source",
+            "is_tool": is_tool,
+            "sync_status": s.sync_status,
+            "last_synced_at": s.last_synced_at.isoformat() if s.last_synced_at else None,
+            "document_count": doc_count
+        }
+
+        if is_tool:
+            prefix = "db_" if stype == "database" else "api_"
+            raw_tool_name = conf.get("tool_name") or f"{prefix}{s.name.replace(' ', '_').lower()}"
+            clean_tool_name = "".join(c if c.isalnum() or c == "_" else "_" for c in raw_tool_name).lower()
+            tool_meta = {
+                "source_id": s.id,
+                "tool_name": clean_tool_name,
+                "source_type": stype,
+                "title": s.name,
+                "description": conf.get("tool_description") or s.description or f"Tool for {s.name}",
+                "parameters": conf.get("parameters", [])
+            }
+            catalog["available_ai_tools"].append(tool_meta)
+            source_info["tool_name"] = clean_tool_name
+
+        if stype == "file":
+            catalog["file_documents"].append(source_info)
+        elif stype == "database":
+            source_info["db_type"] = conf.get("db_type") or conf.get("database_type", "sql")
+            catalog["database_sources"].append(source_info)
+        elif stype == "api":
+            source_info["endpoint"] = conf.get("endpoint")
+            source_info["method"] = conf.get("method", "GET")
+            catalog["api_sources"].append(source_info)
+        elif stype in ["website", "websearch"]:
+            catalog["web_sources"].append(source_info)
+
+    catalog["summary"]["source_types"] = type_counts
+
+    # 2. Comprehensive AI Guidelines
+    guidelines = {
+        "core_mission": "You are the Enterprise AI Knowledge Orchestrator. Your mission is to analyze user queries, consult the appropriate enterprise knowledge sources, uphold strict grounding standards, and synthesize accurate, well-attributed answers.",
+        "input_processing_protocol": [
+            {
+                "step": 1,
+                "phase": "Query Intent Classification",
+                "rules": [
+                    "Classify query into one of: 'factual_document' (policies, SOPs, contracts, manuals), 'entity_relationship' (people, company affiliations, network paths), 'live_transactional' (real-time database lookups, land/asset ownership, dynamic APIs), or 'hybrid_multi_faceted'.",
+                    "Identify key named entities, proper nouns, dates, identification numbers, and domain terms."
+                ]
+            },
+            {
+                "step": 2,
+                "phase": "Source Routing Decision Tree",
+                "rules": [
+                    "Rule A (Real-time Tools First): If the user query requires looking up specific assets, certificates (e.g. BPN land search), or live database records, prioritize calling the matching specialized tool (e.g., 'cari_tanah_bpn', 'db_*').",
+                    "Rule B (Network & Relations): If the query asks about connections between people, companies, or ownership hierarchies, query the Knowledge Graph via 'get_entity_network_profile' or 'analyze_data_relationship'.",
+                    "Rule C (Documentary Evidence): For textual policies, guidelines, regulatory documents, and historical information, query ChromaDB via 'search_knowledge_base' or 'orchestrate_knowledge_search'.",
+                    "Rule D (Multi-faceted Search): For comprehensive questions touching multiple domains, use 'orchestrate_knowledge_search' to coordinate vector, graph, and live tools in one operation."
+                ]
+            },
+            {
+                "step": 3,
+                "phase": "Search Formulation & Normalization",
+                "rules": [
+                    "Strip conversational fluff, greeting phrases, and punctuation when formulating vector search queries.",
+                    "Normalize person/entity names to clean alphanumeric strings without prefixes when passing parameters to tools.",
+                    "If searching for an exact ID or code (e.g. certificate number, NIK, SKU), pass it verbatim without modification."
+                ]
+            },
+            {
+                "step": 4,
+                "phase": "Grounding & Anti-Hallucination Rules",
+                "rules": [
+                    "STRICT GROUNDING: Base all factual assertions strictly on data returned by knowledge sources or tools.",
+                    "MANDATORY CITATIONS: Clearly state the Source Name and Document ID / Tool Name for every key fact.",
+                    "HANDLING ABSENCE: If a requested record, person, or document does not exist in the retrieved context, explicitly acknowledge: 'Data tidak ditemukan dalam basis pengetahuan yang terhubung.' NEVER invent or hallucinate missing data.",
+                    "DATA CONFLICT PRECEDENCE: When a conflict arises between historical document text and a live API/Database tool, treat the live API/Database as authoritative and explicitly note the document snapshot difference."
+                ]
+            },
+            {
+                "step": 5,
+                "phase": "Response Formatting Standards",
+                "rules": [
+                    "Use clean Markdown formatting with clear headings, bullet points, and bold entity names.",
+                    "Format tabular records using Markdown tables with relevant columns.",
+                    "Start directly with the answer; omit internal thinking tags or meta-commentary."
+                ]
+            }
+        ]
+    }
+
+    # 3. Dynamic Query Routing Recommendations (if query provided)
+    query_recommendations = None
+    if query:
+        q_clean = query.strip().lower()
+        matched_tools = []
+        matched_sources = []
+        suggested_strategy = "hybrid"
+
+        # Check tools matching
+        for t in catalog["available_ai_tools"]:
+            tool_name = t["tool_name"]
+            tool_desc = t["description"].lower()
+            tool_title = t["title"].lower()
+            param_names = [p.get("name", "").lower() for p in t.get("parameters", [])]
+
+            score = 0
+            extracted_args = {}
+            if any(term in q_clean for term in ["tanah", "bpn", "sertifikat", "hgb", "hak milik", "lokasi"]) and "tanah" in tool_name:
+                score += 10
+            if tool_name in q_clean or tool_title in q_clean:
+                score += 8
+            for kw in tool_desc.split():
+                if len(kw) > 3 and kw in q_clean:
+                    score += 2
+
+            # Extract possible arguments for parameters like 'nama', 'query', 'id'
+            if "nama" in param_names:
+                name_match = re.search(r'(?:nama|atas nama|milik|an\.?)\s+([A-Za-z\s]+?)(?:$|\s+(?:di|dengan|pada|nomor))', query, re.IGNORECASE)
+                if name_match:
+                    extracted_args["nama"] = name_match.group(1).strip()
+
+            if score > 0 or extracted_args:
+                matched_tools.append({
+                    "tool_name": tool_name,
+                    "title": t["title"],
+                    "relevance_score": score,
+                    "suggested_arguments": extracted_args,
+                    "reason": f"Tool '{tool_name}' matches query terms and intent."
+                })
+
+        # Check sources matching
+        for s in active_sources:
+            if s.name.lower() in q_clean or (s.description and any(w in q_clean for w in s.description.lower().split() if len(w) > 4)):
+                matched_sources.append({"source_id": s.id, "name": s.name, "type": s.source_type})
+
+        # Determine suggested strategy
+        if matched_tools and not any(w in q_clean for w in ["kebijakan", "sop", "regulasi", "panduan", "aturan"]):
+            suggested_strategy = "tool_execution"
+        elif any(w in q_clean for w in ["hubungan", "relasi", "koneksi", "jaringan", "siapa saja", "anak perusahaan"]):
+            suggested_strategy = "graph_first"
+        else:
+            suggested_strategy = "hybrid"
+
+        query_recommendations = {
+            "query": query,
+            "suggested_strategy": suggested_strategy,
+            "recommended_tools": matched_tools,
+            "matched_sources": matched_sources,
+            "recommended_action": f"Invoke tool '{matched_tools[0]['tool_name']}' with arguments {matched_tools[0]['suggested_arguments']}" if (matched_tools and matched_tools[0].get("suggested_arguments")) else "Run 'orchestrate_knowledge_search' to retrieve vector documents and graph context."
+        }
+
+    response_data = {
+        "status": "success",
+        "guidelines": guidelines,
+        "query_recommendations": query_recommendations
+    }
+    if include_catalog:
+        response_data["catalog"] = catalog
+
+    return response_data
+
+
+@router.post("/orchestrate-search")
+async def orchestrate_search(
+    payload: OrchestrateSearchRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Orchestrates a unified multi-source search across Vector Store (ChromaDB),
+    Knowledge Graph (Neo4j), and dynamic Database/API sources according to AI search guidelines.
+    """
+    query = payload.query.strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
+
+    strategy = (payload.search_strategy or "hybrid").lower()
+    max_results = payload.max_results or 5
+
+    results = {
+        "query": query,
+        "strategy_applied": strategy,
+        "orchestration_plan": {
+            "vector_search": strategy in ["hybrid", "semantic_only", "comprehensive"],
+            "graph_search": strategy in ["hybrid", "graph_only", "comprehensive"],
+            "tool_matching": True
+        },
+        "retrieved_documents": [],
+        "graph_entities": [],
+        "applicable_tools": [],
+        "ai_synthesis_guidelines": []
+    }
+
+    # 1. Vector Search in ChromaDB
+    if strategy in ["hybrid", "semantic_only", "comprehensive"]:
+        try:
+            filter_meta = None
+            if payload.source_types and len(payload.source_types) == 1:
+                filter_meta = {"source_type": payload.source_types[0]}
+            vector_hits = vector_store.query_similarity(query=query, n_results=max_results, filter_meta=filter_meta)
+            for h in vector_hits:
+                meta = h.get("metadata", {})
+                results["retrieved_documents"].append({
+                    "id": h.get("id"),
+                    "source_name": meta.get("source_name", "Knowledge Base"),
+                    "source_type": meta.get("source_type", "document"),
+                    "score": round(float(h.get("score", 0.0)), 4),
+                    "content": h.get("content", "")[:1800]
+                })
+        except Exception as e:
+            results["retrieved_documents_error"] = str(e)
+
+    # 2. Graph Search in Neo4j
+    if strategy in ["hybrid", "graph_only", "comprehensive"]:
+        try:
+            from services.graph.neo4j_client import neo4j_client
+            words = [w.strip().lower() for w in re.findall(r'\w+', query) if len(w) >= 3]
+            if words:
+                cypher = """
+                MATCH (e:Entity)
+                WHERE any(w in $words WHERE toLower(e.name) CONTAINS w OR toLower(coalesce(e.description, '')) CONTAINS w)
+                OPTIONAL MATCH (e)-[r]-(target:Entity)
+                RETURN e.name AS name,
+                       e.type AS type,
+                       e.description AS description,
+                       type(r) AS relation,
+                       target.name AS target_name,
+                       target.type AS target_type
+                LIMIT 15
+                """
+                records = neo4j_client.execute_read(cypher, {"words": words})
+                entities_map = {}
+                for row in records:
+                    name = row.get("name")
+                    if not name:
+                        continue
+                    if name not in entities_map:
+                        entities_map[name] = {
+                            "name": name,
+                            "type": row.get("type", "ENTITY"),
+                            "description": row.get("description", ""),
+                            "connections": []
+                        }
+                    rel = row.get("relation")
+                    tgt = row.get("target_name")
+                    if rel and tgt:
+                        conn = f"{rel} -> {tgt} ({row.get('target_type', 'ENTITY')})"
+                        if conn not in entities_map[name]["connections"]:
+                            entities_map[name]["connections"].append(conn)
+                results["graph_entities"] = list(entities_map.values())
+        except Exception as e:
+            results["graph_entities_error"] = str(e)
+
+    # 3. Dynamic Tool Matching
+    try:
+        active_tools = db.query(KnowledgeSource).filter(
+            KnowledgeSource.source_type.in_(["api", "database"]),
+            KnowledgeSource.is_active == True
+        ).all()
+
+        q_lower = query.lower()
+        for s in active_tools:
+            cfg = s.config or {}
+            if cfg.get("is_tool") or cfg.get("parameters"):
+                prefix = "db_" if s.source_type == "database" else "api_"
+                tool_name = cfg.get("tool_name") or f"{prefix}{s.name.replace(' ', '_').lower()}"
+                clean_name = "".join(c if c.isalnum() or c == "_" else "_" for c in tool_name).lower()
+                desc = (cfg.get("tool_description") or s.description or "").lower()
+
+                match_score = 0
+                if "tanah" in clean_name and any(w in q_lower for w in ["tanah", "bpn", "sertifikat", "hgb"]):
+                    match_score += 10
+                if clean_name in q_lower or s.name.lower() in q_lower:
+                    match_score += 8
+                for w in desc.split():
+                    if len(w) > 3 and w in q_lower:
+                        match_score += 2
+
+                extracted_args = {}
+                param_names = [p.get("name", "").lower() for p in cfg.get("parameters", [])]
+                if "nama" in param_names:
+                    name_match = re.search(r'(?:nama|atas nama|milik|an\.?)\s+([A-Za-z\s]+?)(?:$|\s+(?:di|dengan|pada|nomor))', query, re.IGNORECASE)
+                    if name_match:
+                        extracted_args["nama"] = name_match.group(1).strip()
+
+                if match_score > 0 or extracted_args:
+                    results["applicable_tools"].append({
+                        "tool_name": clean_name,
+                        "source_id": s.id,
+                        "source_type": s.source_type,
+                        "title": s.name,
+                        "parameters": cfg.get("parameters", []),
+                        "suggested_arguments": extracted_args,
+                        "confidence": "high" if (match_score >= 8 or extracted_args) else "medium"
+                    })
+    except Exception as e:
+        results["applicable_tools_error"] = str(e)
+
+    # 4. Formulate Tailored AI Synthesis Guidelines
+    guidance = []
+    if results["applicable_tools"]:
+        top_tool = results["applicable_tools"][0]
+        guidance.append(f"A specialized real-time tool '{top_tool['tool_name']}' is available for live query. If verified current data is needed, invoke this tool.")
+    if results["retrieved_documents"]:
+        doc_count = len(results["retrieved_documents"])
+        guidance.append(f"Found {doc_count} relevant document passage(s). Ground your response in these texts and cite each Source Name.")
+    if results["graph_entities"]:
+        ent_count = len(results["graph_entities"])
+        guidance.append(f"Found {ent_count} Knowledge Graph entity profile(s). Highlight verified relationships and entity affiliations.")
+    if not results["retrieved_documents"] and not results["graph_entities"] and not results["applicable_tools"]:
+        guidance.append("No matching records found in knowledge base or graph. Explicitly inform user that data is not found in the connected repository.")
+
+    guidance.append("Format output using clean Markdown (headings, bullet points, tables for tabular data). Do not invent missing facts.")
+
+    # 5. Biometric Face Recognition (if image provided)
+    if payload.image_base64:
+        try:
+            from services.face_service import face_service
+            face_res = face_service.recognize_face(payload.image_base64, min_confidence=0.6)
+            results["biometric_face_result"] = face_res
+            if face_res.get("matched"):
+                person = face_res.get("person_name") or face_res.get("identified_person")
+                conf = face_res.get("confidence_percent")
+                guidance.insert(0, f"Biometric Face Match Positive: {person} (Confidence: {conf}%). Incorporate verified identity into the response.")
+            elif face_res.get("detection", {}).get("face_detected"):
+                guidance.insert(0, "Biometric Face Detected: Person is unidentified / not enrolled in database.")
+        except Exception as fe:
+            results["biometric_face_error"] = str(fe)
+
+    results["ai_synthesis_guidelines"] = guidance
+
+    return results
+

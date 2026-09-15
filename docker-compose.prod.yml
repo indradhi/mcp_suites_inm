@@ -1,0 +1,150 @@
+# ─────────────────────────────────────────────
+#  Production overrides — Linux server
+#  Usage: make prod
+# ─────────────────────────────────────────────
+
+services:
+
+  mysql:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  redis:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  chromadb:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  neo4j:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  mcp-server:
+    restart: always
+    ports:
+      - "${MCP_SERVER_PORT:-8001}:8001"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  backoffice-api:
+    restart: always
+    ports:
+      - "${BACKOFFICE_API_PORT:-8002}:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "pianaru:172.16.21.66"
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  celery-worker:
+    restart: always
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "pianaru:172.16.21.66"
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8G
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  celery-beat:
+    restart: always
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  backoffice-ui:
+    restart: always
+    ports: []
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  backup-service:
+    restart: always
+
+  # ── Nginx Reverse Proxy (production only) ──
+  nginx:
+    image: nginx:alpine
+    container_name: mcp_nginx
+    restart: always
+    ports:
+      - "${PROD_HTTP_PORT:-80}:80"
+      - "${PROD_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./services/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./services/nginx/ssl:/etc/nginx/ssl:ro
+    networks:
+      - mcp_net
+    depends_on:
+      - mcp-server
+      - backoffice-api
+      - backoffice-ui
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
