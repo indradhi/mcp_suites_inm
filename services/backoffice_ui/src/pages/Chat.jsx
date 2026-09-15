@@ -24,7 +24,6 @@ import {
   UserCheck,
   UserX,
   MapPin,
-  Map,
   Network,
   Lightbulb,
   ExternalLink,

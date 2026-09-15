@@ -8,7 +8,8 @@ export default function CytoscapeGraph({ elements, onSelectNode, selectedNodeId,
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const cy = cytoscape({
+    const cytoscapeFn = typeof cytoscape === 'function' ? cytoscape : (cytoscape.default || cytoscape);
+    const cy = cytoscapeFn({
       container: containerRef.current,
       elements: elements,
       style: [
