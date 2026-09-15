@@ -60,6 +60,9 @@ class FastFeatureEmbeddingFunction(EmbeddingFunction[Documents]):
             vec = vec / norm
         return vec.tolist()
 
+    def name(self) -> str:
+        return "FastFeatureEmbeddingFunction"
+
     def __call__(self, input: Documents) -> Embeddings:
         return [self._embed_text(doc) for doc in input]
 
@@ -89,11 +92,19 @@ class VectorStoreService:
     def get_collection(self):
         if self._collection is None:
             client = self.get_client()
-            self._collection = client.get_or_create_collection(
-                name=self.collection_name,
-                embedding_function=self.embedding_fn,
-                metadata={"hnsw:space": "cosine"}
-            )
+            try:
+                self._collection = client.get_collection(name=self.collection_name)
+            except Exception:
+                try:
+                    self._collection = client.create_collection(
+                        name=self.collection_name,
+                        metadata={"hnsw:space": "cosine"}
+                    )
+                except Exception:
+                    self._collection = client.get_or_create_collection(
+                        name=self.collection_name,
+                        metadata={"hnsw:space": "cosine"}
+                    )
         return self._collection
 
     def add_chunks(
@@ -104,16 +115,23 @@ class VectorStoreService:
     ):
         """
         Adds text chunks with metadata and unique IDs to ChromaDB.
+        Explicitly pre-embeds documents using FastFeatureEmbeddingFunction
+        to avoid embedding function conflicts and onnxruntime dependency.
         """
         if not texts:
             return
         collection = self.get_collection()
         batch_size = 500
         for i in range(0, len(texts), batch_size):
+            batch_texts = texts[i:i+batch_size]
+            batch_metas = metadatas[i:i+batch_size]
+            batch_ids = ids[i:i+batch_size]
+            batch_embeddings = [self.embedding_fn._embed_text(t) for t in batch_texts]
             collection.upsert(
-                documents=texts[i:i+batch_size],
-                metadatas=metadatas[i:i+batch_size],
-                ids=ids[i:i+batch_size]
+                documents=batch_texts,
+                embeddings=batch_embeddings,
+                metadatas=batch_metas,
+                ids=batch_ids
             )
 
     def delete_by_source(self, source_id: int):
@@ -192,8 +210,9 @@ class VectorStoreService:
 
         # 2. Vector Semantic Similarity Search
         try:
+            query_emb = [self.embedding_fn._embed_text(query)]
             res = collection.query(
-                query_texts=[query],
+                query_embeddings=query_emb,
                 n_results=n_results + len(seen_ids),
                 where=filter_meta
             )

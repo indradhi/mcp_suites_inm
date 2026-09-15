@@ -57,6 +57,9 @@ class FastFeatureEmbeddingFunction(EmbeddingFunction[Documents]):
             vec = vec / norm
         return vec.tolist()
 
+    def name(self) -> str:
+        return "FastFeatureEmbeddingFunction"
+
     def __call__(self, input: Documents) -> Embeddings:
         return [self._embed_text(doc) for doc in input]
 
@@ -87,14 +90,18 @@ class VectorClient:
         if self._collection is None:
             client = self.get_client()
             try:
-                self._collection = client.get_or_create_collection(
-                    name=self.collection_name,
-                    embedding_function=self.embedding_fn,
-                    metadata={"hnsw:space": "cosine"}
-                )
-            except Exception as e:
-                logger.error(f"Failed to get/create ChromaDB collection {self.collection_name}: {e}")
-                raise
+                self._collection = client.get_collection(name=self.collection_name)
+            except Exception:
+                try:
+                    self._collection = client.create_collection(
+                        name=self.collection_name,
+                        metadata={"hnsw:space": "cosine"}
+                    )
+                except Exception:
+                    self._collection = client.get_or_create_collection(
+                        name=self.collection_name,
+                        metadata={"hnsw:space": "cosine"}
+                    )
         return self._collection
 
     async def search_knowledge(
@@ -108,9 +115,9 @@ class VectorClient:
         """
         try:
             collection = self.get_collection()
-            # If an embedding service is available or ChromaDB default embedding function is used:
+            query_emb = [self.embedding_fn._embed_text(query_text)]
             results = collection.query(
-                query_texts=[query_text],
+                query_embeddings=query_emb,
                 n_results=n_results,
                 where=filter_metadata if filter_metadata else None
             )
