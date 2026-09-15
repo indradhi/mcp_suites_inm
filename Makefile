@@ -42,6 +42,13 @@ prod: init-data
 	@echo "   Direct MCP Server   → http://localhost:8001"
 	@echo "   Direct Backoffice   → http://localhost:8002/docs"
 
+prod-build: init-data
+	docker compose $(DC_PROD) up -d --build
+	@echo "✅ Production stack started."
+	@echo "   Nginx Reverse Proxy → http://localhost (ports 80/443)"
+	@echo "   Direct MCP Server   → http://localhost:8001"
+	@echo "   Direct Backoffice   → http://localhost:8002/docs"
+
 down:
 	docker compose $(DC_BASE) down
 

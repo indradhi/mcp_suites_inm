@@ -1,8 +1,11 @@
 import os
+import re
 import json
+import base64
+import copy
 import logging
 import asyncio
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.responses import JSONResponse
@@ -657,10 +660,125 @@ async def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
             detail=f"Tool '{name}' not recognized"
         )
 
+# ── Helper for MCP Image Content Conversion (image, foto, photo, gambar, picture) ──
+IMAGE_KEY_WORDS = {'image', 'foto', 'photo', 'gambar', 'picture', 'avatar', 'img'}
+
+def detect_mime_type(b64: str) -> str:
+    if b64.startswith('data:image/'):
+        m = re.match(r'^data:image/([a-zA-Z0-9\+\-\.]+);base64,', b64)
+        if m:
+            sub = m.group(1).lower()
+            return f'image/{sub}'
+    clean = re.sub(r'^data:image/[^;]+;base64,', '', b64).strip()
+    if clean.startswith('/9j/'):
+        return 'image/jpeg'
+    elif clean.startswith('iVBORw0KGgo'):
+        return 'image/png'
+    elif clean.startswith('R0lGOD'):
+        return 'image/gif'
+    elif clean.startswith('UklGR'):
+        return 'image/webp'
+    return 'image/jpeg'
+
+def clean_b64_data(b64: str) -> str:
+    clean = re.sub(r'^data:image/[^;]+;base64,', '', b64).strip()
+    raw = "".join(clean.split())
+    if len(raw) % 4 == 1:
+        raw = raw[:-1]
+    pad = (4 - len(raw) % 4) % 4
+    return raw + ('=' * pad)
+
+def is_b64_image_val(val: Any) -> bool:
+    if not isinstance(val, str) or len(val) < 50:
+        return False
+    val_s = "".join(val.strip().split())
+    return (
+        val.strip().startswith('data:image/') or
+        val_s.startswith('/9j/') or
+        val_s.startswith('iVBORw0KGgo') or
+        val_s.startswith('R0lGOD') or
+        val_s.startswith('UklGR') or
+        bool(re.match(r'^[A-Za-z0-9+/=]{100,}$', val_s))
+    )
+
+def extract_mcp_images(obj: Any, max_images: int = 10) -> Tuple[Any, List[Dict[str, str]]]:
+    """
+    Scans tool output data for any image, foto, photo, gambar, or picture base64 data.
+    Converts and extracts them into standard Model Context Protocol (MCP) image content blocks:
+      {"type": "image", "data": "<base64_payload>", "mimeType": "image/jpeg" | "image/png" ...}
+    Supports multiline wrapped base64, dictionary keys, and pipe/colon delimiters in text.
+    Also replaces long base64 strings in the text JSON with concise placeholder notes
+    so LLM token budget is preserved while images are properly rendered in OpenWebUI/Claude.
+    """
+    images: List[Dict[str, str]] = []
+
+    # Regex matching keyword-prefixed base64 or explicit image base64, supporting multiline wraps
+    text_img_regex = re.compile(
+        r'(?P<prefix>(?:(?:foto|photo|image|gambar|picture)[\s_]*[:=]\s*)|(?:[\|\n]\s*))'
+        r'(?P<data>(?:data:image/[^;\s]+;base64,[A-Za-z0-9+/=\s\r\n]{40,}|/9j/[A-Za-z0-9+/=]{40,}(?:\r?\n[A-Za-z0-9+/=]{40,})*(?:\r?\n[A-Za-z0-9+/=]+={0,2})?|iVBORw0KGgo[A-Za-z0-9+/=]{40,}(?:\r?\n[A-Za-z0-9+/=]{40,})*(?:\r?\n[A-Za-z0-9+/=]+={0,2})?))',
+        re.IGNORECASE
+    )
+
+    def _traverse(node: Any) -> Any:
+        if len(images) >= max_images:
+            return node
+
+        if isinstance(node, dict):
+            new_dict = {}
+            for k, v in node.items():
+                k_lower = str(k).lower()
+                is_img_key = any(w in k_lower for w in IMAGE_KEY_WORDS)
+                if is_img_key and is_b64_image_val(v):
+                    if len(images) < max_images:
+                        mime = detect_mime_type(v)
+                        raw_b64 = clean_b64_data(v)
+                        images.append({"type": "image", "data": raw_b64, "mimeType": mime})
+                        new_dict[k] = f"[IMAGE_ATTACHED: {mime}, length={len(raw_b64)} chars]"
+                    else:
+                        new_dict[k] = v
+                elif is_img_key and isinstance(v, str) and os.path.isfile(v) and any(v.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif']):
+                    try:
+                        with open(v, 'rb') as f:
+                            raw_b64 = base64.b64encode(f.read()).decode('utf-8')
+                            mime = 'image/png' if v.lower().endswith('.png') else ('image/webp' if v.lower().endswith('.webp') else 'image/jpeg')
+                            images.append({"type": "image", "data": raw_b64, "mimeType": mime})
+                            new_dict[k] = f"[IMAGE_ATTACHED: {mime}, file={os.path.basename(v)}]"
+                    except Exception:
+                        new_dict[k] = v
+                else:
+                    new_dict[k] = _traverse(v)
+            return new_dict
+
+        elif isinstance(node, list):
+            return [_traverse(item) for item in node]
+
+        elif isinstance(node, str) and len(node) >= 60:
+            def _replace_embedded(match):
+                if len(images) >= max_images:
+                    return match.group(0)
+                prefix = match.group('prefix')
+                b64_content = match.group('data')
+                raw_b64 = clean_b64_data(b64_content)
+                if len(raw_b64) < 100:
+                    return match.group(0)
+                mime = detect_mime_type(b64_content)
+                images.append({"type": "image", "data": raw_b64, "mimeType": mime})
+                return f"{prefix}[IMAGE_ATTACHED: {mime}, length={len(raw_b64)} chars]"
+
+            return text_img_regex.sub(_replace_embedded, node)
+
+        return node
+
+    cleaned = _traverse(copy.deepcopy(obj))
+    return cleaned, images
+
 @app.post("/call_tool")
 async def call_tool_endpoint(call: ToolCallRequest):
     result = await execute_tool(call.name, call.arguments)
-    return JSONResponse(content=result)
+    clean_result, images = extract_mcp_images(result)
+    if images:
+        clean_result["_mcp_images"] = images
+    return JSONResponse(content=clean_result)
 
 # ── JSON-RPC 2.0 & SSE Support for OpenWebUI / Claude / MCP Clients ──
 
@@ -715,16 +833,22 @@ async def rpc_endpoint(req: JsonRpcRequest):
         tool_args = params.get("arguments", {})
         try:
             output = await execute_tool(tool_name, tool_args)
+            clean_output, images = extract_mcp_images(output)
+
+            content_blocks = [
+                {
+                    "type": "text",
+                    "text": json.dumps(clean_output, indent=2)
+                }
+            ]
+            for img in images:
+                content_blocks.append(img)
+
             return {
                 "jsonrpc": "2.0",
                 "id": req.id,
                 "result": {
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": json.dumps(output, indent=2)
-                        }
-                    ]
+                    "content": content_blocks
                 }
             }
         except Exception as e:
