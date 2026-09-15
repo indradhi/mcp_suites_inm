@@ -109,19 +109,37 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 ---
 
-## 🔌 Connecting OpenWebUI
+## 🔌 Service Access Points & Connecting OpenWebUI
+
+<details open>
+<summary><b>🌐 Click to Expand/Collapse Available Access Points & OpenWebUI Guide</b></summary>
+
+### 📍 Available Access Points (Clickable)
+
+| Service | Development URL | Production URL (Nginx) | Description |
+| :--- | :--- | :--- | :--- |
+| **MCP SSE Endpoint** | [http://localhost:8001/sse](http://localhost:8001/sse) | [http://<server-ip>/sse](http://localhost/sse) *(or `:8001/sse`)* | Primary SSE stream for OpenWebUI & MCP clients |
+| **Backoffice Web UI** | [http://localhost:5173](http://localhost:5173) | [http://<server-ip>/](http://localhost/) | Knowledge Base management, face enrollment & AI chat |
+| **Backoffice API Docs** | [http://localhost:8002/docs](http://localhost:8002/docs) | [http://<server-ip>/docs](http://localhost/docs) | Interactive Swagger OpenAPI documentation |
+| **Neo4j Graph Browser** | [http://localhost:7474](http://localhost:7474) | [http://<server-ip>:7474](http://localhost:7474) | Interactive Cypher graph visualizer |
+
+### 🛠️ How to Connect OpenWebUI
 
 In your OpenWebUI settings:
 1. Navigate to **Admin Panel** > **Settings** > **Tools** (or **Connections** > **MCP Servers**).
-2. Add a new MCP Server:
+2. Click **Add MCP Server**:
    - **Type**: `SSE`
-   - **URL**: `http://<host-ip>:8001/sse`
-3. Save and test connection.
-4. Tools enabled:
+   - **URL (Production via Nginx)**: `http://<host-ip>/sse`
+   - **URL (Direct Port)**: `http://<host-ip>:8001/sse`
+3. Click **Save & Test Connection**.
+4. Discovered AI Tools:
    - `search_knowledge_base`: Retrieves semantically relevant context chunks.
    - `get_entity_network_profile`: Fetches deep relational graphs for named entities.
    - `analyze_data_relationship`: Multi-hop reasoning between entities.
    - `get_graph_network_insights`: Global network topology and cluster hubs.
+   - `recognize_face`: Facial recognition against enrolled person profiles.
+
+</details>
 
 ---
 
