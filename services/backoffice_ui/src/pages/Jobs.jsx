@@ -24,6 +24,16 @@ export default function Jobs() {
     }
   };
 
+  const handleCancelJob = async (jobId) => {
+    if (!window.confirm(`Are you sure you want to cancel Job #${jobId}?`)) return;
+    try {
+      await api.post(`/jobs/${jobId}/cancel`);
+      fetchJobs();
+    } catch (err) {
+      alert('Failed to cancel job: ' + (err.response?.data?.detail || err.message));
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -52,12 +62,13 @@ export default function Jobs() {
               <th style={{ padding: '12px' }}>Relations</th>
               <th style={{ padding: '12px' }}>Started (WIB)</th>
               <th style={{ padding: '12px' }}>Duration</th>
+              <th style={{ padding: '12px' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {jobs.length === 0 ? (
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
+                <td colSpan={9} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
                   No jobs logged yet.
                 </td>
               </tr>
@@ -79,6 +90,11 @@ export default function Jobs() {
                       <span className={`badge ${job.status === 'completed' ? 'badge-success' : job.status === 'processing' ? 'badge-info' : 'badge-danger'}`}>
                         {job.status}
                       </span>
+                      {job.error_message && (
+                        <div style={{ fontSize: '11px', color: '#f87171', marginTop: '4px', maxWidth: '260px', wordBreak: 'break-word' }} title={job.error_message}>
+                          {job.error_message.length > 80 ? job.error_message.slice(0, 80) + '...' : job.error_message}
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>
                       {job.total_records && job.total_records > job.chunks_created
@@ -96,6 +112,26 @@ export default function Jobs() {
                     </td>
                     <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>
                       {duration}
+                    </td>
+                    <td style={{ padding: '14px 12px' }}>
+                      {job.status === 'processing' && (
+                        <button
+                          type="button"
+                          onClick={() => handleCancelJob(job.id)}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            background: 'rgba(239, 68, 68, 0.15)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            color: '#ef4444',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

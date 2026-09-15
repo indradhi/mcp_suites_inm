@@ -153,35 +153,40 @@ export default function Dashboard() {
 
       {/* Collapsible Information Pane: Access Points & OpenWebUI Integration */}
       {(() => {
+        const currentProto = typeof window !== 'undefined' ? window.location.protocol : 'http:';
         const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
         const currentPort = typeof window !== 'undefined' ? window.location.port : '';
-        const isProdPort = !currentPort || currentPort === '80' || currentPort === '443';
+        const browserBaseUrl = `${currentProto}//${currentHost}${currentPort ? `:${currentPort}` : ''}`;
+        const isStandardPort = !currentPort || currentPort === '80' || currentPort === '443';
 
         const accessPoints = [
           {
             id: 'mcp-prod',
-            name: 'MCP SSE Endpoint (Nginx / Production)',
-            url: `http://${currentHost}/sse`,
-            badge: 'Production Default',
+            name: 'MCP SSE Endpoint (Recommended)',
+            url: `${browserBaseUrl}/sse`,
+            displayUrl: `${browserBaseUrl}/sse`,
+            badge: currentProto === 'https:' ? 'HTTPS Domain' : 'Nginx Proxy',
             badgeBg: 'rgba(16, 185, 129, 0.15)',
             badgeBorder: 'rgba(16, 185, 129, 0.4)',
             badgeColor: '#10b981',
-            desc: 'Production SSE stream via Nginx reverse proxy (Port 80/443). Recommended for OpenWebUI.'
+            desc: 'Production SSE stream via reverse proxy. Recommended for OpenWebUI & Claude Desktop.'
           },
           {
             id: 'mcp-direct',
             name: 'MCP SSE Direct (Port 8001)',
             url: `http://${currentHost}:8001/sse`,
-            badge: 'Direct Container',
+            displayUrl: `http://${currentHost}:8001/sse`,
+            badge: 'Direct Port 8001',
             badgeBg: 'rgba(99, 102, 241, 0.15)',
             badgeBorder: 'rgba(99, 102, 241, 0.4)',
             badgeColor: '#818cf8',
-            desc: 'Direct container port bypass without reverse proxy. Ideal for local dev or internal Docker networks.'
+            desc: 'Direct container port bypass without reverse proxy. Ideal for internal Docker networks or local dev.'
           },
           {
             id: 'api-docs',
             name: 'Backoffice API Docs (Swagger)',
-            url: isProdPort ? `http://${currentHost}/docs` : `http://${currentHost}:8002/docs`,
+            url: `${browserBaseUrl}/docs`,
+            displayUrl: `${browserBaseUrl}/docs`,
             badge: 'OpenAPI REST',
             badgeBg: 'rgba(6, 182, 212, 0.15)',
             badgeBorder: 'rgba(6, 182, 212, 0.4)',
@@ -190,18 +195,31 @@ export default function Dashboard() {
           },
           {
             id: 'neo4j',
-            name: 'Neo4j Graph Visualizer',
+            name: 'Neo4j Graph Visualizer (UI)',
             url: `http://${currentHost}:7474`,
-            badge: 'Cypher UI',
+            displayUrl: `http://${currentHost}:7474`,
+            badge: 'Browser Port 7474',
             badgeBg: 'rgba(245, 158, 11, 0.15)',
             badgeBorder: 'rgba(245, 158, 11, 0.4)',
             badgeColor: '#fbbf24',
             desc: 'Interactive visual exploration of entities, graph relations, and connected network clusters.'
           },
           {
+            id: 'neo4j-bolt',
+            name: 'Neo4j Bolt Protocol',
+            url: `bolt://${currentHost}:7687`,
+            displayUrl: `bolt://${currentHost}:7687`,
+            badge: 'Bolt Port 7687',
+            badgeBg: 'rgba(234, 88, 12, 0.15)',
+            badgeBorder: 'rgba(234, 88, 12, 0.4)',
+            badgeColor: '#fb923c',
+            desc: 'Internal & external Cypher binary connection string for clients, scripts, and visualization tools.'
+          },
+          {
             id: 'backoffice-ui',
             name: 'Backoffice Web UI (This App)',
-            url: isProdPort ? `http://${currentHost}` : `http://${currentHost}:5173`,
+            url: browserBaseUrl,
+            displayUrl: browserBaseUrl,
             badge: 'Current App',
             badgeBg: 'rgba(139, 92, 246, 0.15)',
             badgeBorder: 'rgba(139, 92, 246, 0.4)',
@@ -456,7 +474,7 @@ export default function Dashboard() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <button
                         type="button"
-                        onClick={() => copyUrl(`http://${currentHost}/sse`, 'mcp-rec-prod')}
+                        onClick={() => copyUrl(`${browserBaseUrl}/sse`, 'mcp-rec-prod')}
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -472,7 +490,7 @@ export default function Dashboard() {
                         }}
                       >
                         {copiedKey === 'mcp-rec-prod' ? <Check size={13} /> : <Copy size={13} />}
-                        Copy Prod SSE URL (Port 80)
+                        Copy Recommended SSE URL
                       </button>
 
                       <button
@@ -493,7 +511,7 @@ export default function Dashboard() {
                         }}
                       >
                         {copiedKey === 'mcp-rec-direct' ? <Check size={13} /> : <Copy size={13} />}
-                        Copy Direct SSE URL (:8001)
+                        Copy Direct SSE (:8001)
                       </button>
                     </div>
                   </div>

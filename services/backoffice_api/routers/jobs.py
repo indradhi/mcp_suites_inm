@@ -54,3 +54,18 @@ def get_job(job_id: int, db: Session = Depends(get_db), user = Depends(get_curre
         "completed_at": (job.completed_at.isoformat() + "Z") if job.completed_at else None,
         "created_at": (job.created_at.isoformat() + "Z") if job.created_at else None
     }
+
+@router.post("/{job_id}/cancel")
+def cancel_job(job_id: int, db: Session = Depends(get_db), user = Depends(get_current_user)):
+    from datetime import datetime
+    job = db.query(IngestJob).filter(IngestJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    job.status = "failed"
+    job.error_message = f"Cancelled by user {user.username}"
+    job.completed_at = datetime.utcnow()
+    if job.source and job.source.sync_status == "running":
+        job.source.sync_status = "failed"
+    db.commit()
+    return {"message": f"Job {job_id} cancelled successfully"}

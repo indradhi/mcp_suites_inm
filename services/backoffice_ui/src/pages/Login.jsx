@@ -4,8 +4,8 @@ import { Layers, ArrowRight, ShieldCheck, Lock, User } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
 export default function Login() {
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const { login, isLoading, error } = useAuthStore();
   const navigate = useNavigate();
 

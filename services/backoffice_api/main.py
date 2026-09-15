@@ -24,6 +24,27 @@ async def lifespan(app: FastAPI):
     try:
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables verified.")
+
+        # Recover any orphaned jobs stuck in 'processing' from a previous server restart
+        from database import SessionLocal
+        from datetime import datetime
+        db = SessionLocal()
+        try:
+            stuck_jobs = db.query(IngestJob).filter(IngestJob.status == "processing").all()
+            for sj in stuck_jobs:
+                sj.status = "failed"
+                sj.error_message = "Task interrupted by server restart"
+                sj.completed_at = datetime.utcnow()
+                if sj.source and sj.source.sync_status == "running":
+                    sj.source.sync_status = "failed"
+            if stuck_jobs:
+                db.commit()
+                logger.info(f"Cleaned up {len(stuck_jobs)} orphaned ingest jobs.")
+        except Exception as e_clean:
+            logger.warning(f"Notice during orphaned jobs cleanup: {e_clean}")
+        finally:
+            db.close()
+
     except Exception as e:
         logger.warning(f"Could not connect to database on startup: {e}")
     yield
