@@ -82,6 +82,11 @@ Telah ditambahkan sistem penyesuaian (adjustment) pada Chat Backoffice dan API L
    - **Dukungan 'Simpan Sebagai Baru (Duplikat)' pada Modal**: Pada modal edit Database (`AddDatabaseModal`) dan API (`AddApiModal`), pengguna juga dapat mengubah query/endpoint/parameter dan menyimpannya sebagai koneksi baru tanpa menimpa konfigurasi sebelumnya.
    - **Endpoint Backend**: `POST /api/knowledge/sources/{source_id}/duplicate` mendukung duplikasi seluruh tipe koneksi (`database`, `api`, `file`, `website`, `websearch`, `google_drive`).
 
+9. **Perlindungan Input Modal (Mencegah Modal Tertutup Tidak Sengaja)**:
+   - **Pencegahan Click-Outside & Swipe**: Menghapus listener `onClick={onClose}` pada backdrop `.modal-overlay` di seluruh 6 modal penambahan/pengeditan knowledge source (`AddDatabaseModal`, `AddApiModal`, `AddFileModal`, `AddWebsiteModal`, `AddWebSearchModal`, `AddGoogleDriveModal`).
+   - **Tidak Menghilangkan Form Data**: Pengguna tidak akan kehilangan ketikan konfigurasi, query SQL panjang, kredensial, atau parameter saat kursor/sentuhan layar secara tidak sengaja mengklik atau mengusap (*swipe*) area di luar jendela modal.
+   - **Penutupan Eksplisit**: Modal kini hanya tertutup ketika pengguna secara sadar menekan tombol silang `(X)` di pojok kanan atas, tombol `Cancel`, atau saat form berhasil disimpan.
+
 ---
 
 ### Key Features Implemented

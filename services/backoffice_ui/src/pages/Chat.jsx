@@ -178,6 +178,9 @@ export default function Chat() {
   const [attachedDocument, setAttachedDocument] = useState(null);
   const [docUploading, setDocUploading] = useState(false);
   const [docUploadError, setDocUploadError] = useState(null);
+  const [activeBackends, setActiveBackends] = useState([]);
+  const [selectedBackendId, setSelectedBackendId] = useState(null);
+  const [selectedModelName, setSelectedModelName] = useState('');
   const [lightboxImage, setLightboxImage] = useState(null);
   const [copiedImage, setCopiedImage] = useState(false);
   const [copiedResponseId, setCopiedResponseId] = useState(null);
@@ -242,6 +245,7 @@ export default function Chat() {
   useEffect(() => {
     fetchSources();
     fetchTools();
+    fetchActiveModels();
   }, []);
 
   useEffect(() => {
@@ -250,6 +254,17 @@ export default function Chat() {
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const fetchActiveModels = async () => {
+    try {
+      const res = await api.get('/llm/active-models');
+      if (res.data && Array.isArray(res.data)) {
+        setActiveBackends(res.data);
+      }
+    } catch (err) {
+      console.warn('Could not fetch active models for chat:', err);
+    }
   };
 
   const fetchSources = async () => {
@@ -461,6 +476,8 @@ export default function Chat() {
         history: historyPayload.slice(0, -1), // prior history
         source_id: selectedSources.length === 1 ? parseInt(selectedSources[0]) : null,
         source_ids: selectedSources.length > 0 ? selectedSources.map(id => parseInt(id)) : null,
+        backend_id: selectedBackendId || null,
+        model_name: selectedModelName || null,
         include_graph: includeGraph,
         top_k: topK,
         image_base64: currentAttachedImage || null,
@@ -1729,6 +1746,32 @@ export default function Chat() {
                 {strictMode ? 'Anti-Halu (0.0)' : `Suhu ${temperature}`}
               </span>
 
+              {/* Active Model pill */}
+              <span 
+                onClick={toggleHeaderOptions}
+                title="Klik untuk memilih model / provider AI"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '2px 8px',
+                  borderRadius: '6px',
+                  background: selectedModelName ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                  border: `1px solid ${selectedModelName ? 'rgba(99, 102, 241, 0.35)' : 'rgba(255, 255, 255, 0.08)'}`,
+                  color: selectedModelName ? '#a5b4fc' : 'var(--text-muted)',
+                  fontSize: '11px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  maxWidth: '160px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <Cpu size={11} />
+                {selectedModelName ? selectedModelName : 'Model: Default'}
+              </span>
+
               {/* Active Tools pill */}
               {activeTools.length > 0 && (
                 <span 
@@ -2216,6 +2259,49 @@ export default function Chat() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Model LLM Selector (Cloud & Local) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Cpu size={14} color="var(--accent-primary)" />
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Model LLM:</span>
+            <select
+              value={selectedBackendId && selectedModelName ? `${selectedBackendId}:${selectedModelName}` : ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (!val) {
+                  setSelectedBackendId(null);
+                  setSelectedModelName('');
+                } else {
+                  const parts = val.split(':');
+                  setSelectedBackendId(parseInt(parts[0]));
+                  setSelectedModelName(parts.slice(1).join(':'));
+                }
+              }}
+              style={{
+                background: selectedModelName ? 'rgba(30, 41, 59, 0.95)' : 'rgba(15, 23, 42, 0.8)',
+                border: `1px solid ${selectedModelName ? 'var(--accent-primary)' : 'var(--border-color)'}`,
+                color: '#ffffff',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                fontSize: '13px',
+                outline: 'none',
+                cursor: 'pointer',
+                maxWidth: '260px'
+              }}
+              title="Pilih model LLM untuk sesi chat ini (Cloud / Local)"
+            >
+              <option value="">⚙️ Default (Sesuai Assignment)</option>
+              {activeBackends.map(b => (
+                <optgroup key={b.backend_id} label={`${b.backend_name} (${b.backend_type.toUpperCase()})`}>
+                  {(b.models || []).map((m, mIdx) => (
+                    <option key={`${b.backend_id}:${m}`} value={`${b.backend_id}:${m}`}>
+                      {m} {b.is_default && m === b.default_model ? '★' : ''}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
           </div>
 
           {/* Top-K Selector */}
@@ -3295,7 +3381,7 @@ export default function Chat() {
                           <>
                             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <Cpu size={12} />
-                              {msg.model_used || 'Qwen3.6-35B'}
+                              {msg.backend_name ? `${msg.backend_name} · ` : ''}{msg.model_used || 'Qwen3.6-35B'}
                             </span>
                             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <Clock size={12} />

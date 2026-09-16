@@ -18,39 +18,85 @@ class LLMService:
     def get_client(self, api_base: Optional[str] = None, api_key: Optional[str] = None) -> OpenAI:
         base = api_base or self.default_base_url
         key = api_key or self.default_api_key or "EMPTY"
+        default_headers = {
+            "User-Agent": "MCP-Knowledge-Backoffice/1.0",
+            "HTTP-Referer": "http://localhost:5173",
+            "X-Title": "MCP Knowledge Backoffice"
+        }
         return OpenAI(
             base_url=base,
             api_key=key,
+            default_headers=default_headers,
             timeout=120.0
         )
 
     def get_async_client(self, api_base: Optional[str] = None, api_key: Optional[str] = None) -> AsyncOpenAI:
         base = api_base or self.default_base_url
         key = api_key or self.default_api_key or "EMPTY"
+        default_headers = {
+            "User-Agent": "MCP-Knowledge-Backoffice/1.0",
+            "HTTP-Referer": "http://localhost:5173",
+            "X-Title": "MCP Knowledge Backoffice"
+        }
         return AsyncOpenAI(
             base_url=base,
             api_key=key,
+            default_headers=default_headers,
             timeout=120.0
         )
 
     async def list_remote_models(self, api_base: str, api_key: Optional[str] = None) -> List[str]:
         """
-        Attempts to list models from an OpenAI-compatible /v1/models endpoint (vLLM, Ollama, etc.)
+        Attempts to list models from an OpenAI-compatible /models endpoint (OpenAI, Groq, DeepSeek, OpenRouter, Gemini, vLLM, Ollama, etc.)
         """
         key = api_key or "EMPTY"
-        headers = {"Authorization": f"Bearer {key}"} if key != "EMPTY" else {}
-        url = api_base.rstrip("/")
-        if not url.endswith("/v1"):
-            url += "/v1"
-        url += "/models"
+        headers = {
+            "User-Agent": "MCP-Knowledge-Backoffice/1.0",
+            "HTTP-Referer": "http://localhost:5173",
+            "X-Title": "MCP Knowledge Backoffice"
+        }
+        if key and key != "EMPTY":
+            headers["Authorization"] = f"Bearer {key}"
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(url, headers=headers)
-            resp.raise_for_status()
-            data = resp.json()
-            if "data" in data and isinstance(data["data"], list):
-                return [m["id"] for m in data["data"] if "id" in m]
-            return []
+        clean_base = api_base.strip().rstrip("/")
+        if clean_base.endswith("/models"):
+            candidate_urls = [clean_base]
+        elif "/v1" in clean_base or "/openai" in clean_base or "/compatibility" in clean_base:
+            candidate_urls = [f"{clean_base}/models"]
+        else:
+            candidate_urls = [f"{clean_base}/v1/models", f"{clean_base}/models"]
+
+        last_err = None
+        for test_url in candidate_urls:
+            try:
+                async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
+                    resp = await client.get(test_url, headers=headers)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        # Standard OpenAI / Groq / vLLM / OpenRouter format: {"data": [{"id": "model_id"}, ...]}
+                        if "data" in data and isinstance(data["data"], list):
+                            models = [str(m["id"]) for m in data["data"] if isinstance(m, dict) and "id" in m]
+                            if models:
+                                return models
+                        # Ollama native format: {"models": [{"name": "llama3:latest"}, ...]}
+                        elif "models" in data and isinstance(data["models"], list):
+                            models = [str(m.get("name") or m.get("model") or m.get("id")) for m in data["models"] if isinstance(m, dict)]
+                            if models:
+                                return [m for m in models if m]
+                    elif resp.status_code in [401, 403]:
+                        resp.raise_for_status()
+            except httpx.HTTPStatusError as hse:
+                if hse.response.status_code == 401:
+                    raise Exception("Autentikasi gagal: API Key tidak valid atau tidak diizinkan.")
+                elif hse.response.status_code == 403:
+                    raise Exception("Akses ditolak (403): Periksa izin API Key atau kuota akun.")
+                last_err = hse
+            except Exception as ex:
+                last_err = ex
+
+        if last_err:
+            raise last_err
+        return []
 
     def get_task_backend(self, task: str, db) -> tuple[str, str, str]:
         """
@@ -110,15 +156,26 @@ Text to analyze:
 \"\"\"
 """
         try:
-            kwargs = {
-                "model": model,
-                "messages": [
-                    {"role": "system", "content": "You are a precise data extraction assistant that outputs strictly valid JSON only."},
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0.1,
-                "max_tokens": 2500
-            }
+            is_o_series = any(model.lower().startswith(p) for p in ["o1", "o3", "openai/o1", "openai/o3"])
+            if is_o_series:
+                kwargs = {
+                    "model": model,
+                    "messages": [
+                        {"role": "user", "content": f"You are a precise data extraction assistant that outputs strictly valid JSON only.\n\n{prompt}"}
+                    ],
+                    "max_completion_tokens": 2500
+                }
+            else:
+                kwargs = {
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": "You are a precise data extraction assistant that outputs strictly valid JSON only."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": 0.1,
+                    "max_tokens": 2500
+                }
+
             # Disable thinking/reasoning mode on vLLM/Qwen to prevent token exhaustion by thinking traces
             try:
                 response = client.chat.completions.create(
@@ -126,7 +183,17 @@ Text to analyze:
                     extra_body={"chat_template_kwargs": {"enable_thinking": False}}
                 )
             except Exception:
-                response = client.chat.completions.create(**kwargs)
+                try:
+                    response = client.chat.completions.create(**kwargs)
+                except Exception as e_retry:
+                    # Fallback if model requires max_completion_tokens instead of max_tokens or rejects temperature
+                    if "max_tokens" in str(e_retry) or "temperature" in str(e_retry):
+                        kwargs.pop("temperature", None)
+                        if "max_tokens" in kwargs:
+                            kwargs["max_completion_tokens"] = kwargs.pop("max_tokens")
+                        response = client.chat.completions.create(**kwargs)
+                    else:
+                        raise e_retry
 
             msg = response.choices[0].message
             raw_content = (msg.content or "").strip()

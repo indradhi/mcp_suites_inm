@@ -336,7 +336,12 @@ class ChatService:
                 api_key = custom_be.api_key or "EMPTY"
                 backend_name = custom_be.name
                 if not model_name:
-                    model = custom_be.default_model or model
+                    model = custom_be.available_models[0] if (custom_be.available_models and len(custom_be.available_models) > 0) else model
+        elif db:
+            from models.llm_backend import ModelAssignment
+            assign = db.query(ModelAssignment).filter(ModelAssignment.task == "general_qa").first()
+            if assign and assign.backend:
+                backend_name = assign.backend.name
 
         if model_name:
             model = model_name
@@ -615,10 +620,17 @@ Patuhi aturan:
                 try:
                     response = client.chat.completions.create(**kwargs)
                 except Exception as tool_err:
-                    if tools and ("tool" in str(tool_err).lower() or "function" in str(tool_err).lower()):
+                    err_s = str(tool_err).lower()
+                    if tools and ("tool" in err_s or "function" in err_s):
                         logger.warning(f"Backend doesn't support tools parameter, falling back without tools: {tool_err}")
                         kwargs.pop("tools", None)
                         kwargs.pop("tool_choice", None)
+                        response = client.chat.completions.create(**kwargs)
+                    elif "max_tokens" in err_s or "temperature" in err_s:
+                        logger.info(f"Adjusting parameters for model compatibility: {tool_err}")
+                        kwargs.pop("temperature", None)
+                        if "max_tokens" in kwargs:
+                            kwargs["max_completion_tokens"] = kwargs.pop("max_tokens")
                         response = client.chat.completions.create(**kwargs)
                     else:
                         raise tool_err
@@ -705,12 +717,22 @@ Patuhi aturan:
                             extra_body={"chat_template_kwargs": {"enable_thinking": False}}
                         )
                     except Exception:
-                        followup_resp = client.chat.completions.create(
-                            model=model,
-                            messages=messages,
-                            temperature=effective_temperature,
-                            max_tokens=4500
-                        )
+                        try:
+                            followup_resp = client.chat.completions.create(
+                                model=model,
+                                messages=messages,
+                                temperature=effective_temperature,
+                                max_tokens=4500
+                            )
+                        except Exception as follow_p_err:
+                            if "max_tokens" in str(follow_p_err) or "temperature" in str(follow_p_err):
+                                followup_resp = client.chat.completions.create(
+                                    model=model,
+                                    messages=messages,
+                                    max_completion_tokens=4500
+                                )
+                            else:
+                                raise follow_p_err
                     msg = followup_resp.choices[0].message
                 except Exception as follow_err:
                     logger.error(f"Error during follow-up chat completion after tool execution: {follow_err}")
