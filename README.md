@@ -91,7 +91,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 ```
 Access points:
 - **Backoffice UI**: [http://localhost:5173](http://localhost:5173) (or `http://localhost:80` in prod)
-- **Backoffice API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Backoffice API Docs**: [http://localhost:8002/docs](http://localhost:8002/docs) (or [http://localhost:5173/docs](http://localhost:5173/docs))
 - **MCP Server Endpoint**: [http://localhost:8001/sse](http://localhost:8001/sse)
 - **Neo4j Browser**: [http://localhost:7474](http://localhost:7474)
 

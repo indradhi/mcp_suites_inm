@@ -10,6 +10,9 @@ import {
   Share2, 
   ChevronDown, 
   ChevronRight, 
+  ChevronLeft, 
+  ChevronUp, 
+  SlidersHorizontal, 
   Database, 
   Clock, 
   Loader2, 
@@ -36,7 +39,9 @@ import {
   Filter,
   ThumbsUp,
   ThumbsDown,
-  MessageSquare
+  MessageSquare,
+  Paperclip,
+  FileSpreadsheet
 } from 'lucide-react';
 import api from '../api/client';
 import { formatTimeWIB } from '../utils/dateUtils';
@@ -156,7 +161,23 @@ export default function Chat() {
   const [expandedMap, setExpandedMap] = useState({});
   const [expandedFace, setExpandedFace] = useState({});
   const [activeTools, setActiveTools] = useState([]);
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
+  const [isHeaderOptionsOpen, setIsHeaderOptionsOpen] = useState(() => {
+    const saved = localStorage.getItem('chat_options_open');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const toggleHeaderOptions = () => {
+    setIsHeaderOptionsOpen(prev => {
+      const next = !prev;
+      localStorage.setItem('chat_options_open', String(next));
+      return next;
+    });
+  };
   const [attachedImage, setAttachedImage] = useState(null);
+  const [attachedDocument, setAttachedDocument] = useState(null);
+  const [docUploading, setDocUploading] = useState(false);
+  const [docUploadError, setDocUploadError] = useState(null);
   const [lightboxImage, setLightboxImage] = useState(null);
   const [copiedImage, setCopiedImage] = useState(false);
   const [feedbackState, setFeedbackState] = useState({}); // msgId -> 'like' | 'dislike' | null
@@ -166,6 +187,7 @@ export default function Chat() {
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
+  const docInputRef = useRef(null);
 
   useEffect(() => {
     const handleKeyDownGlobal = (e) => {
@@ -258,6 +280,43 @@ export default function Chat() {
     e.target.value = '';
   };
 
+  const handleDocSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Max 35MB file size limit
+    if (file.size > 35 * 1024 * 1024) {
+      setDocUploadError('Ukuran file melebihi batas maksimal 35MB');
+      setTimeout(() => setDocUploadError(null), 6000);
+      e.target.value = '';
+      return;
+    }
+
+    setDocUploading(true);
+    setDocUploadError(null);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await api.post('/chat/upload-document', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      if (res.data?.success && res.data?.data) {
+        setAttachedDocument(res.data.data);
+      } else {
+        setDocUploadError('Gagal memproses dan mengekstrak isi dokumen.');
+      }
+    } catch (err) {
+      console.error('Error uploading chat document:', err);
+      setDocUploadError(err.response?.data?.detail || 'Gagal mengunggah dokumen.');
+      setTimeout(() => setDocUploadError(null), 6000);
+    } finally {
+      setDocUploading(false);
+      e.target.value = '';
+    }
+  };
+
   const handlePaste = (e) => {
     const items = e.clipboardData?.items;
     if (items) {
@@ -341,17 +400,21 @@ export default function Chat() {
 
   const handleSend = async (customPrompt) => {
     const textToSend = typeof customPrompt === 'string' ? customPrompt : input;
-    const effectiveText = textToSend.trim() || (attachedImage ? 'Recognize this face / analyze image' : '');
-    if (!effectiveText && !attachedImage) return;
-    if (loading) return;
+    const effectiveText = textToSend.trim() || 
+      (attachedDocument ? `Analisis isi dokumen '${attachedDocument.file_name}' dan berikan poin-poin penting serta ringkasannya` : 
+      (attachedImage ? 'Recognize this face / analyze image' : ''));
+    if (!effectiveText && !attachedImage && !attachedDocument) return;
+    if (loading || docUploading) return;
 
     const currentAttachedImage = attachedImage;
+    const currentAttachedDoc = attachedDocument;
 
     const userMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
       content: effectiveText,
       image: currentAttachedImage,
+      document: currentAttachedDoc,
       timestamp: formatTimeWIB(new Date())
     };
 
@@ -359,6 +422,7 @@ export default function Chat() {
     setMessages(newMessages);
     setInput('');
     setAttachedImage(null);
+    setAttachedDocument(null);
     setLoading(true);
 
     // Prepare conversational history (exclude welcome message)
@@ -375,6 +439,8 @@ export default function Chat() {
         include_graph: includeGraph,
         top_k: topK,
         image_base64: currentAttachedImage || null,
+        doc_id: currentAttachedDoc?.doc_id || null,
+        document_data: currentAttachedDoc || null,
         strict_mode: strictMode,
         temperature: temperature
       });
@@ -455,9 +521,12 @@ export default function Chat() {
   };
 
   const samplePrompts = [
+    'Ringkas dan analisis temuan utama dalam file terlampir',
     'Tampilkan data kependudukan Cianjur dalam bentuk tabel dan peta',
     'Tampilkan entitas dan relasi Knowledge Graph secara visual',
     'Bandingkan status database dan API dalam format tabel',
+    'Siapa itu Indradhi di database kependudukan?',
+    'Cari data sertifikat tanah di BPN',
     'Status sinkronisasi seluruh Knowledge Sources'
   ];
 
@@ -1550,20 +1619,217 @@ export default function Chat() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)', gap: '16px' }}>
-      {/* Top Header & Settings Bar */}
-      <div 
-        className="glass-panel" 
-        style={{ 
-          position: 'relative',
-          zIndex: 50,
-          padding: '16px 24px', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'space-between', 
-          flexWrap: 'wrap', 
-          gap: '16px' 
-        }}
-      >
+      {/* Top Header & Settings Bar (Collapsed vs Expanded) */}
+      {!isHeaderOptionsOpen ? (
+        <div 
+          className="glass-panel" 
+          style={{ 
+            position: 'relative',
+            zIndex: 40,
+            padding: '8px 16px', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between', 
+            gap: '12px',
+            minHeight: '44px',
+            borderRadius: '12px',
+            flexShrink: 0
+          }}
+        >
+          {/* Left: Compact Logo & Title + Quick Status Badges */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '8px',
+              background: 'linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)'
+            }}>
+              <Bot size={16} color="#ffffff" />
+            </div>
+            <span style={{ fontSize: '14px', fontWeight: '700', color: '#ffffff' }}>
+              AI Knowledge Chat
+            </span>
+
+            {/* Quick Status Chips */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {/* Sources pill */}
+              <span 
+                onClick={toggleHeaderOptions}
+                title="Klik untuk mengubah sumber pengetahuan"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '2px 8px',
+                  borderRadius: '6px',
+                  background: selectedSources.length > 0 ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                  border: `1px solid ${selectedSources.length > 0 ? 'rgba(56, 189, 248, 0.3)' : 'rgba(255, 255, 255, 0.08)'}`,
+                  color: selectedSources.length > 0 ? '#38bdf8' : 'var(--text-muted)',
+                  fontSize: '11px',
+                  fontWeight: '500',
+                  cursor: 'pointer'
+                }}
+              >
+                <Database size={11} />
+                {selectedSources.length === 0 ? 'All Sources' : `${selectedSources.length} Sources`}
+              </span>
+
+              {/* Anti-Halu pill */}
+              <span 
+                onClick={() => {
+                  const next = !strictMode;
+                  setStrictMode(next);
+                  setTemperature(next ? 0.0 : 0.3);
+                }}
+                title="Klik untuk toggle mode Anti-Halusinasi"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '2px 8px',
+                  borderRadius: '6px',
+                  background: strictMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                  border: `1px solid ${strictMode ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
+                  color: strictMode ? '#34d399' : '#fbbf24',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                <ShieldCheck size={11} />
+                {strictMode ? 'Anti-Halu (0.0)' : `Suhu ${temperature}`}
+              </span>
+
+              {/* Active Tools pill */}
+              {activeTools.length > 0 && (
+                <span 
+                  onClick={() => setIsRightSidebarOpen(true)}
+                  title="Lihat daftar dynamic tools di sidebar kanan"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    background: 'rgba(6, 182, 212, 0.12)',
+                    border: '1px solid rgba(6, 182, 212, 0.25)',
+                    color: 'var(--accent-cyan)',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Zap size={11} />
+                  {activeTools.length} Tools
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Right: Quick actions & Expand Button */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Reset button */}
+            <button
+              onClick={handleClear}
+              title="Reset Conversation"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '5px 10px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                border: '1px solid var(--border-color)',
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                transition: 'color 0.2s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#fda4af'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+            >
+              <Trash2 size={12} />
+              <span>Reset</span>
+            </button>
+
+            {/* Toggle Right Sidebar */}
+            <button
+              type="button"
+              onClick={() => setIsRightSidebarOpen(prev => !prev)}
+              title={isRightSidebarOpen ? "Sembunyikan Sidebar Tools & Saran" : "Buka Sidebar Tools & Saran"}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '5px 10px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: isRightSidebarOpen ? '600' : '400',
+                border: `1px solid ${isRightSidebarOpen ? 'rgba(99, 102, 241, 0.4)' : 'var(--border-color)'}`,
+                background: isRightSidebarOpen ? 'rgba(99, 102, 241, 0.15)' : 'rgba(15, 23, 42, 0.8)',
+                color: isRightSidebarOpen ? '#a5b4fc' : 'var(--text-secondary)',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              <Sparkles size={12} color={isRightSidebarOpen ? 'var(--accent-primary)' : 'var(--text-muted)'} />
+              <span>Tools</span>
+              {isRightSidebarOpen ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
+            </button>
+
+            {/* Expand Full Options Button */}
+            <button
+              type="button"
+              onClick={toggleHeaderOptions}
+              title="Buka Opsi Chat & Filter Lengkap"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '5px 12px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: '600',
+                border: '1px solid rgba(99, 102, 241, 0.4)',
+                background: 'rgba(99, 102, 241, 0.15)',
+                color: '#a5b4fc',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(99, 102, 241, 0.25)';
+                e.currentTarget.style.color = '#ffffff';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(99, 102, 241, 0.15)';
+                e.currentTarget.style.color = '#a5b4fc';
+              }}
+            >
+              <SlidersHorizontal size={13} />
+              <span>Opsi Chat</span>
+              <ChevronDown size={13} />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div 
+          className="glass-panel" 
+          style={{ 
+            position: 'relative',
+            zIndex: 50,
+            padding: '16px 24px', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between', 
+            flexWrap: 'wrap', 
+            gap: '16px',
+            flexShrink: 0
+          }}
+        >
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{
             width: '42px',
@@ -2054,6 +2320,75 @@ export default function Chat() {
             <Trash2 size={14} />
             Reset
           </button>
+
+          {/* Toggle Right Sidebar Button */}
+          <button
+            type="button"
+            onClick={() => setIsRightSidebarOpen(prev => !prev)}
+            title={isRightSidebarOpen ? "Sembunyikan Sidebar Tools & Saran" : "Buka Sidebar Tools & Saran"}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 12px',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: isRightSidebarOpen ? '600' : '400',
+              border: `1px solid ${isRightSidebarOpen ? 'rgba(99, 102, 241, 0.4)' : 'var(--border-color)'}`,
+              background: isRightSidebarOpen ? 'rgba(99, 102, 241, 0.15)' : 'rgba(15, 23, 42, 0.8)',
+              color: isRightSidebarOpen ? '#a5b4fc' : 'var(--text-secondary)',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            <Sparkles size={14} color={isRightSidebarOpen ? 'var(--accent-primary)' : 'var(--text-muted)'} />
+            <span>Tools & Saran</span>
+            {activeTools.length > 0 && (
+              <span style={{
+                background: 'rgba(6, 182, 212, 0.2)',
+                color: 'var(--accent-cyan)',
+                fontSize: '11px',
+                padding: '1px 6px',
+                borderRadius: '10px',
+                fontWeight: '700'
+              }}>
+                {activeTools.length}
+              </span>
+            )}
+            {isRightSidebarOpen ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
+
+          {/* Collapse Header Options Button */}
+          <button
+            type="button"
+            onClick={toggleHeaderOptions}
+            title="Ciutkan Opsi Chat (Perbesar Layar Respon)"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 12px',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: '500',
+              border: '1px solid var(--border-color)',
+              background: 'rgba(255, 255, 255, 0.05)',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--accent-primary)';
+              e.currentTarget.style.color = '#ffffff';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border-color)';
+              e.currentTarget.style.color = 'var(--text-secondary)';
+            }}
+          >
+            <ChevronUp size={15} />
+            <span>Ciutkan</span>
+          </button>
         </div>
 
         {/* Active Filter Chips Strip */}
@@ -2126,11 +2461,30 @@ export default function Chat() {
           </div>
         )}
       </div>
+      )}
 
-      {/* Main Chat Conversation Container */}
-      <div 
-        className="glass-panel" 
-        style={{ 
+      {/* Content Area with Main Chat & Collapsible Right Sidebar */}
+      <div style={{
+        display: 'flex',
+        flex: 1,
+        gap: '16px',
+        minHeight: 0,
+        overflow: 'hidden',
+        position: 'relative'
+      }}>
+        {/* Left/Center Column: Chat History + Input Box */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          flex: 1,
+          minWidth: 0,
+          gap: '12px',
+          height: '100%'
+        }}>
+          {/* Main Chat Conversation Container */}
+          <div 
+            className="glass-panel" 
+            style={{ 
           position: 'relative',
           zIndex: 1,
           flex: 1, 
@@ -2211,6 +2565,47 @@ export default function Chat() {
                         }}
                         title="Click to view full image"
                       />
+                    </div>
+                  )}
+
+                  {/* Attached User Document */}
+                  {isUser && msg.document && (
+                    <div style={{
+                      marginBottom: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px 12px',
+                      background: 'rgba(0, 0, 0, 0.25)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      borderRadius: '8px',
+                      maxWidth: '380px'
+                    }}>
+                      <div style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '6px',
+                        background: 'rgba(255, 255, 255, 0.15)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#a7f3d0',
+                        flexShrink: 0
+                      }}>
+                        {msg.document.file_type === 'excel' || msg.document.file_type === 'csv' ? (
+                          <FileSpreadsheet size={18} />
+                        ) : (
+                          <FileText size={18} />
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                        <span style={{ fontSize: '13px', fontWeight: '600', color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          📎 {msg.document.file_name}
+                        </span>
+                        <span style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.8)' }}>
+                          {msg.document.summary || `${msg.document.file_type?.toUpperCase()} Document`}
+                        </span>
+                      </div>
                     </div>
                   )}
 
@@ -3087,228 +3482,590 @@ export default function Chat() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Suggested Prompt Chips (when few messages) */}
-      {messages.length <= 2 && (
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', padding: '0 4px' }}>
-          {samplePrompts.map((prompt, pIdx) => (
-            <button
-              key={pIdx}
-              onClick={() => handleSend(prompt)}
-              disabled={loading}
-              style={{
-                background: 'rgba(15, 23, 42, 0.6)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '20px',
-                padding: '6px 14px',
-                fontSize: '12px',
-                color: 'var(--text-secondary)',
-                cursor: 'pointer',
+        {/* Bottom Message Input Box */}
+        <div className="glass-panel" style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
+          {/* Attached image preview chip */}
+          {attachedImage && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '8px 12px',
+              background: 'rgba(99, 102, 241, 0.12)',
+              border: '1px solid rgba(99, 102, 241, 0.35)',
+              borderRadius: '10px',
+              width: 'fit-content'
+            }}>
+              <img
+                src={attachedImage}
+                alt="Preview"
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '6px',
+                  objectFit: 'cover',
+                  border: '1px solid rgba(255, 255, 255, 0.2)'
+                }}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '12px', fontWeight: '600', color: '#ffffff' }}>
+                  Image attached for Face Recognition
+                </span>
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                  Will scan biometric features & identify against ChromaDB
+                </span>
+              </div>
+              <button
+                onClick={() => setAttachedImage(null)}
+                title="Remove attached image"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '24px',
+                  height: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: '#ffffff',
+                  marginLeft: '8px',
+                  transition: 'background 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.5)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
+          {/* Attached Document preview chip */}
+          {attachedDocument && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '8px 12px',
+              background: 'rgba(16, 185, 129, 0.12)',
+              border: '1px solid rgba(16, 185, 129, 0.35)',
+              borderRadius: '10px',
+              width: 'fit-content',
+              maxWidth: '100%'
+            }}>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                background: 'rgba(16, 185, 129, 0.2)',
+                border: '1px solid rgba(16, 185, 129, 0.4)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                e.currentTarget.style.color = '#ffffff';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--border-color)';
-                e.currentTarget.style.color = 'var(--text-secondary)';
-              }}
-            >
-              <Sparkles size={12} color="var(--accent-primary)" />
-              {prompt}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Active AI Tools Pill Bar */}
-      {activeTools.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', padding: '0 4px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <Zap size={12} color="var(--accent-cyan)" /> Active AI Tools:
-          </span>
-          {activeTools.map((t, idx) => {
-            const isDb = t.source_type === 'database' || t.name.startsWith('db_');
-            const toolColor = isDb ? 'var(--accent-primary)' : 'var(--accent-cyan)';
-            const toolBg = isDb ? 'rgba(99, 102, 241, 0.12)' : 'rgba(6, 182, 212, 0.1)';
-            const toolBorder = isDb ? 'rgba(99, 102, 241, 0.35)' : 'rgba(6, 182, 212, 0.3)';
-
-            return (
-              <span
-                key={idx}
-                title={`${t.description} (Parameters: ${(t.parameters || []).map(p => p.name).join(', ') || 'none'})`}
+                justifyContent: 'center',
+                color: '#34d399',
+                flexShrink: 0
+              }}>
+                {attachedDocument.file_type === 'excel' || attachedDocument.file_type === 'csv' ? (
+                  <FileSpreadsheet size={20} />
+                ) : (
+                  <FileText size={20} />
+                )}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {attachedDocument.file_name}
+                  </span>
+                  <span style={{
+                    fontSize: '10px',
+                    fontWeight: '700',
+                    padding: '1px 6px',
+                    borderRadius: '4px',
+                    background: 'rgba(16, 185, 129, 0.25)',
+                    color: '#6ee7b7',
+                    textTransform: 'uppercase'
+                  }}>
+                    {attachedDocument.file_type}
+                  </span>
+                </div>
+                <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                  {attachedDocument.summary || `${((attachedDocument.file_size || 0) / 1024).toFixed(1)} KB`}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAttachedDocument(null)}
+                title="Hapus lampiran dokumen"
                 style={{
-                  background: toolBg,
-                  border: `1px solid ${toolBorder}`,
-                  borderRadius: '12px',
-                  padding: '2px 8px',
-                  fontSize: '11px',
-                  color: toolColor,
-                  fontFamily: 'JetBrains Mono, monospace',
-                  display: 'inline-flex',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '24px',
+                  height: '24px',
+                  display: 'flex',
                   alignItems: 'center',
-                  gap: '4px',
-                  cursor: 'default'
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: '#ffffff',
+                  marginLeft: '8px',
+                  flexShrink: 0,
+                  transition: 'background 0.2s'
                 }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.5)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
               >
-                ⚡ {t.name}
-                <span style={{ opacity: 0.7, fontSize: '10px' }}>({(t.parameters || []).length}p)</span>
-              </span>
-            );
-          })}
-        </div>
-      )}
+                <X size={14} />
+              </button>
+            </div>
+          )}
 
-      {/* Bottom Message Input Box */}
-      <div className="glass-panel" style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {/* Attached image preview chip */}
-        {attachedImage && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '8px 12px',
-            background: 'rgba(99, 102, 241, 0.12)',
-            border: '1px solid rgba(99, 102, 241, 0.35)',
-            borderRadius: '10px',
-            width: 'fit-content'
-          }}>
-            <img
-              src={attachedImage}
-              alt="Preview"
+          {/* Document Upload Error Banner */}
+          {docUploadError && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '6px 12px',
+              background: 'rgba(239, 68, 68, 0.15)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: '8px',
+              color: '#f87171',
+              fontSize: '12px'
+            }}>
+              <AlertCircle size={14} />
+              <span>{docUploadError}</span>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '10px', width: '100%' }}>
+            {/* Hidden File Input for Image Upload */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              onChange={handleImageSelect}
+              style={{ display: 'none' }}
+            />
+
+            {/* Hidden File Input for Document Upload */}
+            <input
+              type="file"
+              ref={docInputRef}
+              accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.tsv,.txt,.md,.json,.log"
+              onChange={handleDocSelect}
+              style={{ display: 'none' }}
+            />
+
+            {/* Document Attachment Button */}
+            <button
+              type="button"
+              onClick={() => docInputRef.current?.click()}
+              disabled={docUploading}
+              title="Lampirkan Dokumen (PDF, Word DOCX, Excel XLSX/XLS, CSV, Text/JSON) untuk dianalisis AI"
               style={{
                 width: '42px',
                 height: '42px',
-                borderRadius: '6px',
-                objectFit: 'cover',
-                border: '1px solid rgba(255, 255, 255, 0.2)'
+                borderRadius: '10px',
+                background: attachedDocument ? 'rgba(52, 211, 153, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                border: `1px solid ${attachedDocument ? '#34d399' : 'var(--border-color)'}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: docUploading ? 'not-allowed' : 'pointer',
+                color: attachedDocument ? '#34d399' : 'var(--text-muted)',
+                transition: 'all 0.2s',
+                flexShrink: 0
               }}
-            />
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '12px', fontWeight: '600', color: '#ffffff' }}>
-                Image attached for Face Recognition
-              </span>
-              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                Will scan biometric features & identify against ChromaDB
-              </span>
-            </div>
+              onMouseEnter={(e) => {
+                if (!docUploading) {
+                  e.currentTarget.style.color = '#ffffff';
+                  e.currentTarget.style.borderColor = '#34d399';
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = attachedDocument ? '#34d399' : 'var(--text-muted)';
+                e.currentTarget.style.borderColor = attachedDocument ? '#34d399' : 'var(--border-color)';
+              }}
+            >
+              {docUploading ? <Loader2 size={19} className="animate-spin" color="#34d399" /> : <Paperclip size={19} />}
+            </button>
+
+            {/* Image Attachment Button */}
             <button
-              onClick={() => setAttachedImage(null)}
-              title="Remove attached image"
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              title="Attach image or photo for Face Recognition (or paste image from clipboard)"
               style={{
-                background: 'rgba(255, 255, 255, 0.1)',
-                border: 'none',
-                borderRadius: '50%',
-                width: '24px',
-                height: '24px',
+                width: '42px',
+                height: '42px',
+                borderRadius: '10px',
+                background: attachedImage ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                border: `1px solid ${attachedImage ? 'var(--accent-primary)' : 'var(--border-color)'}`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
-                color: '#ffffff',
-                marginLeft: '8px',
-                transition: 'background 0.2s'
+                color: attachedImage ? 'var(--accent-primary)' : 'var(--text-muted)',
+                transition: 'all 0.2s',
+                flexShrink: 0
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.5)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = '#ffffff';
+                e.currentTarget.style.borderColor = 'var(--accent-primary)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = attachedImage ? 'var(--accent-primary)' : 'var(--text-muted)';
+                e.currentTarget.style.borderColor = attachedImage ? 'var(--accent-primary)' : 'var(--border-color)';
+              }}
             >
-              <X size={14} />
+              <ImageIcon size={19} />
+            </button>
+
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={handleTextareaChange}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              placeholder={
+                attachedDocument 
+                  ? `Tanyakan sesuatu tentang dokumen '${attachedDocument.file_name}' (atau tekan Enter untuk analisis lengkap)...`
+                  : attachedImage 
+                  ? "Add instructions (e.g. 'Siapa orang ini?') or press Enter to scan face..." 
+                  : "Ask a question about your knowledge base or attach document/image... (Enter to send, Shift+Enter for newline)"
+              }
+              rows={1}
+              style={{
+                flex: 1,
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                color: '#ffffff',
+                fontSize: '14px',
+                lineHeight: '1.5',
+                resize: 'none',
+                maxHeight: '180px',
+                padding: '8px 4px',
+                fontFamily: 'inherit'
+              }}
+            />
+
+            <button
+              onClick={() => handleSend()}
+              disabled={(!input.trim() && !attachedImage && !attachedDocument) || loading || docUploading}
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '10px',
+                background: (input.trim() || attachedImage || attachedDocument) && !loading && !docUploading
+                  ? 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)'
+                  : 'rgba(255, 255, 255, 0.05)',
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: (input.trim() || attachedImage || attachedDocument) && !loading && !docUploading ? 'pointer' : 'not-allowed',
+                color: '#ffffff',
+                transition: 'all 0.2s',
+                flexShrink: 0,
+                boxShadow: (input.trim() || attachedImage || attachedDocument) && !loading && !docUploading ? '0 4px 14px rgba(99, 102, 241, 0.4)' : 'none'
+              }}
+            >
+              {loading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
             </button>
           </div>
-        )}
-
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '10px', width: '100%' }}>
-          {/* Hidden File Input for Image Upload */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            accept="image/*"
-            onChange={handleImageSelect}
-            style={{ display: 'none' }}
-          />
-
-          {/* Image Attachment Button */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            title="Attach image or photo for Face Recognition (or paste image from clipboard)"
-            style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '10px',
-              background: attachedImage ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255, 255, 255, 0.05)',
-              border: `1px solid ${attachedImage ? 'var(--accent-primary)' : 'var(--border-color)'}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              color: attachedImage ? 'var(--accent-primary)' : 'var(--text-muted)',
-              transition: 'all 0.2s',
-              flexShrink: 0
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = '#ffffff';
-              e.currentTarget.style.borderColor = 'var(--accent-primary)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = attachedImage ? 'var(--accent-primary)' : 'var(--text-muted)';
-              e.currentTarget.style.borderColor = attachedImage ? 'var(--accent-primary)' : 'var(--border-color)';
-            }}
-          >
-            <ImageIcon size={19} />
-          </button>
-
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={handleTextareaChange}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={attachedImage ? "Add instructions (e.g. 'Siapa orang ini?') or press Enter to scan face..." : "Ask a question about your knowledge base or attach an image... (Enter to send, Shift+Enter for newline)"}
-            rows={1}
-            style={{
-              flex: 1,
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
-              color: '#ffffff',
-              fontSize: '14px',
-              lineHeight: '1.5',
-              resize: 'none',
-              maxHeight: '180px',
-              padding: '8px 4px',
-              fontFamily: 'inherit'
-            }}
-          />
-
-          <button
-            onClick={() => handleSend()}
-            disabled={(!input.trim() && !attachedImage) || loading}
-            style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '10px',
-              background: (input.trim() || attachedImage) && !loading
-                ? 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)'
-                : 'rgba(255, 255, 255, 0.05)',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: (input.trim() || attachedImage) && !loading ? 'pointer' : 'not-allowed',
-              color: '#ffffff',
-              transition: 'all 0.2s',
-              flexShrink: 0,
-              boxShadow: (input.trim() || attachedImage) && !loading ? '0 4px 14px rgba(99, 102, 241, 0.4)' : 'none'
-            }}
-          >
-            {loading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-          </button>
         </div>
       </div>
+
+      {/* Collapsible Right Sidebar: Tools & Chat Suggestions */}
+      {isRightSidebarOpen && (
+        <div 
+          className="glass-panel"
+          style={{
+            width: '320px',
+            minWidth: '280px',
+            maxWidth: '360px',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '16px',
+            gap: '16px',
+            overflowY: 'auto',
+            flexShrink: 0,
+            zIndex: 10
+          }}
+        >
+          {/* Sidebar Header */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingBottom: '12px',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(6, 182, 212, 0.2) 100%)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <Zap size={14} color="var(--accent-cyan)" />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '13px', fontWeight: '700', color: '#ffffff', margin: 0 }}>
+                  Tools & Suggestions
+                </h3>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                  Sidebar Pintar & AI Tools
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsRightSidebarOpen(false)}
+              title="Sembunyikan Sidebar"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                padding: '4px',
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'color 0.15s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#ffffff'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+
+          {/* SECTION 1: ACTIVE AI TOOLS */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <Zap size={13} color="var(--accent-cyan)" /> Active AI Tools
+              </span>
+              <span style={{
+                fontSize: '11px',
+                padding: '2px 8px',
+                borderRadius: '10px',
+                background: activeTools.length > 0 ? 'rgba(6, 182, 212, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                color: activeTools.length > 0 ? 'var(--accent-cyan)' : 'var(--text-muted)',
+                fontWeight: '600'
+              }}>
+                {activeTools.length} tool{activeTools.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+
+            {activeTools.length === 0 ? (
+              <div style={{
+                padding: '14px',
+                borderRadius: '10px',
+                background: 'rgba(255, 255, 255, 0.02)',
+                border: '1px dashed rgba(255, 255, 255, 0.1)',
+                fontSize: '12px',
+                color: 'var(--text-muted)',
+                textAlign: 'center',
+                lineHeight: '1.4'
+              }}>
+                Belum ada dynamic AI tool aktif. Anda dapat mengonfigurasi tool di menu Knowledge Sources.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {activeTools.map((t, idx) => {
+                  const isDb = t.source_type === 'database' || t.name.startsWith('db_');
+                  const toolColor = isDb ? 'var(--accent-primary)' : 'var(--accent-cyan)';
+                  const toolBg = isDb ? 'rgba(99, 102, 241, 0.08)' : 'rgba(6, 182, 212, 0.06)';
+                  const toolBorder = isDb ? 'rgba(99, 102, 241, 0.25)' : 'rgba(6, 182, 212, 0.25)';
+
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        background: toolBg,
+                        border: `1px solid ${toolBorder}`,
+                        borderRadius: '10px',
+                        padding: '10px 12px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                        <span style={{
+                          fontFamily: 'JetBrains Mono, monospace',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          color: toolColor,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          ⚡ {t.name}
+                        </span>
+                        <span style={{
+                          fontSize: '10px',
+                          padding: '1px 6px',
+                          borderRadius: '6px',
+                          background: isDb ? 'rgba(99, 102, 241, 0.2)' : 'rgba(6, 182, 212, 0.2)',
+                          color: toolColor,
+                          fontWeight: '600',
+                          flexShrink: 0
+                        }}>
+                          {isDb ? 'Database' : 'API'}
+                        </span>
+                      </div>
+                      {t.description && (
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                          {t.description}
+                        </div>
+                      )}
+                      {t.parameters && t.parameters.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '2px' }}>
+                          {t.parameters.map((p, pIdx) => (
+                            <span
+                              key={pIdx}
+                              style={{
+                                fontSize: '10px',
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                border: '1px solid rgba(255, 255, 255, 0.08)',
+                                color: 'var(--text-muted)'
+                              }}
+                            >
+                              {p.name}{p.required ? '*' : ''}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* SECTION 2: CHAT SUGGESTIONS / CONTOH PERTANYAAN */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <Sparkles size={13} color="var(--accent-primary)" /> Chat Suggestions
+              </span>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                Klik untuk tanya
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {samplePrompts.map((prompt, pIdx) => (
+                <button
+                  key={pIdx}
+                  type="button"
+                  onClick={() => handleSend(prompt)}
+                  disabled={loading}
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.6)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '10px',
+                    padding: '10px 12px',
+                    fontSize: '12px',
+                    color: 'var(--text-secondary)',
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    textAlign: 'left',
+                    lineHeight: '1.4',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '8px',
+                    transition: 'all 0.2s',
+                    width: '100%'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!loading) {
+                      e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                      e.currentTarget.style.background = 'rgba(99, 102, 241, 0.1)';
+                      e.currentTarget.style.color = '#ffffff';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!loading) {
+                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                      e.currentTarget.style.background = 'rgba(15, 23, 42, 0.6)';
+                      e.currentTarget.style.color = 'var(--text-secondary)';
+                      e.currentTarget.style.transform = 'none';
+                    }
+                  }}
+                >
+                  <Sparkles size={13} color="var(--accent-primary)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <span style={{ flex: 1 }}>{prompt}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Open Handle when Sidebar is Collapsed */}
+      {!isRightSidebarOpen && (
+        <button
+          type="button"
+          onClick={() => setIsRightSidebarOpen(true)}
+          title="Buka Tools & Saran"
+          style={{
+            position: 'absolute',
+            right: '0',
+            top: '16px',
+            zIndex: 20,
+            background: 'rgba(30, 41, 59, 0.9)',
+            border: '1px solid rgba(99, 102, 241, 0.4)',
+            borderRight: 'none',
+            borderRadius: '8px 0 0 8px',
+            padding: '10px 6px',
+            color: '#a5b4fc',
+            cursor: 'pointer',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '6px',
+            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.4)',
+            transition: 'all 0.2s'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(99, 102, 241, 0.25)';
+            e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.6)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(30, 41, 59, 0.9)';
+            e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.4)';
+          }}
+        >
+          <ChevronLeft size={16} />
+          <Sparkles size={14} color="var(--accent-primary)" />
+          {activeTools.length > 0 && (
+            <span style={{
+              background: 'rgba(6, 182, 212, 0.3)',
+              color: 'var(--accent-cyan)',
+              fontSize: '10px',
+              padding: '2px 4px',
+              borderRadius: '6px',
+              fontWeight: '700'
+            }}>
+              {activeTools.length}
+            </span>
+          )}
+        </button>
+      )}
+    </div>
 
       {/* Fullscreen Interactive Lightbox Modal */}
       {lightboxImage && (

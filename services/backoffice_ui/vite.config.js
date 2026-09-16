@@ -17,6 +17,18 @@ export default defineConfig({
         target: process.env.BACKOFFICE_API_URL || 'http://backoffice-api:8000',
         changeOrigin: true
       },
+      '/docs': {
+        target: process.env.BACKOFFICE_API_URL || 'http://backoffice-api:8000',
+        changeOrigin: true
+      },
+      '/redoc': {
+        target: process.env.BACKOFFICE_API_URL || 'http://backoffice-api:8000',
+        changeOrigin: true
+      },
+      '/openapi.json': {
+        target: process.env.BACKOFFICE_API_URL || 'http://backoffice-api:8000',
+        changeOrigin: true
+      },
       '/mcp': {
         target: process.env.MCP_SERVER_URL || 'http://mcp-server:8001',
         changeOrigin: true

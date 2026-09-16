@@ -1,8 +1,43 @@
-# Parameterized API Knowledge Sources as AI Tools & Anti-Hallucination Guardrails — Walkthrough
+# Backoffice AI Chat Document Upload & Analysis (PDF, DOCX, Excel, CSV, Text) — Walkthrough
 
 ---
 
-## 🛡️ Anti-Hallucination & Strict Factual Guardrails (New)
+## 📄 Fitur Analisis Dokumen dari Chat (PDF, DOCX, Excel, CSV, Text)
+
+Telah ditambahkan fitur komprehensif yang memungkinkan pengguna mengunggah dan menganalisis berbagai jenis dokumen langsung dari antarmuka Chat Backoffice:
+
+1. **Format File yang Didukung**:
+   - **PDF (`.pdf`)**: Ekstraksi teks per halaman dengan `pdfplumber` + OCR otomatis untuk halaman pindaian.
+   - **Word (`.docx`, `.doc`)**: Ekstraksi paragraf, judul, dan tabel dengan `python-docx`.
+   - **Excel (`.xlsx`, `.xls`)**: Pembacaan seluruh sheet, ekstraksi baris/kolom dengan `pandas` + `openpyxl`, format tabel terstruktur.
+   - **CSV / TSV (`.csv`, `.tsv`)**: Parsing tabular otomatis dengan ekstraksi nama kolom, jumlah baris, dan preview tabel Markdown.
+   - **Teks / Markdown / Log / JSON (`.txt`, `.md`, `.json`, `.log`)**: Pembacaan teks bersih untuk catatan audit, laporan investigasi, log transaksi, dsb.
+
+2. **Komponen & Arsitektur Backend (`services/backoffice_api`)**:
+   - **`document_parser.py` (`DocumentParserService`)**:
+     - Service ekstraksi terpadu dengan caching memori dan penyimpanan sementara di `/app/uploads/chat_temp/{doc_id}.json`.
+     - Generator tabel Markdown murni untuk file CSV/TSV guna menghindari ketergantungan library eksternal (`tabulate`).
+     - Deteksi metadata otomatis: jumlah halaman, nama sheet, jumlah baris, total karakter, dan preview teks.
+   - **`routers/chat.py`**:
+     - Endpoint baru: `POST /api/chat/upload-document` menerima `multipart/form-data` dengan batas ukuran hingga 35MB.
+     - Model `ChatRequest` diperluas dengan `doc_id` dan `document_data`.
+     - Penanganan otomatis: jika pengguna hanya mengunggah dokumen tanpa teks pertanyaan, AI otomatis menganalisis dan merangkum isi dokumen.
+   - **`chat_service.py`**:
+     - Injeksi konteks dokumen terunggah pada bagian teratas konteks RAG (`=== DOKUMEN YANG DIUNGGAH PENGGUNA ({doc_name}) ===`).
+     - Penambahan instruksi sistem khusus (Directive #12) yang memerintahkan AI memprioritaskan dokumen terunggah, menyajikan data dalam bentuk tabel Markdown/kutipan faktual, serta mencantumkan nama sheet/nomor halaman.
+     - Penambahan sitasi sumber otomatis: `📎 Dokumen Terunggah: {filename}` dalam daftar referensi/sources jawaban AI.
+
+3. **Komponen Antarmuka Pengguna (`Chat.jsx`)**:
+   - **Tombol Lampiran Dokumen (Paperclip Icon 📎)**: Terletak di toolbar input pesan bersebelahan dengan tombol gambar/foto.
+   - **Chip Preview Dokumen Unggahan**: Menampilkan icon jenis file (Spreadsheet/Dokumen), nama file, badge tipe file (PDF, EXCEL, CSV, WORD, TEXT), ringkasan baris/halaman/ukuran, dan tombol hapus `(X)`.
+   - **Indikator Loading Unggah**: Animasi spinner saat file sedang diekstraksi dan diproses di server.
+   - **Banner Pesan Error**: Notifikasi visual jika file melebihi batas 35MB atau format tidak valid.
+   - **Kartu Lampiran Dokumen di Pesan Pengguna**: Bubble pesan pengguna menampilkan badge file dokumen yang dikirim.
+   - **Placeholder Interaktif**: Placeholder textarea otomatis menyesuaikan dengan dokumen yang sedang terlampir (e.g. *"Tanyakan sesuatu tentang dokumen 'laporan.pdf'..."*).
+
+---
+
+## 🛡️ Anti-Hallucination & Strict Factual Guardrails
 
 Telah ditambahkan sistem penyesuaian (adjustment) pada Chat Backoffice dan API LLM untuk mencegah AI berhalusinasi, mengarang, atau salah menampilkan data:
 
@@ -20,6 +55,19 @@ Telah ditambahkan sistem penyesuaian (adjustment) pada Chat Backoffice dan API L
      - `0.3 (Standar)`
      - `0.7 (Kreatif / Fleksibel)`
    - **Status Badge Faktual**: Setiap bubble pesan AI menampilkan status `Faktual (Anti-Halu)` beserta model yang digunakan.
+4. **Collapsible Right Sidebar untuk Tools & Chat Suggestions (`Chat.jsx`)**:
+   - **Pemisahan Layout Bersih**: Chat suggestion (prompt rekomendasi) dan Active AI Tools dipindahkan dari bagian bawah chat input ke sidebar kanan yang elegan.
+   - **Collapsible / Expandable**:
+     - Tombol toggle `Tools & Saran` di toolbar atas dengan badge jumlah tool aktif.
+     - Tombol ciutkan (`ChevronRight`) di dalam sidebar.
+     - Tab/floating handle (`ChevronLeft`) di tepi kanan saat sidebar ditutup.
+   - **Kartu Active AI Tools**: Menampilkan daftar alat aktif (API/Database), deskripsi fungsi, parameter yang didukung, dan badge status.
+   - **Kartu Chat Suggestions**: Daftar pertanyaan rekomendasi yang siap diklik untuk langsung dikirim ke AI tanpa mengetik manual.
+5. **Collapsible Top Chat Options (Layar Respon Lebih Besar) (`Chat.jsx`)**:
+   - **Tombol Ciutkan / Buka Opsi**: Tombol `Ciutkan` (`ChevronUp`) pada toolbar atas untuk menyusutkan panel filter yang tinggi menjadi bar ringkas setinggi ~44px.
+   - **Layar Respon Lebih Luas**: Memberikan tambahan ruang vertikal sebesar 100px-140px langsung ke jendela pesan chat.
+   - **Quick Badges di Mode Collapsed**: Di mode ciut, tetap menampilkan ringkasan status sumber data terpilih, status mode Anti-Halu, dan jumlah tools aktif yang bisa diklik.
+   - **Persistensi Pilihan**: Status buka/tutup opsi chat disimpan di `localStorage` (`chat_options_open`) sehingga preferensi pengguna tetap terjaga saat navigasi atau refresh.
 
 ---
 
@@ -468,13 +516,37 @@ When a user queried for an individual like **"Indradhi Nugraha Mulyanto"** after
 | **Both Sources (5 & 7)** | `db_profiling_data_orang...` | 5 | ✅ NIK 3603280910810007 | ✅ Yes (`data:image/jpeg;base64,...`) |
 | **All Sources (No Filter)** | `db_profiling_data_orang...` | 5 | ✅ NIK 3603280910810007 | ✅ Yes (`data:image/jpeg;base64,...`) |
 
-### 8. Image Lightbox ReferenceError Fix (`Copy is not defined`)
-- **Issue**: Clicking on any photo or base64 image thumbnail in chat to open the full-screen lightbox caused a frontend crash: `ReferenceError: Copy is not defined`.
-- **Root Cause**: The Lightbox Controls Toolbar in [`Chat.jsx`](file:///d:/sourcecode/MCP_SERVER_IN_CEC/services/backoffice_ui/src/pages/Chat.jsx) included a button with `<Copy size={14} />` to copy the image source/base64 string, but `Copy` was omitted from the `lucide-react` import statement at the top of the file.
-- **Fix**:
-  1. Added `Copy` to the `lucide-react` import list in [`Chat.jsx`](file:///d:/sourcecode/MCP_SERVER_IN_CEC/services/backoffice_ui/src/pages/Chat.jsx).
-  2. Cleaned internal helper functions (`normalizeImageSrc`, `isImageSource`, `extractImagesFromData`) to be file-scoped constants for seamless Vite React Fast Refresh.
-- **Verification**: Vite Hot Module Reload updated `/src/pages/Chat.jsx` without errors; full-screen image previews, downloading, and copying base64 sources render smoothly without errors.
+### 9. Live Verification of Document Upload & Chat Analysis (PDF, Word, Excel, CSV, Text)
+
+Telah dilakukan pengujian end-to-end langsung pada server dan container Docker:
+
+#### Test 1: Upload & Analisis File CSV Tabular (`laporan_pengadaan_2026.csv`)
+- **Dokumen Diunggah**: File CSV 5 baris berisi data nomor proyek, nama proyek, kontraktor, anggaran milyar, dan status pengerjaan.
+- **Endpoint Unggah**: `POST /api/chat/upload-document`
+  - Status: `200 OK`
+  - Ekstraksi: Berhasil membaca 5 kolom dan 5 baris data, menghasilkan preview tabel Markdown dan metadata otomatis.
+- **Query Chat**: *"Berdasarkan dokumen laporan_pengadaan_2026.csv, sebutkan proyek dengan anggaran terbesar, siapa kontraktornya, dan apa status proyek tersebut!"*
+- **Hasil Jawaban AI**:
+  - Proyek: Pembangunan Jalur Kereta Cepat
+  - Kontraktor: PT Nusa Indah Perkasa
+  - Anggaran: Rp 120,0 Milyar (Tertinggi)
+  - Status: Tertunda
+  - Sitasi Sumber: `📎 Dokumen Terunggah: laporan_pengadaan_2026.csv`
+
+#### Test 2: Upload & Analisis Catatan Investigasi Teks (`audit_investigasi_september2026.txt`)
+- **Dokumen Diunggah**: File laporan audit khusus tindak pidana korupsi berisi nomor surat, temuan aliran dana bansos, nomor rekening, dan rekomendasi cekal/blokir.
+- **Endpoint Unggah**: `POST /api/chat/upload-document`
+  - Status: `200 OK`
+- **Query Chat**: *"Berapa dana yang ditransfer ke Sdr. Hendra Kusuma dan apa rekomendasi dalam laporan audit ini?"*
+- **Hasil Jawaban AI**:
+  - Jumlah Dana: Rp 4,5 Milyar ke rekening Bank Syariah Mandiri milik Sdr. Hendra Kusuma (Dirut PT Cahaya Mandiri Sejahtera).
+  - Rekomendasi: Pencegahan ke luar negeri & pemblokiran 3 rekening giro PT Cahaya Mandiri Sejahtera.
+  - Zero-Hallucination: AI secara jujur menyampaikan catatan bahwa profil kependudukan Dukcapil untuk Hendra Kusuma tidak ditemukan di database resmi, tanpa mengarang data fiktif.
+
+#### Test 3: Frontend Build & Kompatibilitas
+- **Perintah Build**: `docker compose exec backoffice-ui npm run build`
+- **Hasil**: `✓ built in 8.50s` dengan status Exit Code `0`.
+- **Integrasi**: Tombol Paperclip (`📎`), preview chip, state upload, dan bubble dokumen pengguna berfungsi harmonis di UI Chat.
 
 
 

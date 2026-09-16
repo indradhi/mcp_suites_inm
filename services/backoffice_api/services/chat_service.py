@@ -61,6 +61,7 @@ class ChatService:
         self,
         message: str,
         image_base64: Optional[str] = None,
+        uploaded_document: Optional[Dict[str, Any]] = None,
         history: Optional[List[Dict[str, str]]] = None,
         source_id: Optional[int] = None,
         source_ids: Optional[List[int]] = None,
@@ -157,6 +158,49 @@ class ChatService:
 
         # Formatted sources for response with clean snippets
         clean_sources = []
+
+        # 3.1 Uploaded Document Context Injection (User attached PDF/DOCX/Excel/CSV/Text)
+        if uploaded_document:
+            doc_fname = uploaded_document.get("file_name", "Dokumen Unggahan")
+            doc_type = (uploaded_document.get("file_type") or "document").upper()
+            doc_text = (uploaded_document.get("text_content") or uploaded_document.get("content") or "").strip()
+            doc_meta = uploaded_document.get("metadata", {})
+
+            doc_header_lines = [
+                f"=== DOKUMEN YANG DIUNGGAH PENGGUNA ({doc_fname} [{doc_type}]) ==="
+            ]
+            if doc_meta.get("total_pages"):
+                doc_header_lines.append(f"Total Halaman: {doc_meta['total_pages']}")
+            if doc_meta.get("sheets"):
+                doc_header_lines.append(f"Lembar Kerja (Sheets): {', '.join(doc_meta['sheets'])}")
+            if doc_meta.get("total_rows"):
+                doc_header_lines.append(f"Total Baris Data: {doc_meta['total_rows']}")
+            doc_header_lines.append("Isi Konten Dokumen:")
+
+            MAX_DOC_CHARS = 38000
+            if len(doc_text) > MAX_DOC_CHARS:
+                doc_body = doc_text[:MAX_DOC_CHARS] + f"\n\n... [Catatan: Dokumen sangat panjang, dipotong pada {MAX_DOC_CHARS} karakter pertama]"
+            else:
+                doc_body = doc_text
+
+            doc_header_lines.append(doc_body)
+            uploaded_doc_entry = "\n".join(doc_header_lines) + "\n"
+            context_parts.append(uploaded_doc_entry)
+            accumulated_chars += len(uploaded_doc_entry)
+
+            # Prepend to clean_sources so UI can display it as a cited source
+            clean_sources.append({
+                "id": f"uploaded_{uploaded_document.get('doc_id', 'doc')}",
+                "content": (doc_text[:1500] + "...") if len(doc_text) > 1500 else doc_text,
+                "score": 1.0,
+                "metadata": {
+                    "source_name": f"📎 Dokumen Terunggah: {doc_fname}",
+                    "file_name": doc_fname,
+                    "file_type": doc_type,
+                    "is_uploaded_document": True,
+                    **doc_meta
+                }
+            })
 
         # 4. Face Recognition Scan (if image attached)
         face_result = None
@@ -476,7 +520,19 @@ Guidelines:
             "\n11. Displaying Images & Photos: If the context, database records, or tool execution results contain photos, image URLs, or base64 photo strings (such as 'foto', 'image', 'avatar', 'photo', 'picture', 'image_base64'), ALWAYS render them in your final answer using Markdown image syntax: `![Photo Description](data:image/jpeg;base64,...)` or `![Photo Description](http://...)`. If the string is raw base64 (e.g. starts with /9j/), prepend `data:image/jpeg;base64,` so it displays immediately as an image. Never output unrendered raw base64 text blocks."
         )
 
-        has_real_context = bool(retrieved_chunks or graph_entities or face_result)
+        if uploaded_document:
+            doc_fname = uploaded_document.get("file_name", "Dokumen")
+            doc_type = (uploaded_document.get("file_type") or "dokumen").upper()
+            system_instruction += (
+                f"\n\n12. ANALISIS DOKUMEN TERUNGGAH ({doc_fname} [{doc_type}]): "
+                f"Pengguna telah mengunggah file '{doc_fname}'. Prioritaskan membaca, mengekstrak informasi, merangkum, "
+                f"dan menjawab pertanyaan pengguna berdasarkan isi dokumen tersebut. "
+                f"Sajikan data secara rapi (gunakan format tabel Markdown, bullet points, atau kutipan langsung). "
+                f"Sebutkan nomor halaman atau nama sheet jika ada dalam data sumber. "
+                f"Jika pengguna membandingkan dengan data Knowledge Base atau mencari relasi korupsi/penyelidikan, sandingkan temuan dokumen dengan data yang relevan."
+            )
+
+        has_real_context = bool(retrieved_chunks or graph_entities or face_result or uploaded_document)
 
         if tools:
             prompt_content = f"""Context Information from Knowledge Base:
@@ -837,6 +893,8 @@ Patuhi aturan:
                 "tools_executed": len(executed_tools_info),
                 "face_detected": bool(face_result and face_result.get("detection", {}).get("face_detected")),
                 "face_matched": bool(face_result and face_result.get("matched")),
+                "uploaded_document": bool(uploaded_document),
+                "uploaded_document_name": uploaded_document.get("file_name") if uploaded_document else None,
                 "strict_mode": strict_mode,
                 "temperature": effective_temperature,
                 "latency_ms": elapsed_ms

@@ -1,7 +1,7 @@
 import logging
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -10,6 +10,7 @@ from security import get_current_user
 from models.knowledge_source import KnowledgeSource
 from models.chat_feedback import ChatFeedback
 from services.chat_service import chat_service
+from services.document_parser import document_parser
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +23,10 @@ class ChatMessageItem(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    message: str
+    message: Optional[str] = ""
     image_base64: Optional[str] = None
+    doc_id: Optional[str] = None
+    document_data: Optional[Dict[str, Any]] = None
     history: Optional[List[ChatMessageItem]] = []
     source_id: Optional[int] = None
     source_ids: Optional[List[int]] = None
@@ -60,6 +63,33 @@ class FeedbackRequest(BaseModel):
     tools_called: Optional[List[str]] = None
 
 
+@router.post("/upload-document")
+async def upload_chat_document(
+    file: UploadFile = File(...),
+    user=Depends(get_current_user)
+):
+    """
+    Upload a document (PDF, DOCX, Excel, CSV, TXT) directly from the Chat interface.
+    Parses the content, extracts tables and metadata, and caches it in memory/disk.
+    Returns doc_id, summary, preview, and metadata.
+    """
+    try:
+        content = await file.read()
+        if len(content) > 35 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="Ukuran file maksimal 35MB")
+        
+        parsed = document_parser.parse_file(file.filename, content)
+        return {
+            "success": True,
+            "data": parsed
+        }
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Error parsing uploaded chat document: {e}")
+        raise HTTPException(status_code=500, detail=f"Gagal memproses dokumen: {str(e)}")
+
+
 @router.post("", response_model=ChatResponse)
 def chat_with_knowledge_endpoint(
     req: ChatRequest,
@@ -70,11 +100,30 @@ def chat_with_knowledge_endpoint(
     Direct endpoint to chat with the Knowledge Base and AI model.
     Retrieves vector chunks from ChromaDB and graph relations from Neo4j,
     executes face recognition if an image is attached,
+    analyzes attached documents (PDF/DOCX/Excel/CSV/Text),
     then prompts the configured LLM to generate a grounded response with citations.
     Also injects liked-response examples as few-shot context for auto-tuning.
     """
-    if not req.message.strip() and not req.image_base64:
-        raise HTTPException(status_code=400, detail="Message or image cannot be empty.")
+    has_message = bool(req.message and req.message.strip())
+    if not has_message and not req.image_base64 and not req.doc_id and not req.document_data:
+        raise HTTPException(status_code=400, detail="Pesan, gambar, atau dokumen tidak boleh kosong.")
+
+    # Retrieve uploaded document if provided
+    uploaded_doc = None
+    if req.doc_id:
+        uploaded_doc = document_parser.get_document(req.doc_id)
+    if not uploaded_doc and req.document_data:
+        uploaded_doc = req.document_data
+
+    # Determine effective message text
+    if has_message:
+        effective_message = req.message.strip()
+    elif uploaded_doc:
+        effective_message = f"Analisis isi dokumen '{uploaded_doc.get('file_name', 'terlampir')}', jelaskan isi atau datanya, dan berikan poin-poin penting serta ringkasannya."
+    elif req.image_base64:
+        effective_message = "Analisis foto ini dan identifikasi orang dalam foto."
+    else:
+        effective_message = "Analisis data yang disediakan."
 
     history_dicts = [{"role": h.role, "content": h.content} for h in req.history or []]
 
@@ -91,9 +140,6 @@ def chat_with_knowledge_endpoint(
         liked_q = db.query(ChatFeedback).filter(
             ChatFeedback.feedback == "like"
         )
-        if effective_source_ids:
-            # Filter to feedback that used the same source(s) if available
-            pass  # JSON field filtering is complex; load all and filter in Python
         liked_records = liked_q.order_by(ChatFeedback.created_at.desc()).limit(20).all()
 
         # Prefer examples that match the current source selection
@@ -113,8 +159,9 @@ def chat_with_knowledge_endpoint(
         logger.warning(f"Could not load liked examples for few-shot tuning: {fe}")
 
     result = chat_service.chat_with_knowledge(
-        message=req.message.strip() if req.message else "Analisis foto ini dan identifikasi orang dalam foto.",
+        message=effective_message,
         image_base64=req.image_base64,
+        uploaded_document=uploaded_doc,
         history=history_dicts,
         source_id=effective_source_ids[0] if len(effective_source_ids) == 1 else None,
         source_ids=effective_source_ids if effective_source_ids else None,
