@@ -68,6 +68,11 @@ Telah ditambahkan sistem penyesuaian (adjustment) pada Chat Backoffice dan API L
    - **Layar Respon Lebih Luas**: Memberikan tambahan ruang vertikal sebesar 100px-140px langsung ke jendela pesan chat.
    - **Quick Badges di Mode Collapsed**: Di mode ciut, tetap menampilkan ringkasan status sumber data terpilih, status mode Anti-Halu, dan jumlah tools aktif yang bisa diklik.
    - **Persistensi Pilihan**: Status buka/tutup opsi chat disimpan di `localStorage` (`chat_options_open`) sehingga preferensi pengguna tetap terjaga saat navigasi atau refresh.
+7. **Tombol Salin Respon Chat (Copy AI Response)**:
+   - **Tombol Utama pada Footer Bubble Pesan**: Terletak di bagian kanan bawah bubble jawaban asisten AI (`Salin Respon`), bersanding dengan metrik model (latency, chunks, tools, status Anti-Halu).
+   - **Tombol Sekunder pada Bar Feedback**: Terletak di sebelah tombol Like/Dislike di bawah bubble pesan (`Salin`).
+   - **Feedback Visual Real-time**: Saat diklik, teks tombol langsung berubah menjadi `Tersalin! ✓` dengan ikon centang hijau (`#34d399`), background hijau lembut, dan efek glow selama 2 detik sebelum kembali ke keadaan normal.
+   - **Dukungan Clipboard Universal**: Menggunakan `navigator.clipboard.writeText` untuk koneksi HTTPS/localhost serta fallback otomatis `document.execCommand('copy')` dengan elemen textarea tersembunyi jika diakses melalui browser lama atau koneksi HTTP jaringan lokal (LAN/IP).
 
 ---
 

@@ -180,6 +180,7 @@ export default function Chat() {
   const [docUploadError, setDocUploadError] = useState(null);
   const [lightboxImage, setLightboxImage] = useState(null);
   const [copiedImage, setCopiedImage] = useState(false);
+  const [copiedResponseId, setCopiedResponseId] = useState(null);
   const [feedbackState, setFeedbackState] = useState({}); // msgId -> 'like' | 'dislike' | null
   const [dislikeNotes, setDislikeNotes] = useState({}); // msgId -> string
   const [pendingFeedback, setPendingFeedback] = useState({}); // msgId -> true (submitting)
@@ -395,6 +396,30 @@ export default function Chat() {
       setFeedbackState(prev => ({ ...prev, [msg.id]: null }));
     } finally {
       setPendingFeedback(prev => ({ ...prev, [msg.id]: false }));
+    }
+  };
+
+  const handleCopyResponse = (msgId, text) => {
+    if (!text) return;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        textArea.remove();
+      }
+      setCopiedResponseId(msgId);
+      setTimeout(() => setCopiedResponseId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy response:', err);
     }
   };
 
@@ -3245,44 +3270,106 @@ export default function Chat() {
                     </div>
                   )}
 
-                  {/* Metadata & Latency Footnote */}
-                  {isAssistant && msg.metrics && (
+                  {/* Assistant Footer: Metrics & Copy Response Button */}
+                  {isAssistant && (
                     <div style={{
-                      marginTop: '12px',
+                      marginTop: '14px',
+                      paddingTop: '10px',
+                      borderTop: '1px solid rgba(255, 255, 255, 0.08)',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '12px',
-                      fontSize: '11px',
-                      color: 'var(--text-muted)'
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '8px'
                     }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Cpu size={12} />
-                        {msg.model_used || 'Qwen3.6-35B'}
-                      </span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Clock size={12} />
-                        {msg.metrics.latency_ms}ms
-                      </span>
-                      <span>Chunks: {msg.metrics.chunks_retrieved}</span>
-                      {msg.metrics.tools_executed > 0 && (
-                        <span style={{ color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '2px', fontWeight: '600' }}>
-                          <Zap size={11} /> Tools: {msg.metrics.tools_executed}
-                        </span>
-                      )}
-                      <span style={{
-                        display: 'inline-flex',
+                      {/* Left: Metadata & Latency */}
+                      <div style={{
+                        display: 'flex',
                         alignItems: 'center',
-                        gap: '3px',
-                        color: msg.metrics.strict_mode !== false ? '#34d399' : '#fbbf24',
-                        background: msg.metrics.strict_mode !== false ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                        padding: '1px 6px',
-                        borderRadius: '4px',
-                        border: `1px solid ${msg.metrics.strict_mode !== false ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)'}`,
-                        fontWeight: '500'
+                        gap: '10px',
+                        flexWrap: 'wrap',
+                        fontSize: '11px',
+                        color: 'var(--text-muted)'
                       }}>
-                        <ShieldCheck size={11} />
-                        {msg.metrics.strict_mode !== false ? 'Faktual (Anti-Halu)' : `Fleksibel (${msg.metrics.temperature || 0.3})`}
-                      </span>
+                        {msg.metrics ? (
+                          <>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Cpu size={12} />
+                              {msg.model_used || 'Qwen3.6-35B'}
+                            </span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Clock size={12} />
+                              {msg.metrics.latency_ms}ms
+                            </span>
+                            {msg.metrics.chunks_retrieved !== undefined && (
+                              <span>Chunks: {msg.metrics.chunks_retrieved}</span>
+                            )}
+                            {msg.metrics.tools_executed > 0 && (
+                              <span style={{ color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '2px', fontWeight: '600' }}>
+                                <Zap size={11} /> Tools: {msg.metrics.tools_executed}
+                              </span>
+                            )}
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              color: msg.metrics.strict_mode !== false ? '#34d399' : '#fbbf24',
+                              background: msg.metrics.strict_mode !== false ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              border: `1px solid ${msg.metrics.strict_mode !== false ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)'}`,
+                              fontWeight: '500'
+                            }}>
+                              <ShieldCheck size={11} />
+                              {msg.metrics.strict_mode !== false ? 'Faktual (Anti-Halu)' : `Fleksibel (${msg.metrics.temperature || 0.3})`}
+                            </span>
+                          </>
+                        ) : (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-muted)' }}>
+                            <Bot size={12} /> AI Knowledge Assistant
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Right: Copy Response Button */}
+                      <button
+                        type="button"
+                        id={`copy-resp-bubble-${msg.id}`}
+                        onClick={() => handleCopyResponse(msg.id, msg.content)}
+                        title="Salin isi respon AI ke clipboard"
+                        style={{
+                          background: copiedResponseId === msg.id ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                          border: `1px solid ${copiedResponseId === msg.id ? 'rgba(16, 185, 129, 0.5)' : 'rgba(255, 255, 255, 0.12)'}`,
+                          borderRadius: '7px',
+                          padding: '4px 10px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '12px',
+                          color: copiedResponseId === msg.id ? '#34d399' : '#e2e8f0',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          fontWeight: copiedResponseId === msg.id ? '600' : '500',
+                          boxShadow: copiedResponseId === msg.id ? '0 0 10px rgba(16, 185, 129, 0.25)' : 'none'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (copiedResponseId !== msg.id) {
+                            e.currentTarget.style.color = '#ffffff';
+                            e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                            e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (copiedResponseId !== msg.id) {
+                            e.currentTarget.style.color = '#e2e8f0';
+                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                          }
+                        }}
+                      >
+                        {copiedResponseId === msg.id ? <Check size={13} color="#34d399" /> : <Copy size={13} />}
+                        <span>{copiedResponseId === msg.id ? 'Tersalin! ✓' : 'Salin Respon'}</span>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -3347,6 +3434,33 @@ export default function Chat() {
                       >
                         <ThumbsDown size={13} />
                         {feedbackState[msg.id] === 'dislike' ? 'Tercatat' : 'Dislike'}
+                      </button>
+
+                      {/* Salin Respon button in feedback bar */}
+                      <button
+                        type="button"
+                        id={`copy-resp-bar-${msg.id}`}
+                        onClick={() => handleCopyResponse(msg.id, msg.content)}
+                        title="Salin isi respon AI ke clipboard"
+                        style={{
+                          background: copiedResponseId === msg.id ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                          border: copiedResponseId === msg.id ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '8px',
+                          padding: '4px 10px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          fontSize: '12px',
+                          color: copiedResponseId === msg.id ? '#34d399' : 'var(--text-muted)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          fontWeight: copiedResponseId === msg.id ? '700' : '400'
+                        }}
+                        onMouseEnter={(e) => { if (copiedResponseId !== msg.id) { e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.25)'; } }}
+                        onMouseLeave={(e) => { if (copiedResponseId !== msg.id) { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; } }}
+                      >
+                        {copiedResponseId === msg.id ? <Check size={13} color="#34d399" /> : <Copy size={13} />}
+                        <span>{copiedResponseId === msg.id ? 'Tersalin! ✓' : 'Salin'}</span>
                       </button>
 
                       {feedbackState[msg.id] === 'like' && (
