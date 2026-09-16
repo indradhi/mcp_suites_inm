@@ -14,7 +14,8 @@ import {
   FolderGit2,
   Edit2,
   Zap,
-  Code
+  Code,
+  Copy
 } from 'lucide-react';
 import api from '../api/client';
 import { formatDateTimeWIB } from '../utils/dateUtils';
@@ -29,6 +30,8 @@ export default function KnowledgeSources() {
   const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchFilter, setSearchFilter] = useState('');
+  const [duplicatingId, setDuplicatingId] = useState(null);
+  const [notification, setNotification] = useState(null);
 
   // Modals state
   const [activeModal, setActiveModal] = useState(null); // 'database', 'api', 'file', 'website', 'websearch', 'google_drive'
@@ -72,6 +75,26 @@ export default function KnowledgeSources() {
   const handleEdit = (source) => {
     setEditingSource(source);
     setActiveModal(source.source_type);
+  };
+
+  const handleDuplicate = async (source) => {
+    try {
+      setDuplicatingId(source.id);
+      const res = await api.post(`/knowledge/sources/${source.id}/duplicate`);
+      const newSource = res.data;
+      await fetchSources();
+      setNotification({
+        type: 'success',
+        message: `Koneksi '${source.name}' berhasil diduplikat sebagai '${newSource.name}'!`,
+        newSource: newSource
+      });
+      setTimeout(() => setNotification(null), 8000);
+    } catch (err) {
+      console.error('Error duplicating source:', err);
+      alert('Gagal menduplikat koneksi: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      setDuplicatingId(null);
+    }
   };
 
   const closeModals = () => {
@@ -131,6 +154,72 @@ export default function KnowledgeSources() {
           </button>
         </div>
       </div>
+
+      {/* Notification Toast Banner */}
+      {notification && (
+        <div style={{
+          background: notification.type === 'error' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+          border: `1px solid ${notification.type === 'error' ? 'rgba(239, 68, 68, 0.4)' : 'rgba(16, 185, 129, 0.4)'}`,
+          borderRadius: '10px',
+          padding: '12px 18px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+          color: notification.type === 'error' ? '#f87171' : '#34d399',
+          fontSize: '13px',
+          boxShadow: '0 4px 14px rgba(0,0,0,0.3)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <CheckCircle size={17} color="#34d399" />
+            <span style={{ fontWeight: '500' }}>{notification.message}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {notification.newSource && (
+              <button
+                type="button"
+                id="btn-edit-duplicated-source"
+                onClick={() => {
+                  handleEdit(notification.newSource);
+                  setNotification(null);
+                }}
+                style={{
+                  background: 'rgba(16, 185, 129, 0.25)',
+                  border: '1px solid rgba(16, 185, 129, 0.5)',
+                  color: '#34d399',
+                  borderRadius: '6px',
+                  padding: '5px 12px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px'
+                }}
+              >
+                <Edit2 size={13} /> Edit Sekarang
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setNotification(null)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                fontSize: '18px',
+                padding: '0 4px',
+                lineHeight: 1
+              }}
+              title="Tutup Notifikasi"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div className="glass-panel" style={{ padding: '16px 20px', display: 'flex', gap: '16px', alignItems: 'center' }}>
@@ -285,6 +374,27 @@ export default function KnowledgeSources() {
                       <Zap size={14} /> Test / Edit
                     </button>
                   )}
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    id={`btn-duplicate-${source.id}`}
+                    style={{
+                      padding: '6px 11px',
+                      fontSize: '12px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      color: '#a78bfa',
+                      borderColor: 'rgba(167, 139, 250, 0.35)',
+                      background: 'rgba(167, 139, 250, 0.08)'
+                    }}
+                    onClick={() => handleDuplicate(source)}
+                    disabled={duplicatingId === source.id}
+                    title="Duplikat koneksi ini (buat salinan konfigurasi)"
+                  >
+                    <Copy size={13} />
+                    <span>{duplicatingId === source.id ? 'Menyalin...' : 'Duplikat'}</span>
+                  </button>
                   <button
                     className="btn-secondary"
                     style={{ padding: '6px 10px' }}

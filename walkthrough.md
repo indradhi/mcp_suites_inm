@@ -74,6 +74,14 @@ Telah ditambahkan sistem penyesuaian (adjustment) pada Chat Backoffice dan API L
    - **Feedback Visual Real-time**: Saat diklik, teks tombol langsung berubah menjadi `Tersalin! ✓` dengan ikon centang hijau (`#34d399`), background hijau lembut, dan efek glow selama 2 detik sebelum kembali ke keadaan normal.
    - **Dukungan Clipboard Universal**: Menggunakan `navigator.clipboard.writeText` untuk koneksi HTTPS/localhost serta fallback otomatis `document.execCommand('copy')` dengan elemen textarea tersembunyi jika diakses melalui browser lama atau koneksi HTTP jaringan lokal (LAN/IP).
 
+8. **Tombol Duplikat Koneksi pada Knowledge Base Catalog (`KnowledgeSources.jsx` & `routers/knowledge.py`)**:
+   - **Tombol Duplikat 1-Klik pada Setiap Kartu**: Setiap kartu sumber pengetahuan di Knowledge Base Catalog kini memiliki tombol **`Duplikat`** (aksen ungu `#a78bfa` dengan icon `Copy`).
+   - **Pemberian Nama Unik Otomatis**: Secara cerdas menamai koneksi baru dengan akhiran `(Copy)`, `(Copy 2)`, dst. tanpa menimpa data asli.
+   - **Resolusi AI Tool Slug Unik**: Jika koneksi adalah Dynamic AI Tool (API/Database), sistem otomatis menghasilkan slug identifier baru (misalnya `cari_tanah_bpn_copy`) untuk mencegah bentrok tool name pada OpenAI/Claude/Qwen function calling.
+   - **Notifikasi Toast & Tombol 'Edit Sekarang'**: Setelah menduplikat, muncul banner toast konfirmasi dengan tombol *Edit Sekarang* yang langsung membuka modal konfigurasi koneksi baru tersebut.
+   - **Dukungan 'Simpan Sebagai Baru (Duplikat)' pada Modal**: Pada modal edit Database (`AddDatabaseModal`) dan API (`AddApiModal`), pengguna juga dapat mengubah query/endpoint/parameter dan menyimpannya sebagai koneksi baru tanpa menimpa konfigurasi sebelumnya.
+   - **Endpoint Backend**: `POST /api/knowledge/sources/{source_id}/duplicate` mendukung duplikasi seluruh tipe koneksi (`database`, `api`, `file`, `website`, `websearch`, `google_drive`).
+
 ---
 
 ### Key Features Implemented

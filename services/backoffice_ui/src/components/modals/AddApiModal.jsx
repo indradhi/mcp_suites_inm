@@ -11,7 +11,8 @@ import {
   Trash2, 
   Code, 
   Play, 
-  HelpCircle 
+  HelpCircle,
+  Copy
 } from 'lucide-react';
 import api from '../../api/client';
 
@@ -198,6 +199,46 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       onClose();
     } catch (err) {
       alert('Error: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSaveAsCopy = async () => {
+    setSubmitting(true);
+    try {
+      const authConfig = authMode === 'static'
+        ? { mode: 'static', token: bearerToken }
+        : authMode === 'oauth2'
+        ? { mode: 'oauth2', token_url: tokenUrl, payload: { client_id: clientId, client_secret: clientSecret } }
+        : {};
+
+      const validParameters = isTool ? parameters.filter(p => p.name && p.name.trim() !== '') : [];
+      const copyName = name.includes('(Copy') ? name : `${name} (Copy)`;
+      const copyToolName = isTool && toolName ? (toolName.includes('_copy') ? toolName : `${toolName}_copy`) : undefined;
+
+      const payload = {
+        name: copyName,
+        source_type: 'api',
+        description: isTool && toolDescription 
+          ? `[AI Tool] ${toolDescription}` 
+          : `API Endpoint: ${endpoint}`,
+        config: {
+          endpoint,
+          method,
+          auth: authConfig,
+          is_tool: isTool,
+          tool_name: copyToolName,
+          tool_description: isTool ? (toolDescription.trim() || `Dynamic API Tool for ${copyName}`) : undefined,
+          parameters: validParameters
+        }
+      };
+
+      await api.post('/knowledge/sources', payload);
+      onSuccess();
+      onClose();
+    } catch (err) {
+      alert('Error saving copy: ' + (err.response?.data?.detail || err.message));
     } finally {
       setSubmitting(false);
     }
@@ -681,24 +722,39 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
           )}
 
           {/* Action Buttons */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>
-            <button 
-              type="button" 
-              className="btn-secondary" 
-              onClick={handleTest} 
-              disabled={testing}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-            >
-              {testing ? 'Executing...' : (isTool ? '⚡ Test API Tool Call' : 'Test Endpoint')}
-            </button>
-            <button 
-              type="submit" 
-              className="btn-primary" 
-              disabled={submitting}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-            >
-              {submitting ? 'Saving...' : (initialData ? (isTool ? 'Update AI Tool' : 'Update & Sync') : (isTool ? 'Save & Register Tool' : 'Save & Ingest'))}
-            </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap', gap: '10px' }}>
+            {initialData ? (
+              <button
+                type="button"
+                className="btn-secondary"
+                id="btn-save-as-duplicate-api"
+                onClick={handleSaveAsCopy}
+                disabled={submitting || testing}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#a78bfa', borderColor: 'rgba(167, 139, 250, 0.4)', background: 'rgba(167, 139, 250, 0.06)' }}
+                title="Simpan konfigurasi saat ini sebagai koneksi baru (duplikat)"
+              >
+                <Copy size={14} /> Simpan Sebagai Baru (Duplikat)
+              </button>
+            ) : <div />}
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button 
+                type="button" 
+                className="btn-secondary" 
+                onClick={handleTest} 
+                disabled={testing}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                {testing ? 'Executing...' : (isTool ? '⚡ Test API Tool Call' : 'Test Endpoint')}
+              </button>
+              <button 
+                type="submit" 
+                className="btn-primary" 
+                disabled={submitting}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                {submitting ? 'Saving...' : (initialData ? (isTool ? 'Update AI Tool' : 'Update & Sync') : (isTool ? 'Save & Register Tool' : 'Save & Ingest'))}
+              </button>
+            </div>
           </div>
         </form>
       </div>

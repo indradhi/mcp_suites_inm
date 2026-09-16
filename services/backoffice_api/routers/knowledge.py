@@ -2,6 +2,7 @@ import os
 import re
 import shutil
 import logging
+import copy
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, Query
 from sqlalchemy.orm import Session
@@ -319,6 +320,100 @@ def delete_source(
     db.delete(source)
     db.commit()
     return {"message": "Knowledge source and associated vectors deleted"}
+
+@router.post("/sources/{source_id}/duplicate", status_code=status.HTTP_201_CREATED)
+def duplicate_knowledge_source(
+    source_id: int,
+    db: Session = Depends(get_db),
+    user = Depends(require_role(["admin", "editor"]))
+):
+    """
+    Duplicates an existing knowledge source connection and its configuration.
+    Assigns a unique name and ensures unique tool identifiers for AI tools.
+    """
+    original = db.query(KnowledgeSource).filter(KnowledgeSource.id == source_id).first()
+    if not original:
+        raise HTTPException(status_code=404, detail="Source not found")
+
+    # 1. Determine unique candidate name
+    candidate_name = f"{original.name} (Copy)"
+    counter = 2
+    while db.query(KnowledgeSource).filter(KnowledgeSource.name == candidate_name).first():
+        candidate_name = f"{original.name} (Copy {counter})"
+        counter += 1
+
+    # 2. Deep copy configuration dictionary
+    new_config = copy.deepcopy(original.config or {})
+
+    # 3. Ensure unique tool_name if configured as an AI tool
+    if new_config.get("tool_name"):
+        orig_tool_name = str(new_config["tool_name"]).strip()
+        candidate_tool = f"{orig_tool_name}_copy"
+        
+        # Collect existing tool names from all sources
+        all_sources = db.query(KnowledgeSource).all()
+        existing_tool_names = set()
+        for s in all_sources:
+            if s.config and isinstance(s.config, dict):
+                tname = s.config.get("tool_name")
+                if tname:
+                    existing_tool_names.add(str(tname).strip())
+
+        tool_counter = 2
+        while candidate_tool in existing_tool_names:
+            candidate_tool = f"{orig_tool_name}_copy_{tool_counter}"
+            tool_counter += 1
+
+        new_config["tool_name"] = candidate_tool
+
+    # 4. Determine sync status (active for tool, idle for standard sources)
+    is_tool_mode = bool(new_config.get("is_tool"))
+    sync_status = "active (tool)" if is_tool_mode else "idle"
+
+    # 5. Create new source instance
+    new_source = KnowledgeSource(
+        name=candidate_name,
+        source_type=original.source_type,
+        description=original.description or f"Copy of {original.name}",
+        config=new_config,
+        schedule_cron=original.schedule_cron,
+        is_active=True,
+        sync_status=sync_status,
+        created_by=user.id
+    )
+    db.add(new_source)
+    db.commit()
+    db.refresh(new_source)
+
+    # 6. If it's a file source, clone document references
+    if original.source_type == "file":
+        original_docs = db.query(KnowledgeDocument).filter(KnowledgeDocument.source_id == original.id).all()
+        for doc in original_docs:
+            new_doc = KnowledgeDocument(
+                source_id=new_source.id,
+                title=f"{doc.title} (Copy)",
+                file_path=doc.file_path,
+                file_type=doc.file_type,
+                file_size=doc.file_size,
+                status="pending"
+            )
+            db.add(new_doc)
+        db.commit()
+
+    return {
+        "id": new_source.id,
+        "name": new_source.name,
+        "source_type": new_source.source_type,
+        "description": new_source.description,
+        "config": new_source.config,
+        "is_active": new_source.is_active,
+        "sync_status": new_source.sync_status,
+        "last_synced_at": None,
+        "document_count": 0,
+        "created_at": (new_source.created_at.isoformat() + "Z") if new_source.created_at else None,
+        "message": f"Koneksi '{original.name}' berhasil diduplikat sebagai '{new_source.name}'"
+    }
+
 
 
 # ── AI Knowledge Orchestration & Guidelines Endpoints ────────────────

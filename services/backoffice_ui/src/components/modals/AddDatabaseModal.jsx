@@ -12,7 +12,8 @@ import {
   Play, 
   HelpCircle,
   Clock,
-  Layers
+  Layers,
+  Copy
 } from 'lucide-react';
 import api from '../../api/client';
 
@@ -254,6 +255,45 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
       onClose();
     } catch (err) {
       alert('Error saving source: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSaveAsCopy = async () => {
+    setSubmitting(true);
+    try {
+      const validParameters = isTool ? parameters.filter(p => p.name && p.name.trim() !== '') : [];
+      const copyName = name.includes('(Copy') ? name : `${name} (Copy)`;
+      const copyToolName = isTool && toolName ? (toolName.includes('_copy') ? toolName : `${toolName}_copy`) : undefined;
+      const payload = {
+        name: copyName,
+        source_type: 'database',
+        description: isTool && toolDescription
+          ? `[AI Tool] ${toolDescription}`
+          : (description || `Connected to ${dbType.toUpperCase()} database (${database})`),
+        config: {
+          db_type: dbType,
+          host,
+          port,
+          database,
+          username,
+          password,
+          collection,
+          query,
+          limit: parseInt(limit, 10) >= 0 ? parseInt(limit, 10) : 5000,
+          is_tool: isTool,
+          tool_name: copyToolName,
+          tool_description: isTool ? (toolDescription.trim() || `Dynamic Database Tool for ${copyName}`) : undefined,
+          parameters: validParameters
+        }
+      };
+
+      await api.post('/knowledge/sources', payload);
+      onSuccess();
+      onClose();
+    } catch (err) {
+      alert('Error saving copy: ' + (err.response?.data?.detail || err.message));
     } finally {
       setSubmitting(false);
     }
@@ -813,24 +853,39 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
           )}
 
           {/* Action Buttons */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>
-            <button 
-              type="button" 
-              className="btn-secondary" 
-              onClick={handleTest} 
-              disabled={testing}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-            >
-              {testing ? 'Executing...' : (isTool || parameters.length > 0 ? '⚡ Test Query with Parameters' : 'Test Connection')}
-            </button>
-            <button 
-              type="submit" 
-              className="btn-primary" 
-              disabled={submitting}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-            >
-              {submitting ? 'Saving...' : (initialData ? (isTool ? 'Update AI Database Tool' : 'Update & Sync') : (isTool ? 'Save & Register Tool' : 'Save & Ingest'))}
-            </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap', gap: '10px' }}>
+            {initialData ? (
+              <button
+                type="button"
+                className="btn-secondary"
+                id="btn-save-as-duplicate-db"
+                onClick={handleSaveAsCopy}
+                disabled={submitting || testing}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#a78bfa', borderColor: 'rgba(167, 139, 250, 0.4)', background: 'rgba(167, 139, 250, 0.06)' }}
+                title="Simpan konfigurasi saat ini sebagai koneksi baru (duplikat)"
+              >
+                <Copy size={14} /> Simpan Sebagai Baru (Duplikat)
+              </button>
+            ) : <div />}
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button 
+                type="button" 
+                className="btn-secondary" 
+                onClick={handleTest} 
+                disabled={testing}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                {testing ? 'Executing...' : (isTool || parameters.length > 0 ? '⚡ Test Query with Parameters' : 'Test Connection')}
+              </button>
+              <button 
+                type="submit" 
+                className="btn-primary" 
+                disabled={submitting}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                {submitting ? 'Saving...' : (initialData ? (isTool ? 'Update AI Database Tool' : 'Update & Sync') : (isTool ? 'Save & Register Tool' : 'Save & Ingest'))}
+              </button>
+            </div>
           </div>
         </form>
       </div>
