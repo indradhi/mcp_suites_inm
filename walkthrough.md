@@ -1,13 +1,29 @@
-# Parameterized API Knowledge Sources as AI Tools — Walkthrough
-
-Users can now configure **API Knowledge Sources with dynamic parameters** (query, path, body, header) and expose them directly as **AI Tools** for LLMs. This replaces rigid static scraping with real-time on-demand tool execution for both:
-1. **The MCP Server (`:8001`)** — for OpenWebUI, Claude Desktop, and standard MCP clients (`tools/list`, `tools/call`, `/rpc`, `/sse`).
-2. **The Backoffice AI Knowledge Chat (`/chat`)** — allowing the chat model to invoke external REST APIs on the fly based on user queries and synthesize real-time responses.
-3. **Interactive UI Testing & Catalog Management** — an intuitive parameter builder table and live validation test runner directly inside the Backoffice UI.
+# Parameterized API Knowledge Sources as AI Tools & Anti-Hallucination Guardrails — Walkthrough
 
 ---
 
-## 🚀 Key Features Implemented
+## 🛡️ Anti-Hallucination & Strict Factual Guardrails (New)
+
+Telah ditambahkan sistem penyesuaian (adjustment) pada Chat Backoffice dan API LLM untuk mencegah AI berhalusinasi, mengarang, atau salah menampilkan data:
+
+1. **Greedy Deterministic Decoding (`temperature = 0.0`)**:
+   - Menghilangkan variasi stokastik/kreativitas acak pada LLM sehingga data kritis (NIK 16 digit, tanggal, alamat, relasi keluarga) tampil persis 100% sesuai database.
+2. **Zero-Tolerance Prompt Directives (`chat_service.py`)**:
+   - `DILARANG MENGARANG ATAU BERHALUSINASI`: Jika entitas/data tidak ada di dokumen atau live tools, model wajib menyatakan: *"Data untuk '[nama/entitas]' tidak ditemukan dalam basis data atau dokumen yang tersedia."*
+   - `DILARANG MENGUBAH IDENTITAS/NIK`: Larangan mutlak mengubah angka NIK, menggabungkan data dua orang berbeda, atau berspekulasi tentang hubungan kekeluargaan.
+   - Guardrail empty context: Jika vector search atau live tool mengembalikan data kosong, sistem menyuntikkan instruksi tegas bahwa data tidak ada dan melarang model membuat profil fiktif.
+3. **Interactive Adjustment Controls di UI (`Chat.jsx`)**:
+   - **Tombol Toggle Anti-Halu (`Anti-Halu: ON / OFF`)**: Tombol visual dengan badge hijau/kuning di toolbar chat.
+   - **Dropdown Suhu (Temperature Selector)**:
+     - `0.0 (Presisi / Anti-Halu)` — Default, deterministik penuh tanpa karangan.
+     - `0.1 (Sangat Ketat)`
+     - `0.3 (Standar)`
+     - `0.7 (Kreatif / Fleksibel)`
+   - **Status Badge Faktual**: Setiap bubble pesan AI menampilkan status `Faktual (Anti-Halu)` beserta model yang digunakan.
+
+---
+
+### Key Features Implemented
 
 ### 1. Dynamic Parameter Builder & Configuration (`AddApiModal.jsx`)
 - **AI Tool Mode Toggle**: Turn any REST API into an AI Tool with a single click.

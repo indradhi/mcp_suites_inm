@@ -26,6 +26,7 @@ import {
   MapPin,
   Network,
   Lightbulb,
+  ShieldCheck,
   ExternalLink,
   Maximize2,
   Download,
@@ -145,6 +146,8 @@ export default function Chat() {
   const sourceDropdownRef = useRef(null);
   const [topK, setTopK] = useState(5);
   const [includeGraph, setIncludeGraph] = useState(true);
+  const [strictMode, setStrictMode] = useState(true);
+  const [temperature, setTemperature] = useState(0.0);
   const [expandedSources, setExpandedSources] = useState({});
   const [expandedEntities, setExpandedEntities] = useState({});
   const [expandedTools, setExpandedTools] = useState({});
@@ -371,7 +374,9 @@ export default function Chat() {
         source_ids: selectedSources.length > 0 ? selectedSources.map(id => parseInt(id)) : null,
         include_graph: includeGraph,
         top_k: topK,
-        image_base64: currentAttachedImage || null
+        image_base64: currentAttachedImage || null,
+        strict_mode: strictMode,
+        temperature: temperature
       });
 
       let cleanAnswer = res.data.answer || 'No response generated.';
@@ -1966,6 +1971,66 @@ export default function Chat() {
             Graph Context: {includeGraph ? 'ON' : 'OFF'}
           </button>
 
+          {/* Anti-Hallucination / Strict Grounding Mode Toggle */}
+          <button
+            onClick={() => {
+              const next = !strictMode;
+              setStrictMode(next);
+              setTemperature(next ? 0.0 : 0.3);
+            }}
+            title={strictMode 
+              ? "Mode Anti-Halusinasi AKTIF (Suhu 0.0): AI dilarang keras mengarang data dan wajib mengikuti dokumen/basis data resmi." 
+              : "Mode Fleksibel (Suhu 0.3): AI dapat menjawab lebih luwes namun berisiko halusinasi."}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 12px',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: '600',
+              border: `1px solid ${strictMode ? 'rgba(16, 185, 129, 0.45)' : 'rgba(245, 158, 11, 0.4)'}`,
+              background: strictMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.12)',
+              color: strictMode ? '#34d399' : '#fbbf24',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              boxShadow: strictMode ? '0 0 12px rgba(16, 185, 129, 0.15)' : 'none'
+            }}
+          >
+            <ShieldCheck size={15} color={strictMode ? '#10b981' : '#f59e0b'} />
+            <span>{strictMode ? 'Anti-Halu: ON' : 'Anti-Halu: OFF'}</span>
+          </button>
+
+          {/* Factual Temperature Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Suhu:</span>
+            <select
+              value={temperature}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                setTemperature(val);
+                setStrictMode(val === 0.0);
+              }}
+              title="Suhu AI: Semakin rendah (0.0), semakin ketat dan tidak mengarang data. Suhu tinggi (0.5+) lebih kreatif/variatif."
+              style={{
+                background: 'rgba(15, 23, 42, 0.8)',
+                border: '1px solid var(--border-color)',
+                color: temperature === 0.0 ? '#34d399' : '#ffffff',
+                padding: '8px 8px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: '500',
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <option value={0.0}>0.0 (Presisi / Anti-Halu)</option>
+              <option value={0.1}>0.1 (Sangat Ketat)</option>
+              <option value={0.3}>0.3 (Seimbang)</option>
+              <option value={0.7}>0.7 (Kreatif)</option>
+            </select>
+          </div>
+
           {/* Clear Button */}
           <button
             onClick={handleClear}
@@ -2809,6 +2874,20 @@ export default function Chat() {
                           <Zap size={11} /> Tools: {msg.metrics.tools_executed}
                         </span>
                       )}
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        color: msg.metrics.strict_mode !== false ? '#34d399' : '#fbbf24',
+                        background: msg.metrics.strict_mode !== false ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        border: `1px solid ${msg.metrics.strict_mode !== false ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)'}`,
+                        fontWeight: '500'
+                      }}>
+                        <ShieldCheck size={11} />
+                        {msg.metrics.strict_mode !== false ? 'Faktual (Anti-Halu)' : `Fleksibel (${msg.metrics.temperature || 0.3})`}
+                      </span>
                     </div>
                   )}
                 </div>

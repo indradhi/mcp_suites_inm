@@ -69,7 +69,9 @@ class ChatService:
         include_graph: bool = True,
         top_k: int = 5,
         db: Any = None,
-        liked_examples: Optional[List[Dict[str, str]]] = None
+        liked_examples: Optional[List[Dict[str, str]]] = None,
+        strict_mode: bool = True,
+        temperature: Optional[float] = None
     ) -> Dict[str, Any]:
         """
         Executes hybrid RAG:
@@ -406,31 +408,52 @@ class ChatService:
             except Exception as tool_disc_err:
                 logger.warning(f"Error discovering dynamic tools for chat: {tool_disc_err}")
 
+        # Resolve effective temperature (0.0 for strict mode to guarantee zero-hallucination greedy decoding)
+        if temperature is not None:
+            effective_temperature = max(0.0, min(1.0, float(temperature)))
+        else:
+            effective_temperature = 0.0 if strict_mode else 0.3
+
         # 6. Build LLM Prompt
-        system_instruction = """You are the AI Knowledge Assistant for the MCP Knowledge Platform.
+        if strict_mode:
+            system_instruction = """You are the official Enterprise AI Knowledge Assistant for the MCP Knowledge Platform.
+Your mission is to provide 100% FACTUAL, ACCURATE, and TRUTHFUL responses strictly grounded in the provided Knowledge Base context and live tool results.
+
+CRITICAL ANTI-HALLUCINATION & ZERO-FABRICATION DIRECTIVES (STRICT GROUNDING):
+1. STRICT TRUTH & ZERO GUESSING: You are strictly forbidden from inventing, guessing, hallucinating, or extrapolating any information, identities, NIKs, dates of birth, marital status, addresses, phone numbers, assets, family members, or facts that are NOT explicitly stated in the provided context or tool results.
+2. ABSENCE OF DATA: If the requested person, entity, document, or relationship is NOT found in the provided context or tool results, you MUST explicitly state:
+   "Data untuk '[nama/entitas yang dicari]' tidak ditemukan dalam basis data atau dokumen yang tersedia."
+   Never attempt to answer using general assumptions or invent a plausible-sounding profile.
+3. CHARACTER-FOR-CHARACTER FIDELITY: Values such as NIK (16 digits), Nomor KK, Nomor Telepon, Nomor Sertifikat Tanah, Tanggal Lahir, and financial/asset numbers MUST match the source data exactly. Never round, modify, or fabricate digits.
+4. ZERO RECORD CONTAMINATION: Never mix or merge attributes of two different people or database records. If multiple records are returned, list each distinct record clearly.
+5. SOURCE ATTRIBUTION: Clearly cite the Document Source Name or Tool Name for every verified fact.
+6. OUTPUT ONLY THE FINAL ANSWER: Output ONLY your final verified response in clear Markdown. Do NOT include thinking tags (<think>...</think>), internal planning, or meta-commentary. Start directly with the answer."""
+        else:
+            system_instruction = """You are the AI Knowledge Assistant for the MCP Knowledge Platform.
 Your goal is to answer user queries accurately, comprehensively, and truthfully based on the provided Knowledge Base context (both indexed documents and knowledge graph entities).
 
 Guidelines:
-1. Always ground your answers in the provided context whenever possible.
-2. If the context answers the user query, cite the relevant Document numbers or Source names clearly.
-3. If the knowledge base does not contain enough information to answer completely, acknowledge what is available and clarify what is missing.
-4. Format your answer using clear Markdown (headings, bullet points, code blocks, bold text) for optimal readability.
-5. Output ONLY your final answer. Do NOT include thinking tags (<think>...</think>), internal thinking commentary, or phrases like "Here's a thinking process:". Start directly with the answer."""
+1. Ground your answers in the provided context.
+2. Cite the relevant Document numbers or Source names clearly.
+3. If the knowledge base does not contain enough information, acknowledge what is available and clarify what is missing.
+4. Format your answer using clear Markdown (headings, bullet points, code blocks, bold text).
+5. Output ONLY your final answer without internal thinking commentary."""
 
         if tools:
             tool_names_str = ", ".join(tool_dispatch_map.keys())
-            system_instruction += f"\n6. Dynamic Real-time Tools: You have access to active real-time API and Database tools: [{tool_names_str}]. Whenever answering the user question requires real-time search, looking up records, querying databases or tables, checking land/BPN ownership by name, or querying an external service, you MUST call the corresponding tool first with arguments extracted from the user query."
+            system_instruction += f"\n7. Dynamic Real-time Tools: You have access to active real-time API and Database tools: [{tool_names_str}]. Whenever answering the user question requires real-time search, looking up records, querying databases or tables, checking land/BPN ownership by name, or querying an external service, you MUST call the corresponding tool first with arguments extracted from the user query."
             system_instruction += (
-                "\n7. MANDATORY TOOL USAGE FOR PERSON & RECORD LOOKUPS: "
+                "\n8. MANDATORY TOOL USAGE FOR PERSON & RECORD LOOKUPS: "
                 "When a user asks to profile, find, or look up a specific person, citizen, NIK, or entity (e.g. 'siapa [nama]', 'profil [nama]', 'cari data [nama]'), "
                 "and an active profiling/search tool exists (such as `db_profiling_data_orang_...`), you MUST ALWAYS call the tool first to fetch their official, complete database record and photo. "
-                "Do NOT assume brief metadata mentions, audit trail entries (like 'updated_by'), or partial snippets in indexed documents represent the person's citizen profile."
+                "Do NOT assume brief metadata mentions, audit trail entries (like 'updated_by'), or partial snippets in indexed documents represent the person's citizen profile. "
+                "If the tool returns no matching records (empty or null), answer clearly that the record is not found in the database. DO NOT make up citizen data."
             )
             if is_single_tool_selected and single_selected_tool_name:
-                system_instruction += f"\n8. Selected Tool: The user has explicitly selected the tool '{single_selected_tool_name}'. You MUST call '{single_selected_tool_name}' using arguments extracted from the user question."
+                system_instruction += f"\n9. Selected Tool: The user has explicitly selected the tool '{single_selected_tool_name}'. You MUST call '{single_selected_tool_name}' using arguments extracted from the user question."
             elif selected_tool_names:
                 tools_list_str = ", ".join(selected_tool_names)
-                system_instruction += f"\n8. Selected Tools: The user has explicitly filtered by tools: [{tools_list_str}]. Prioritize calling these tools if relevant to the user question."
+                system_instruction += f"\n9. Selected Tools: The user has explicitly filtered by tools: [{tools_list_str}]. Prioritize calling these tools if relevant to the user question."
 
         if face_result:
             if face_result.get("matched"):
@@ -439,22 +462,24 @@ Guidelines:
                 pid = face_result.get("person_id")
                 dept = face_result.get("department")
                 system_instruction += (
-                    f"\n8. Biometric Face Recognition Result: An image was attached to the user message and biometrically scanned. "
+                    f"\n10. Biometric Face Recognition Result: An image was attached to the user message and biometrically scanned. "
                     f"Result: POSITIVE MATCH -> Person: **{person}** (ID: {pid or 'N/A'}, Department: {dept or 'N/A'}) with **{conf}%** confidence. "
                     f"Answer the user by confirming this positive facial identification."
                 )
             elif face_result.get("detection", {}).get("face_detected"):
                 system_instruction += (
-                    "\n8. Biometric Face Recognition Result: A face was detected in the image, but it does not match any enrolled identity in the database. "
+                    "\n10. Biometric Face Recognition Result: A face was detected in the image, but it does not match any enrolled identity in the database. "
                     "Inform the user that a face was detected, but no matching profile exists in the enrolled knowledge base."
                 )
 
         system_instruction += (
-            "\n9. Displaying Images & Photos: If the context, database records, or tool execution results contain photos, image URLs, or base64 photo strings (such as 'foto', 'image', 'avatar', 'photo', 'picture', 'image_base64'), ALWAYS render them in your final answer using Markdown image syntax: `![Photo Description](data:image/jpeg;base64,...)` or `![Photo Description](http://...)`. If the string is raw base64 (e.g. starts with /9j/), prepend `data:image/jpeg;base64,` so it displays immediately as an image. Never output unrendered raw base64 text blocks."
+            "\n11. Displaying Images & Photos: If the context, database records, or tool execution results contain photos, image URLs, or base64 photo strings (such as 'foto', 'image', 'avatar', 'photo', 'picture', 'image_base64'), ALWAYS render them in your final answer using Markdown image syntax: `![Photo Description](data:image/jpeg;base64,...)` or `![Photo Description](http://...)`. If the string is raw base64 (e.g. starts with /9j/), prepend `data:image/jpeg;base64,` so it displays immediately as an image. Never output unrendered raw base64 text blocks."
         )
 
+        has_real_context = bool(retrieved_chunks or graph_entities or face_result)
+
         if tools:
-            prompt_content = f"""Context Information:
+            prompt_content = f"""Context Information from Knowledge Base:
 \"\"\"
 {context_str}
 \"\"\"
@@ -465,16 +490,35 @@ Instructions:
 - If the user question is asking to profile, find, or look up a specific person, NIK, or citizen record (e.g. 'siapa ...', 'profil ...', 'cari ...'), you MUST call the corresponding search/profiling tool first to fetch their verified official record and photo from the database.
 - If the question can be answered or queried using one of the available tools, call the tool first.
 - Only formulate a direct answer from the context above if none of the tools are applicable.
+- STRICT ANTI-HALLUCINATION: If neither the tools nor the context contain the requested data, state clearly: "Data tidak ditemukan dalam basis data atau dokumen yang tersedia." DO NOT invent, fabricate, or guess any details.
 - When tool results or context contain photos (e.g. 'FOTO' with base64 /9j/ or URL), render them as Markdown image `![Foto](data:image/jpeg;base64,...)`."""
         else:
-            prompt_content = f"""Context Information:
+            if not has_real_context and strict_mode:
+                prompt_content = f"""Context Information from Knowledge Base:
+\"\"\"
+[PERHATIAN: Tidak ada dokumen atau entitas yang cocok ditemukan dalam basis data untuk pertanyaan ini.]
+\"\"\"
+
+User Question: {message}
+
+Instruksi Anti-Halusinasi (Wajib):
+Konteks basis data di atas kosong / tidak ditemukan dokumen yang relevan dengan pertanyaan.
+Jika pertanyaan memerlukan data resmi, profil orang, NIK, data internal, atau aset, Anda HARUS MENYATAKAN SECARA JUJUR bahwa data tersebut TIDAK DITEMUKAN dalam basis data atau dokumen yang tersedia.
+DILARANG KERAS mengarang nama, NIK, tanggal lahir, alamat, atau fakta fiktif."""
+            else:
+                prompt_content = f"""Context Information:
 \"\"\"
 {context_str}
 \"\"\"
 
 User Question: {message}
 
-Please provide a well-structured, clear, and informative response based on the context above:"""
+Instruksi Kepatuhan Faktual:
+Berikan jawaban terstruktur, akurat, dan jelas murni berdasarkan konteks di atas.
+Patuhi aturan:
+1. Hanya sampaikan informasi yang tertulis di dalam konteks di atas.
+2. Jangan pernah menebak, mengasumsikan, atau menambahkan rincian yang tidak ada dalam konteks.
+3. Sebutkan sumber dokumen pendukung jika relevan."""
 
         # Prepare messages
         messages = [{"role": "system", "content": system_instruction}]
@@ -495,7 +539,7 @@ Please provide a well-structured, clear, and informative response based on the c
             kwargs = {
                 "model": model,
                 "messages": messages,
-                "temperature": 0.3,
+                "temperature": effective_temperature,
                 "max_tokens": 4500
             }
             if tools:
@@ -554,7 +598,16 @@ Please provide a well-structured, clear, and informative response based on the c
 
                         success = exec_res.get("success", False)
                         payload_data = exec_res.get("data") if exec_res.get("data") is not None else exec_res.get("text", exec_res)
-                        tool_output_str = json.dumps(payload_data, default=str, ensure_ascii=False) if not isinstance(payload_data, str) else payload_data
+                        
+                        # Explicit empty result notification to prevent the LLM from inventing data
+                        if isinstance(payload_data, list) and len(payload_data) == 0:
+                            tool_output_str = json.dumps({
+                                "status": "not_found",
+                                "message": f"Query tool '{fn_name}' dijalankan dan TIDAK MENEMUKAN data/record yang cocok di basis data. Sampaikan kepada pengguna bahwa data tidak ditemukan. DILARANG MENGARANG data profil fiktif.",
+                                "records": []
+                            }, ensure_ascii=False)
+                        else:
+                            tool_output_str = json.dumps(payload_data, default=str, ensure_ascii=False) if not isinstance(payload_data, str) else payload_data
 
                         executed_tools_info.append({
                             "tool_name": fn_name,
@@ -591,7 +644,7 @@ Please provide a well-structured, clear, and informative response based on the c
                         followup_resp = client.chat.completions.create(
                             model=model,
                             messages=messages,
-                            temperature=0.3,
+                            temperature=effective_temperature,
                             max_tokens=4500,
                             extra_body={"chat_template_kwargs": {"enable_thinking": False}}
                         )
@@ -599,7 +652,7 @@ Please provide a well-structured, clear, and informative response based on the c
                         followup_resp = client.chat.completions.create(
                             model=model,
                             messages=messages,
-                            temperature=0.3,
+                            temperature=effective_temperature,
                             max_tokens=4500
                         )
                     msg = followup_resp.choices[0].message
@@ -776,12 +829,16 @@ Please provide a well-structured, clear, and informative response based on the c
             "tools_executed": executed_tools_info,
             "face_recognition": face_result,
             "thinking": thinking_process,
+            "strict_mode": strict_mode,
+            "temperature": effective_temperature,
             "metrics": {
                 "chunks_retrieved": len(retrieved_chunks),
                 "entities_retrieved": len(graph_entities),
                 "tools_executed": len(executed_tools_info),
                 "face_detected": bool(face_result and face_result.get("detection", {}).get("face_detected")),
                 "face_matched": bool(face_result and face_result.get("matched")),
+                "strict_mode": strict_mode,
+                "temperature": effective_temperature,
                 "latency_ms": elapsed_ms
             }
         }

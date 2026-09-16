@@ -31,6 +31,8 @@ class ChatRequest(BaseModel):
     model_name: Optional[str] = None
     include_graph: Optional[bool] = True
     top_k: Optional[int] = 5
+    strict_mode: Optional[bool] = True
+    temperature: Optional[float] = None
 
 
 class ChatResponse(BaseModel):
@@ -43,6 +45,8 @@ class ChatResponse(BaseModel):
     tools_executed: Optional[List[Dict[str, Any]]] = []
     face_recognition: Optional[Dict[str, Any]] = None
     thinking: Optional[str] = None
+    strict_mode: Optional[bool] = True
+    temperature: Optional[float] = None
 
 
 class FeedbackRequest(BaseModel):
@@ -119,7 +123,9 @@ def chat_with_knowledge_endpoint(
         include_graph=req.include_graph if req.include_graph is not None else True,
         top_k=req.top_k or 5,
         db=db,
-        liked_examples=liked_examples  # few-shot context injection
+        liked_examples=liked_examples,  # few-shot context injection
+        strict_mode=req.strict_mode if req.strict_mode is not None else True,
+        temperature=req.temperature
     )
 
     return result
