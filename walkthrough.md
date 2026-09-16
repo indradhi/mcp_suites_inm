@@ -196,7 +196,12 @@ Telah ditambahkan sistem penyesuaian (adjustment) pada Chat Backoffice dan API L
    - Tested on user's live database `dblake.orang_api_dukcapil`:
      - With `limit=100`: extracted 5 chunks, 100 records.
      - With `limit=0` (unlimited): **extracted 396 chunks, 7,906 total records**!
-
+7. **Batas Ingestion 10.000 Record & Pengaturan Unlimited**:
+   - Sebelumnya, pada `ingest_tasks.py` terdapat pengaman `if limit <= 0: limit = 10000` untuk mencegah worker crash jika tabel berukuran sangat masif. Hal ini menyebabkan input `0` (unlimited) otomatis tertahan di 10.000 record.
+   - Logika ini telah disempurnakan menjadi `effective_limit = limit if limit > 0 else None`.
+   - **Hasil**:
+     - Memasukkan angka `0` kini benar-benar mengambil **seluruh record tanpa batas 10.000**.
+     - Pengguna juga bebas menentukan angka berapapun (misalnya `50000`, `100000`, `250000`, dsb.) pada kolom **Max Records to Ingest**.
 
 ---
 

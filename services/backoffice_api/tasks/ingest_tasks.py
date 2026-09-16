@@ -68,9 +68,9 @@ def run_ingest_source_task(self, source_id: int):
                 limit = int(limit_cfg)
             except (ValueError, TypeError):
                 limit = 5000
-            if limit <= 0:
-                limit = 10000  # Prevent unbounded memory exhaustion / worker OOM crashes
-            raw_chunks = database_ingester.extract_knowledge(db_type, config, query, limit=limit)
+            # If limit is 0 or negative, treat as None (unlimited: fetches all records in table)
+            effective_limit = limit if limit > 0 else None
+            raw_chunks = database_ingester.extract_knowledge(db_type, config, query, limit=effective_limit)
 
         elif source_type == "api":
             raw_chunks = asyncio.run(api_ingester.fetch_and_extract(config))
