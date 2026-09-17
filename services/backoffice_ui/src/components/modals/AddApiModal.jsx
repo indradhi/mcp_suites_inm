@@ -17,6 +17,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import api from '../../api/client';
+import { inferFieldDescription, inferFieldDataType } from '../../utils/fieldDefinitionHelper';
 
 export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = null }) {
   const [name, setName] = useState('');
@@ -165,18 +166,27 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       return;
     }
 
+    let parsedRaw = rawData;
+    if (typeof parsedRaw === 'string') {
+      try {
+        parsedRaw = JSON.parse(parsedRaw);
+      } catch (e) {
+        // keep as is
+      }
+    }
+
     let sampleItem = null;
-    if (Array.isArray(rawData) && rawData.length > 0) {
-      sampleItem = rawData[0];
-    } else if (typeof rawData === 'object' && rawData !== null) {
-      if (Array.isArray(rawData.data) && rawData.data.length > 0) {
-        sampleItem = rawData.data[0];
-      } else if (Array.isArray(rawData.results) && rawData.results.length > 0) {
-        sampleItem = rawData.results[0];
-      } else if (Array.isArray(rawData.records) && rawData.records.length > 0) {
-        sampleItem = rawData.records[0];
+    if (Array.isArray(parsedRaw) && parsedRaw.length > 0) {
+      sampleItem = parsedRaw[0];
+    } else if (typeof parsedRaw === 'object' && parsedRaw !== null) {
+      if (Array.isArray(parsedRaw.data) && parsedRaw.data.length > 0) {
+        sampleItem = parsedRaw.data[0];
+      } else if (Array.isArray(parsedRaw.results) && parsedRaw.results.length > 0) {
+        sampleItem = parsedRaw.results[0];
+      } else if (Array.isArray(parsedRaw.records) && parsedRaw.records.length > 0) {
+        sampleItem = parsedRaw.records[0];
       } else {
-        sampleItem = rawData;
+        sampleItem = parsedRaw;
       }
     }
 
@@ -193,27 +203,31 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
     const detected = [];
     Object.keys(sampleItem).forEach(key => {
       const val = sampleItem[key];
-      let inferredType = 'string';
-      if (typeof val === 'number') {
-        inferredType = Number.isInteger(val) ? 'integer' : 'number';
-      } else if (typeof val === 'boolean') {
-        inferredType = 'boolean';
-      } else if (Array.isArray(val)) {
-        inferredType = 'array';
-      } else if (typeof val === 'object' && val !== null) {
-        inferredType = 'object';
-      }
+      const inferredType = inferFieldDataType(key, val);
 
       const existing = existingMap.get(key.toLowerCase().trim());
+      const autoDescription = (existing?.description && existing.description.trim() !== '')
+        ? existing.description
+        : inferFieldDescription(key, inferredType, val);
+
       detected.push({
         name: key,
         type: existing?.type || inferredType,
-        description: existing?.description || '',
+        description: autoDescription,
         sample: (val !== null && val !== undefined) ? (typeof val === 'object' ? JSON.stringify(val) : String(val)) : (existing?.sample || '')
       });
     });
 
     setFieldDefinitions(detected);
+  };
+
+  const handleAutoFillEmptyDescriptions = () => {
+    setFieldDefinitions(prev => prev.map(fd => ({
+      ...fd,
+      description: (fd.description && fd.description.trim() !== '')
+        ? fd.description
+        : inferFieldDescription(fd.name, fd.type, fd.sample)
+    })));
   };
 
   const handleTest = async () => {
@@ -897,6 +911,31 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                   </button>
                 )}
 
+                {fieldDefinitions.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleAutoFillEmptyDescriptions}
+                    style={{
+                      background: 'rgba(234, 179, 8, 0.12)',
+                      border: '1px solid rgba(234, 179, 8, 0.35)',
+                      color: '#fde047',
+                      padding: '5px 10px',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Isi otomatis definisi bantuan awal untuk field yang deskripsinya masih kosong"
+                  >
+                    <Sparkles size={13} />
+                    <span>Auto-Fill Definisi Kosong</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={handleAddFieldDefinition}
@@ -932,10 +971,24 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                 color: 'var(--text-muted)',
                 lineHeight: '1.5'
               }}>
-                Belum ada definisi field. Klik <strong>"Tambah Field"</strong> manual atau jalankan test di bawah lalu klik <strong>"⚡ Deteksi Otomatis dari Test"</strong> untuk mengisi kamus field secara instan.
+                Belum ada definisi field. Klik <strong>"Tambah Field"</strong> manual atau jalankan test lalu klik <strong>"⚡ Deteksi Otomatis dari Test"</strong> untuk mendeteksi field sekaligus mengisi definisi otomatis untuk AI.
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  background: 'rgba(99, 102, 241, 0.08)',
+                  border: '1px solid rgba(99, 102, 241, 0.2)',
+                  fontSize: '11px',
+                  color: '#c7d2fe',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <Sparkles size={13} color="#818cf8" style={{ flexShrink: 0 }} />
+                  <span>Definisi terisi otomatis sebagai bantuan deteksi awal untuk AI. Anda dapat menyunting atau memperjelas arti field sesuai kebutuhan.</span>
+                </div>
                 <div style={{
                   display: 'grid',
                   gridTemplateColumns: '1.2fr 100px 2.2fr 1.2fr 36px',
