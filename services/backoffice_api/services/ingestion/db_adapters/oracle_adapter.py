@@ -35,7 +35,7 @@ class OracleAdapter:
             raise
 
     @classmethod
-    def execute_query(cls, config: Dict[str, Any], query: str, limit: int = 1000) -> List[Dict[str, Any]]:
+    def execute_query(cls, config: Dict[str, Any], query: str, limit: int = 1000, return_columns: bool = False) -> Any:
         conn = cls._get_connection(config)
         clean_query = query.strip().rstrip(";")
         if limit and limit > 0:
@@ -49,7 +49,7 @@ class OracleAdapter:
         try:
             with conn.cursor() as cursor:
                 cursor.execute(final_query)
-                columns = [col[0].lower() for col in cursor.description]
+                columns = [col[0].lower() for col in cursor.description] if cursor.description else []
                 if limit and limit > 0:
                     rows = cursor.fetchmany(limit)
                 else:
@@ -57,6 +57,8 @@ class OracleAdapter:
                 records = []
                 for row in rows:
                     records.append(dict(zip(columns, row)))
+                if return_columns:
+                    return records, columns
                 return records
         finally:
             conn.close()

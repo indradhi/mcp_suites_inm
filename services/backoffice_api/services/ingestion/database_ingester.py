@@ -262,11 +262,23 @@ class DatabaseIngester:
             adapter = self.get_adapter(db_type)
             interpolated_query = self.substitute_query_parameters(raw_query, db_type, parameters_def, arguments)
 
-            records = adapter.execute_query(config, interpolated_query, limit=limit)
+            try:
+                query_res = adapter.execute_query(config, interpolated_query, limit=limit, return_columns=True)
+                if isinstance(query_res, tuple) and len(query_res) == 2:
+                    records, cols = query_res
+                else:
+                    records = query_res
+                    cols = list(records[0].keys()) if records and isinstance(records[0], dict) else []
+            except TypeError:
+                records = adapter.execute_query(config, interpolated_query, limit=limit)
+                cols = list(records[0].keys()) if records and isinstance(records[0], dict) else []
+
             latency_ms = int((time.time() - start_time) * 1000)
 
             if records:
                 text_repr = json.dumps(records, indent=2, default=str, ensure_ascii=False)
+            elif cols:
+                text_repr = f"Query executed successfully, returned 0 rows from {db_type.upper()} database. Available columns: {', '.join(cols)}."
             else:
                 text_repr = f"Query executed successfully, returned 0 rows from {db_type.upper()} database."
 
@@ -279,6 +291,7 @@ class DatabaseIngester:
                 "arguments": arguments,
                 "latency_ms": latency_ms,
                 "row_count": len(records),
+                "columns": cols,
                 "data": records,
                 "text": text_repr[:12000]
             }

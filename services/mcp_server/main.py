@@ -316,6 +316,17 @@ async def fetch_dynamic_api_tools() -> List[Dict[str, Any]]:
                         if p.get("required"):
                             required_fields.append(p_name)
 
+                    field_defs = item.get("field_definitions") or (item.get("config", {}) or {}).get("field_definitions", [])
+                    if field_defs and isinstance(field_defs, list) and len(field_defs) > 0:
+                        glossary_lines = ["\n\nField Definitions (Kamus Kolom Balikan):"]
+                        for fd in field_defs:
+                            fname = fd.get("name")
+                            if fname:
+                                fdesc = fd.get("description") or fd.get("type") or "Field value"
+                                fsample = f" (contoh: {fd.get('sample')})" if fd.get("sample") else ""
+                                glossary_lines.append(f"- {fname}: {fdesc}{fsample}")
+                        description += "\n".join(glossary_lines)
+
                     converted_tools.append({
                         "name": tool_name,
                         "description": description,
@@ -324,6 +335,7 @@ async def fetch_dynamic_api_tools() -> List[Dict[str, Any]]:
                             "properties": properties,
                             "required": required_fields
                         },
+                        "field_definitions": field_defs,
                         "_source_id": item.get("source_id"),
                         "_config": item.get("config")
                     })

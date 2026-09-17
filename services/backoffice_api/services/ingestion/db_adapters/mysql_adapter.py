@@ -23,7 +23,7 @@ class MySQLAdapter:
             raise
 
     @staticmethod
-    def execute_query(config: Dict[str, Any], query: str, limit: int = 1000) -> List[Dict[str, Any]]:
+    def execute_query(config: Dict[str, Any], query: str, limit: int = 1000, return_columns: bool = False) -> Any:
         conn = pymysql.connect(
             host=config.get("host", "localhost"),
             port=int(config.get("port", 3306)),
@@ -44,10 +44,13 @@ class MySQLAdapter:
         try:
             with conn.cursor() as cursor:
                 cursor.execute(final_query)
+                columns = [col[0] for col in cursor.description] if cursor.description else []
                 if limit and limit > 0:
                     records = cursor.fetchmany(limit)
                 else:
                     records = cursor.fetchall()
+                if return_columns:
+                    return records, columns
                 return records
         finally:
             conn.close()

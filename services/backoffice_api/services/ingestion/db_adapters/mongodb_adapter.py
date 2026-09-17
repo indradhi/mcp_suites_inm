@@ -26,7 +26,7 @@ class MongoDBAdapter:
             raise
 
     @staticmethod
-    def execute_query(config: Dict[str, Any], query: Any = None, limit: int = 1000) -> List[Dict[str, Any]]:
+    def execute_query(config: Dict[str, Any], query: Any = None, limit: int = 1000, return_columns: bool = False) -> Any:
         import json
         import re
         import yaml
@@ -137,6 +137,9 @@ class MongoDBAdapter:
             for doc in cursor:
                 doc["_id"] = str(doc["_id"])  # convert ObjectId to string
                 records.append(doc)
+            cols = list(records[0].keys()) if records and isinstance(records[0], dict) else []
+            if return_columns:
+                return records, cols
             return records
         finally:
             client.close()

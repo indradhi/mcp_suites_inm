@@ -24,7 +24,7 @@ class PostgresAdapter:
             raise
 
     @staticmethod
-    def execute_query(config: Dict[str, Any], query: str, limit: int = 1000) -> List[Dict[str, Any]]:
+    def execute_query(config: Dict[str, Any], query: str, limit: int = 1000, return_columns: bool = False) -> Any:
         conn = psycopg2.connect(
             host=config.get("host", "localhost"),
             port=int(config.get("port", 5432)),
@@ -44,11 +44,15 @@ class PostgresAdapter:
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute(final_query)
+                columns = [col[0] for col in cursor.description] if cursor.description else []
                 if limit and limit > 0:
                     records = cursor.fetchmany(limit)
                 else:
                     records = cursor.fetchall()
-                return [dict(r) for r in records]
+                results = [dict(r) for r in records]
+                if return_columns:
+                    return results, columns
+                return results
         finally:
             conn.close()
 

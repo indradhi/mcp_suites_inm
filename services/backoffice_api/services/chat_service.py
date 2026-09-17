@@ -480,11 +480,25 @@ class ChatService:
                                 required_params.append(p_name)
 
                         default_desc = f"Execute live database query against {s.name}" if s.source_type == "database" else f"Fetch live data from {s.name} API"
+                        tool_desc = cfg.get("tool_description") or s.description or default_desc
+
+                        # Append field definitions dictionary so LLM understands return schema before execution
+                        field_defs = cfg.get("field_definitions", [])
+                        if field_defs and isinstance(field_defs, list) and len(field_defs) > 0:
+                            glossary_lines = ["\n\nKamus Definisi Field Balikan (Field Definitions):"]
+                            for fd in field_defs:
+                                fname = fd.get("name")
+                                if fname:
+                                    fdesc = fd.get("description") or fd.get("type") or "Definisi field"
+                                    fsample = f" (contoh: {fd.get('sample')})" if fd.get("sample") else ""
+                                    glossary_lines.append(f"- {fname}: {fdesc}{fsample}")
+                            tool_desc += "\n".join(glossary_lines)
+
                         tools.append({
                             "type": "function",
                             "function": {
                                 "name": clean_name,
-                                "description": cfg.get("tool_description") or s.description or default_desc,
+                                "description": tool_desc,
                                 "parameters": {
                                     "type": "object",
                                     "properties": properties,
@@ -692,15 +706,19 @@ Patuhi aturan:
                                 "records": []
                             }, ensure_ascii=False)
                         else:
-                            # Deliver with explicit Ground Truth Priority metadata
+                            # Deliver with explicit Ground Truth Priority metadata and Field Definitions
+                            field_defs = (matched_source.config or {}).get("field_definitions", [])
                             tool_output_payload = {
                                 "status": "success",
                                 "source_name": matched_source.name,
                                 "source_type": matched_source.source_type,
                                 "fetch_mode": "LIVE_DIRECT_DATABASE_QUERY",
                                 "data_priority": "PRIORITAS_UTAMA_MUTLAK (Data ini diambil langsung secara real-time dari database/source data resmi. WAJIB ditampilkan sebagai acuan utama kepada pengguna di atas data lainnya).",
+                                "field_definitions": field_defs if (isinstance(field_defs, list) and len(field_defs) > 0) else None,
                                 "records": payload_data
                             }
+                            if tool_output_payload.get("field_definitions") is None:
+                                tool_output_payload.pop("field_definitions", None)
                             tool_output_str = json.dumps(tool_output_payload, default=str, ensure_ascii=False)
 
                         executed_tools_info.append({

@@ -12,7 +12,9 @@ import {
   Code, 
   Play, 
   HelpCircle,
-  Copy
+  Copy,
+  BookOpen,
+  Sparkles
 } from 'lucide-react';
 import api from '../../api/client';
 
@@ -33,6 +35,9 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
   const [toolDescription, setToolDescription] = useState('');
   const [parameters, setParameters] = useState([]);
   const [testArgs, setTestArgs] = useState({});
+  
+  // Field Definitions (Kamus Data Balikan)
+  const [fieldDefinitions, setFieldDefinitions] = useState([]);
   
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
@@ -57,6 +62,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       setToolName(conf.tool_name || '');
       setToolDescription(conf.tool_description || '');
       setParameters(conf.parameters || []);
+      setFieldDefinitions(conf.field_definitions || []);
 
       // Pre-fill test arguments from parameters defaults
       const initialTestArgs = {};
@@ -78,6 +84,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       setToolName('');
       setToolDescription('');
       setParameters([]);
+      setFieldDefinitions([]);
       setTestArgs({});
       setTestResult(null);
     }
@@ -131,6 +138,84 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
     setTestArgs(prev => ({ ...prev, [paramName]: val }));
   };
 
+  // Field Definitions Handlers
+  const handleAddFieldDefinition = () => {
+    setFieldDefinitions(prev => [
+      ...prev,
+      { name: '', type: 'string', description: '', sample: '' }
+    ]);
+  };
+
+  const handleUpdateFieldDefinition = (index, field, value) => {
+    setFieldDefinitions(prev => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  };
+
+  const handleRemoveFieldDefinition = (index) => {
+    setFieldDefinitions(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAutoDetectFieldDefinitions = () => {
+    const rawData = testResult?.result?.data || testResult?.data;
+    if (!rawData) {
+      alert('Belum ada data hasil test untuk dideteksi. Silakan jalankan Test Endpoint / Test Tool Call terlebih dahulu.');
+      return;
+    }
+
+    let sampleItem = null;
+    if (Array.isArray(rawData) && rawData.length > 0) {
+      sampleItem = rawData[0];
+    } else if (typeof rawData === 'object' && rawData !== null) {
+      if (Array.isArray(rawData.data) && rawData.data.length > 0) {
+        sampleItem = rawData.data[0];
+      } else if (Array.isArray(rawData.results) && rawData.results.length > 0) {
+        sampleItem = rawData.results[0];
+      } else if (Array.isArray(rawData.records) && rawData.records.length > 0) {
+        sampleItem = rawData.records[0];
+      } else {
+        sampleItem = rawData;
+      }
+    }
+
+    if (!sampleItem || typeof sampleItem !== 'object') {
+      alert('Format data hasil test tidak dapat dideteksi secara otomatis.');
+      return;
+    }
+
+    const existingMap = new Map();
+    fieldDefinitions.forEach(fd => {
+      if (fd.name) existingMap.set(fd.name.toLowerCase().trim(), fd);
+    });
+
+    const detected = [];
+    Object.keys(sampleItem).forEach(key => {
+      const val = sampleItem[key];
+      let inferredType = 'string';
+      if (typeof val === 'number') {
+        inferredType = Number.isInteger(val) ? 'integer' : 'number';
+      } else if (typeof val === 'boolean') {
+        inferredType = 'boolean';
+      } else if (Array.isArray(val)) {
+        inferredType = 'array';
+      } else if (typeof val === 'object' && val !== null) {
+        inferredType = 'object';
+      }
+
+      const existing = existingMap.get(key.toLowerCase().trim());
+      detected.push({
+        name: key,
+        type: existing?.type || inferredType,
+        description: existing?.description || '',
+        sample: (val !== null && val !== undefined) ? (typeof val === 'object' ? JSON.stringify(val) : String(val)) : (existing?.sample || '')
+      });
+    });
+
+    setFieldDefinitions(detected);
+  };
+
   const handleTest = async () => {
     setTesting(true);
     setTestResult(null);
@@ -176,6 +261,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
         : {};
 
       const validParameters = isTool ? parameters.filter(p => p.name && p.name.trim() !== '') : [];
+      const validFieldDefs = fieldDefinitions.filter(f => f.name && f.name.trim() !== '');
 
       const payload = {
         name,
@@ -191,7 +277,8 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
           is_tool: isTool,
           tool_name: isTool ? (toolName.trim() || `api_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`) : undefined,
           tool_description: isTool ? (toolDescription.trim() || `Dynamic API Tool for ${name}`) : undefined,
-          parameters: validParameters
+          parameters: validParameters,
+          field_definitions: validFieldDefs
         }
       };
 
@@ -219,6 +306,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
         : {};
 
       const validParameters = isTool ? parameters.filter(p => p.name && p.name.trim() !== '') : [];
+      const validFieldDefs = fieldDefinitions.filter(f => f.name && f.name.trim() !== '');
       const copyName = name.includes('(Copy') ? name : `${name} (Copy)`;
       const copyToolName = isTool && toolName ? (toolName.includes('_copy') ? toolName : `${toolName}_copy`) : undefined;
 
@@ -236,7 +324,8 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
           is_tool: isTool,
           tool_name: copyToolName,
           tool_description: isTool ? (toolDescription.trim() || `Dynamic API Tool for ${copyName}`) : undefined,
-          parameters: validParameters
+          parameters: validParameters,
+          field_definitions: validFieldDefs
         }
       };
 
@@ -748,6 +837,203 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
             )}
           </div>
 
+          {/* Field Definitions (Kamus Data / Output Schema) */}
+          <div style={{
+            padding: '16px',
+            borderRadius: '10px',
+            background: 'rgba(255, 255, 255, 0.02)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <BookOpen size={16} color="var(--accent-primary)" />
+                  <span>Definisi Field Balikan (Kamus Data / Schema Output)</span>
+                  <span style={{
+                    fontSize: '10px',
+                    background: 'rgba(99, 102, 241, 0.2)',
+                    color: '#818cf8',
+                    padding: '2px 7px',
+                    borderRadius: '10px',
+                    fontWeight: '700'
+                  }}>
+                    {fieldDefinitions.length} Field
+                  </span>
+                </div>
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', maxWidth: '560px' }}>
+                  Bantu AI memahami secara tepat arti, singkatan, tipe, dan kode angka setiap kolom yang dikembalikan oleh API ini agar interpretasi jawaban akurat dan bebas halusinasi.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {Boolean(
+                  (testResult?.result?.data && (Array.isArray(testResult.result.data) ? testResult.result.data.length > 0 : true)) ||
+                  testResult?.data
+                ) && (
+                  <button
+                    type="button"
+                    onClick={handleAutoDetectFieldDefinitions}
+                    style={{
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      border: '1px solid rgba(16, 185, 129, 0.4)',
+                      color: '#34d399',
+                      padding: '5px 10px',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Ekstrak nama field dan tipe data otomatis dari respons hasil test di bawah"
+                  >
+                    <Sparkles size={13} />
+                    <span>Deteksi Otomatis dari Test</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleAddFieldDefinition}
+                  style={{
+                    background: 'rgba(99, 102, 241, 0.15)',
+                    border: '1px solid rgba(99, 102, 241, 0.4)',
+                    color: '#a5b4fc',
+                    padding: '5px 10px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <Plus size={13} />
+                  <span>Tambah Field</span>
+                </button>
+              </div>
+            </div>
+
+            {fieldDefinitions.length === 0 ? (
+              <div style={{
+                padding: '14px',
+                textAlign: 'center',
+                background: 'rgba(0, 0, 0, 0.2)',
+                borderRadius: '8px',
+                border: '1px dashed rgba(255, 255, 255, 0.1)',
+                fontSize: '11.5px',
+                color: 'var(--text-muted)',
+                lineHeight: '1.5'
+              }}>
+                Belum ada definisi field. Klik <strong>"Tambah Field"</strong> manual atau jalankan test di bawah lalu klik <strong>"⚡ Deteksi Otomatis dari Test"</strong> untuk mengisi kamus field secara instan.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1.2fr 100px 2.2fr 1.2fr 36px',
+                  gap: '8px',
+                  padding: '0 8px',
+                  fontSize: '10.5px',
+                  fontWeight: '700',
+                  color: 'var(--text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em'
+                }}>
+                  <div>Nama Kolom / Key</div>
+                  <div>Tipe Data</div>
+                  <div>Definisi / Arti untuk AI</div>
+                  <div>Contoh / Nilai Kode</div>
+                  <div style={{ textAlign: 'center' }}>Hapus</div>
+                </div>
+
+                {fieldDefinitions.map((fd, fIdx) => (
+                  <div
+                    key={fIdx}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1.2fr 100px 2.2fr 1.2fr 36px',
+                      gap: '8px',
+                      alignItems: 'center',
+                      background: 'rgba(0, 0, 0, 0.25)',
+                      padding: '8px',
+                      borderRadius: '6px',
+                      border: '1px solid rgba(255, 255, 255, 0.05)'
+                    }}
+                  >
+                    <div>
+                      <input
+                        type="text"
+                        className="input-field font-mono"
+                        style={{ padding: '6px 8px', fontSize: '11.5px' }}
+                        placeholder="e.g. nik"
+                        value={fd.name || ''}
+                        onChange={(e) => handleUpdateFieldDefinition(fIdx, 'name', e.target.value)}
+                      />
+                    </div>
+
+                    <div>
+                      <select
+                        className="input-field"
+                        style={{ padding: '6px 6px', fontSize: '11px' }}
+                        value={fd.type || 'string'}
+                        onChange={(e) => handleUpdateFieldDefinition(fIdx, 'type', e.target.value)}
+                      >
+                        <option value="string">string</option>
+                        <option value="integer">integer</option>
+                        <option value="number">number</option>
+                        <option value="boolean">boolean</option>
+                        <option value="date">date</option>
+                        <option value="object">object</option>
+                        <option value="array">array</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <input
+                        type="text"
+                        className="input-field"
+                        style={{ padding: '6px 8px', fontSize: '11.5px' }}
+                        placeholder="e.g. Nomor Induk Kependudukan 16 digit resmi"
+                        value={fd.description || ''}
+                        onChange={(e) => handleUpdateFieldDefinition(fIdx, 'description', e.target.value)}
+                      />
+                    </div>
+
+                    <div>
+                      <input
+                        type="text"
+                        className="input-field font-mono"
+                        style={{ padding: '6px 8px', fontSize: '11px' }}
+                        placeholder="e.g. 317507... / 1=PNS"
+                        value={fd.sample || ''}
+                        onChange={(e) => handleUpdateFieldDefinition(fIdx, 'sample', e.target.value)}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFieldDefinition(fIdx)}
+                        style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: '4px' }}
+                        title="Hapus field ini"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Test Connection / Tool Output */}
           {testResult && (
             <div style={{
@@ -814,7 +1100,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                 disabled={testing}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
               >
-                {testing ? 'Executing...' : (isTool ? '⚡ Test API Tool Call' : 'Test Endpoint')}
+                {testing ? 'Executing...' : (isTool ? '⚡ Test API Tool Call' : '⚡ Test Endpoint & Sample Data')}
               </button>
               <button 
                 type="submit" 

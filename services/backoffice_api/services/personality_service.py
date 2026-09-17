@@ -293,6 +293,7 @@ class PersonalityService:
                 f"- Jika pertanyaan menyangkut verifikasi subjek orang, NIK, identitas, atau sertifikat kepemilikan tanah/aset fisik, "
                 f"Anda WAJIB memanggil alat yang sesuai terlebih dahulu untuk mengambil data resmi terverifikasi langsung dari database sumber.\n"
                 f"- Begitu data berhasil diperoleh dari pemanggilan alat, PRIORITASKAN data tersebut dalam jawaban Anda sebagai acuan utama yang ditampilkan kepada pengguna.\n"
+                f"- KAMUS DEFINISI FIELD (FIELD DEFINITIONS): Jika hasil pemanggilan alat atau konteks memuat 'field_definitions', gunakan kamus definisi tersebut untuk memahami secara tepat arti setiap kolom, kode status numerik, singkatan instansi, atau nilai teknis tanpa menebak atau berasumsi.\n"
                 f"- Jika alat mengembalikan status 'not_found' atau data kosong, nyatakan secara transparan: "
                 f"'Data tidak ditemukan dalam basis data sumber yang terhubung'. JANGAN mengarang rincian fiktif.\n"
             )

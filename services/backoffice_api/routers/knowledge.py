@@ -69,12 +69,31 @@ async def test_source_connection(payload: TestConnectionRequest, user = Depends(
     try:
         if stype == "database":
             db_type = config.get("db_type", "mysql")
-            if config.get("is_tool") or (config.get("query") and config.get("parameters")):
+            has_query = bool(config.get("query") and str(config.get("query")).strip())
+            is_tool_mode = bool(config.get("is_tool") or (config.get("query") and config.get("parameters")))
+
+            if is_tool_mode or has_query:
                 test_args = config.get("test_arguments", {})
-                res = await database_ingester.execute_tool_call(config, test_args)
+                test_config = config.copy()
+                if not is_tool_mode:
+                    # In Standard Mode preview, limit to small batch (5 records) for instant response
+                    raw_limit = test_config.get("limit")
+                    try:
+                        parsed_limit = int(raw_limit) if raw_limit is not None else 5
+                        test_config["limit"] = min(parsed_limit, 5) if parsed_limit > 0 else 5
+                    except Exception:
+                        test_config["limit"] = 5
+
+                res = await database_ingester.execute_tool_call(test_config, test_args)
+                if res.get("success"):
+                    row_cnt = res.get("row_count", 0)
+                    col_cnt = len(res.get("columns", []))
+                    msg = f"Koneksi berhasil dan query berhasil dieksekusi ({row_cnt} baris sampel, {col_cnt} kolom terdeteksi)"
+                else:
+                    msg = f"Koneksi atau query database gagal: {res.get('error')}"
                 return {
                     "success": res.get("success", False),
-                    "message": "Database query executed successfully" if res.get("success") else f"Database execution failed: {res.get('error')}",
+                    "message": msg,
                     "result": res
                 }
             else:
@@ -82,12 +101,18 @@ async def test_source_connection(payload: TestConnectionRequest, user = Depends(
                 return {"success": success, "message": f"Successfully connected to {db_type.upper()} database"}
 
         elif stype == "api":
-            if config.get("is_tool"):
+            endpoint = config.get("endpoint")
+            has_endpoint = bool(endpoint and str(endpoint).strip())
+            if config.get("is_tool") or has_endpoint:
                 test_args = config.get("test_arguments", {})
                 res = await api_ingester.execute_tool_call(config, test_args)
+                if res.get("success"):
+                    msg = "Endpoint API berhasil diakses dan dieksekusi (sampel data diperoleh)"
+                else:
+                    msg = f"Panggilan API gagal: {res.get('error')}"
                 return {
                     "success": res.get("success", False),
-                    "message": "API Tool executed successfully" if res.get("success") else f"API Tool execution failed: {res.get('error')}",
+                    "message": msg,
                     "result": res
                 }
             else:
@@ -132,6 +157,7 @@ def list_api_tools(db: Session = Depends(get_db)):
                 "title": s.name,
                 "description": conf.get("tool_description") or s.description or f"{'Database' if s.source_type == 'database' else 'API'} Tool for {s.name}",
                 "parameters": conf.get("parameters", []),
+                "field_definitions": conf.get("field_definitions", []),
                 "config": conf
             }
             if s.source_type == "api":
@@ -176,10 +202,13 @@ async def execute_api_tool(
         except Exception as cache_err:
             logging.getLogger(__name__).warning(f"Notice saving tool bank data: {cache_err}")
 
-        # Attach data priority metadata for caller (MCP client or LLM)
+        # Attach data priority metadata and field definitions for caller (MCP client or LLM)
         if isinstance(result, dict) and result.get("success"):
             result["data_priority"] = "PRIORITAS_UTAMA_MUTLAK (Data diambil langsung secara real-time dari database/source data resmi)"
             result["fetch_mode"] = "LIVE_DIRECT_DATABASE_QUERY"
+            field_defs = (source.config or {}).get("field_definitions")
+            if field_defs:
+                result["field_definitions"] = field_defs
 
         return result
     except Exception as e:

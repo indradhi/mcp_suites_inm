@@ -17,7 +17,8 @@ import {
   Code,
   Copy,
   Download,
-  Upload
+  Upload,
+  BookOpen
 } from 'lucide-react';
 import api from '../api/client';
 import { formatDateTimeWIB } from '../utils/dateUtils';
@@ -624,6 +625,27 @@ export default function KnowledgeSources() {
                           {p.name}{p.required ? '*' : ''} <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>({p.in || p.type || 'query'})</span>
                         </span>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Field Definitions (Kamus Data) Indicator */}
+                {source.config?.field_definitions && source.config.field_definitions.length > 0 && (
+                  <div style={{ marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                      <BookOpen size={12} color="var(--accent-primary)" />
+                      <span style={{ color: '#cbd5e1', fontWeight: '600' }}>Kamus Data:</span>
+                      <span style={{
+                        background: 'rgba(99, 102, 241, 0.15)',
+                        border: '1px solid rgba(99, 102, 241, 0.3)',
+                        borderRadius: '4px',
+                        padding: '1px 6px',
+                        fontSize: '10px',
+                        color: '#a5b4fc',
+                        fontWeight: '700'
+                      }}>
+                        {source.config.field_definitions.length} field terdefinisi
+                      </span>
                     </div>
                   </div>
                 )}
