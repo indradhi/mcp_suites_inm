@@ -50,6 +50,19 @@ def run_ingest_source_task(self, source_id: int):
         source_type = source.source_type.lower()
         config = source.config or {}
 
+        # If source is configured as an on-demand AI Tool (live query without vector ingestion), skip batch ingestion
+        if config.get("is_tool") or (source_type in ["database", "api"] and config.get("parameters")):
+            logger.info(f"Source with id {source_id} ('{source.name}') is configured as on-demand AI Tool. Skipping batch vector ingestion.")
+            job.status = "completed"
+            job.total_records = 0
+            job.chunks_created = 0
+            job.processed_records = 0
+            job.completed_at = datetime.utcnow()
+            source.sync_status = "active (tool)"
+            source.last_synced_at = datetime.utcnow()
+            db.commit()
+            return
+
         # 1. Extraction by source type
         if source_type == "file":
             file_path = config.get("file_path")

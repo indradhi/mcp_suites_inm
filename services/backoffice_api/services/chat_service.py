@@ -545,7 +545,8 @@ class ChatService:
 User Question: {message}
 
 Instructions:
-- If the user question is asking to profile, find, or look up a specific person, NIK, or citizen record (e.g. 'siapa ...', 'profil ...', 'cari ...'), you MUST call the corresponding search/profiling tool first to fetch their verified official record and photo from the database.
+- PRIORITAS UTAMA SUMBER DATA: Data yang didapat langsung dari eksekusi Tool (query langsung ke database / live API) adalah SUMBER KEBENARAN UTAMA (Ground Truth). Jawaban Anda WAJIB memprioritaskan dan menampilkan data hasil query database langsung ini kepada pengguna di atas data dokumen atau perkiraan apapun.
+- If the user question is asking to profile, find, or look up a specific person, NIK, or citizen record (e.g. 'siapa ...', 'profil ...', 'cari ...'), you MUST call the corresponding search/profiling tool first to fetch their verified official record and photo directly from the database.
 - If the question can be answered or queried using one of the available tools, call the tool first.
 - Only formulate a direct answer from the context above if none of the tools are applicable.
 - STRICT ANTI-HALLUCINATION: If neither the tools nor the context contain the requested data, state clearly: "Data tidak ditemukan dalam basis data atau dokumen yang tersedia." DO NOT invent, fabricate, or guess any details.
@@ -672,16 +673,35 @@ Patuhi aturan:
 
                         success = exec_res.get("success", False)
                         payload_data = exec_res.get("data") if exec_res.get("data") is not None else exec_res.get("text", exec_res)
+
+                        # Automatically cache query-by-parameter result into ChromaDB Bank Data
+                        if success:
+                            try:
+                                rec_data = exec_res.get("data")
+                                if rec_data and isinstance(rec_data, list) and len(rec_data) > 0:
+                                    from services.ingestion.bank_data_saver import save_tool_records_to_bank_data
+                                    save_tool_records_to_bank_data(matched_source, fn_args, rec_data, db)
+                            except Exception as cache_err:
+                                logger.warning(f"Notice saving tool bank data in chat: {cache_err}")
                         
                         # Explicit empty result notification to prevent the LLM from inventing data
                         if isinstance(payload_data, list) and len(payload_data) == 0:
                             tool_output_str = json.dumps({
                                 "status": "not_found",
-                                "message": f"Query tool '{fn_name}' dijalankan dan TIDAK MENEMUKAN data/record yang cocok di basis data. Sampaikan kepada pengguna bahwa data tidak ditemukan. DILARANG MENGARANG data profil fiktif.",
+                                "message": f"Query tool '{fn_name}' dijalankan langsung ke basis data sumber dan TIDAK MENEMUKAN data/record yang cocok. Sampaikan secara transparan kepada pengguna bahwa data tidak ditemukan di database resmi. DILARANG MENGARANG data profil fiktif.",
                                 "records": []
                             }, ensure_ascii=False)
                         else:
-                            tool_output_str = json.dumps(payload_data, default=str, ensure_ascii=False) if not isinstance(payload_data, str) else payload_data
+                            # Deliver with explicit Ground Truth Priority metadata
+                            tool_output_payload = {
+                                "status": "success",
+                                "source_name": matched_source.name,
+                                "source_type": matched_source.source_type,
+                                "fetch_mode": "LIVE_DIRECT_DATABASE_QUERY",
+                                "data_priority": "PRIORITAS_UTAMA_MUTLAK (Data ini diambil langsung secara real-time dari database/source data resmi. WAJIB ditampilkan sebagai acuan utama kepada pengguna di atas data lainnya).",
+                                "records": payload_data
+                            }
+                            tool_output_str = json.dumps(tool_output_payload, default=str, ensure_ascii=False)
 
                         executed_tools_info.append({
                             "tool_name": fn_name,

@@ -21,6 +21,7 @@ DEFAULT_PERSONALITY: Dict[str, Any] = {
         "dari basis data tanpa spekulasi atau halusinasi."
     ),
     "guidelines": [
+        "PRIORITAS SUMBER UTAMA: Data yang berhasil diambil secara langsung dari database atau source data resmi (live query) adalah PRIORITAS TERTINGGI yang WAJIB ditampilkan kepada pengguna sebagai acuan utama (Ground Truth).",
         "Prioritaskan penggunaan alat/tool database resmi (seperti verifikasi profil penduduk, sertifikat tanah BPN, atau database internal) jika pertanyaan menanyakan subjek orang atau aset fisik.",
         "STRICT GROUNDING: Jawab murni berdasarkan fakta dan dokumen yang tersedia. Jika data tidak ditemukan, katakan secara jujur bahwa data tidak ditemukan dalam basis data yang terhubung. DILARANG KERAS mengarang (halusinasi) nama, nomor sertifikat, NIK, atau aset fiktif.",
         "Sajikan kutipan sumber, nomor dokumen, dan konteks data pendukung secara transparan dan jelas.",
@@ -270,6 +271,18 @@ class PersonalityService:
             if custom_ins and custom_ins.strip():
                 prompt += f"\nINSTRUKSI KHUSUS ORGANISASI:\n{custom_ins.strip()}\n"
 
+        # Explicit Data Hierarchy & Ground Truth Rules
+        prompt += (
+            f"\nHIERARKI PRIORITAS DATA & SUMBER KEBENARAN UTAMA (GROUND TRUTH):\n"
+            f"1. PRIORITAS TERTINGGI (SUMBER KEBENARAN MUTLAK / LIVE GROUND TRUTH):\n"
+            f"   - Data yang berhasil diambil secara langsung dari basis data atau API real-time (melalui pemanggilan Tools/Alat) adalah PRIORITAS UTAMA yang WAJIB DITAMPILKAN kepada pengguna.\n"
+            f"   - Seluruh fakta, nama lengkap, NIK, status, tanggal lahir/peristiwa, alamat, nomor sertifikat tanah, atau angka kepemilikan dari hasil query langsung ini adalah acuan primer mutlak.\n"
+            f"   - DILARANG KERAS menimpa, memodifikasi, atau menyembunyikan data hasil query langsung ini demi asumsi umum atau data historis.\n"
+            f"2. PRIORITAS KEDUA (BANK DATA & DOKUMEN HISTORIS PENDUKUNG):\n"
+            f"   - Data dari ChromaDB (Bank Data Vektor), Dokumen RAG, atau Graf Pengetahuan berfungsi sebagai pelengkap latar belakang, data historis, atau cadangan ketika query database langsung tidak membuahkan hasil.\n"
+            f"   - Jika terdapat perbedaan fakta antara data live database langsung dengan data dokumen historis/vektor, DATA LIVE DATABASE LANGSUNG WAJIB MENANG DAN DITAMPILKAN KEPADA PENGGUNA.\n"
+        )
+
         # Inject real-time tool directives
         if tools:
             tool_names = [t.get("function", {}).get("name") for t in tools if t.get("function", {}).get("name")]
@@ -278,9 +291,10 @@ class PersonalityService:
                 f"\nPENGGUNAAN ALAT / TOOLS REAL-TIME:\n"
                 f"Anda memiliki akses ke alat database dan API langsung: [{tool_names_str}].\n"
                 f"- Jika pertanyaan menyangkut verifikasi subjek orang, NIK, identitas, atau sertifikat kepemilikan tanah/aset fisik, "
-                f"Anda WAJIB memanggil alat yang sesuai terlebih dahulu untuk mengambil data resmi terverifikasi.\n"
+                f"Anda WAJIB memanggil alat yang sesuai terlebih dahulu untuk mengambil data resmi terverifikasi langsung dari database sumber.\n"
+                f"- Begitu data berhasil diperoleh dari pemanggilan alat, PRIORITASKAN data tersebut dalam jawaban Anda sebagai acuan utama yang ditampilkan kepada pengguna.\n"
                 f"- Jika alat mengembalikan status 'not_found' atau data kosong, nyatakan secara transparan: "
-                f"'Data tidak ditemukan dalam basis data yang terhubung'. JANGAN mengarang rincian fiktif.\n"
+                f"'Data tidak ditemukan dalam basis data sumber yang terhubung'. JANGAN mengarang rincian fiktif.\n"
             )
             if is_single_tool_selected and single_selected_tool_name:
                 prompt += f"- Pengguna telah memilih secara spesifik alat '{single_selected_tool_name}'. Utamakan memanggil alat tersebut.\n"

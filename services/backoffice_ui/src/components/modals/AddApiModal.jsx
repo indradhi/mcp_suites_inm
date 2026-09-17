@@ -459,31 +459,44 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                   <Zap size={18} color={isTool ? '#ffffff' : 'var(--text-muted)'} />
                 </div>
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '14px', fontWeight: '700', color: '#ffffff' }}>
-                      Expose as AI Tool with Parameters
+                      Mode Query On-Demand (Auto Simpan ke Bank Data Vektor)
                     </span>
                     {isTool && (
-                      <span style={{
-                        background: 'rgba(6, 182, 212, 0.2)',
-                        color: 'var(--accent-cyan)',
-                        fontSize: '10px',
-                        fontWeight: '700',
-                        padding: '2px 8px',
-                        borderRadius: '12px',
-                        border: '1px solid rgba(6, 182, 212, 0.4)'
-                      }}>
-                        MCP & CHAT CALLABLE
-                      </span>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <span style={{
+                          background: 'rgba(6, 182, 212, 0.2)',
+                          color: 'var(--accent-cyan)',
+                          fontSize: '10px',
+                          fontWeight: '700',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          border: '1px solid rgba(6, 182, 212, 0.4)'
+                        }}>
+                          MCP & CHAT CALLABLE
+                        </span>
+                        <span style={{
+                          background: 'rgba(16, 185, 129, 0.2)',
+                          color: '#34d399',
+                          fontSize: '10px',
+                          fontWeight: '700',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          border: '1px solid rgba(16, 185, 129, 0.4)'
+                        }}>
+                          AUTO BANK DATA
+                        </span>
+                      </div>
                     )}
                   </div>
-                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-                    Allow AI models in MCP clients and Backoffice Chat to invoke this API on demand using dynamic parameters
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 0', lineHeight: '1.4' }}>
+                    Model AI di MCP clients dan Backoffice Chat akan memanggil API ini secara real-time berdasarkan parameter. Setiap data hasil query otomatis disimpan ke ChromaDB Vector Store sebagai Bank Data terakumulasi.
                   </p>
                 </div>
               </div>
 
-              <label style={{ position: 'relative', display: 'inline-block', width: '48px', height: '26px', cursor: 'pointer' }}>
+              <label style={{ position: 'relative', display: 'inline-block', width: '48px', height: '26px', cursor: 'pointer', flexShrink: 0 }}>
                 <input
                   type="checkbox"
                   checked={isTool}
@@ -512,6 +525,29 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                 </span>
               </label>
             </div>
+
+            {isTool && (
+              <div style={{
+                marginTop: '12px',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                background: 'rgba(6, 182, 212, 0.12)',
+                border: '1px solid rgba(6, 182, 212, 0.25)',
+                fontSize: '12px',
+                color: '#a5f3fc',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <Zap size={14} color="#22d3ee" style={{ flexShrink: 0 }} />
+                <span><strong>Auto Bank Data Aktif:</strong> Setiap respons API hasil query otomatis di-ingest dan diakumulasikan ke ChromaDB Vector Store sebagai Bank Data terverifikasi.</span>
+              </div>
+            )}
+            {!isTool && (
+              <div style={{ marginTop: '10px', fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+                💡 <strong>Mode Standar: Batch Ingestion</strong> — Respons endpoint akan diambil berkala dan diindeks ke ChromaDB. Aktifkan saklar di atas untuk Mode On-Demand berparameter dengan penyimpanan otomatis ke Bank Data.
+              </div>
+            )}
 
             {/* AI Tool Specific Fields */}
             {isTool && (

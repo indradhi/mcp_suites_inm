@@ -166,6 +166,21 @@ async def execute_api_tool(
             result = await api_ingester.execute_tool_call(source.config, payload.arguments)
         else:
             result = await database_ingester.execute_tool_call(source.config, payload.arguments)
+
+        # Automatically cache query-by-parameter result into ChromaDB Bank Data
+        try:
+            records = result.get("data")
+            if records and isinstance(records, list) and len(records) > 0:
+                from services.ingestion.bank_data_saver import save_tool_records_to_bank_data
+                save_tool_records_to_bank_data(source, payload.arguments, records, db)
+        except Exception as cache_err:
+            logging.getLogger(__name__).warning(f"Notice saving tool bank data: {cache_err}")
+
+        # Attach data priority metadata for caller (MCP client or LLM)
+        if isinstance(result, dict) and result.get("success"):
+            result["data_priority"] = "PRIORITAS_UTAMA_MUTLAK (Data diambil langsung secara real-time dari database/source data resmi)"
+            result["fetch_mode"] = "LIVE_DIRECT_DATABASE_QUERY"
+
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -176,7 +191,10 @@ def create_knowledge_source(
     db: Session = Depends(get_db),
     user = Depends(require_role(["admin", "editor"]))
 ):
-    is_tool_mode = bool((payload.config or {}).get("is_tool"))
+    is_tool_mode = bool(
+        (payload.config or {}).get("is_tool") or 
+        (payload.source_type.lower() in ["database", "api"] and (payload.config or {}).get("parameters") and len((payload.config or {}).get("parameters", [])) > 0)
+    )
 
     source = KnowledgeSource(
         name=payload.name,
@@ -192,12 +210,7 @@ def create_knowledge_source(
     db.commit()
     db.refresh(source)
 
-    if is_tool_mode:
-        try:
-            vector_store.delete_by_source(source.id)
-        except Exception:
-            pass
-    else:
+    if not is_tool_mode:
         run_ingest_source_task.delay(source.id)
 
     return {"id": source.id, "name": source.name, "message": "Source created successfully"}
@@ -276,6 +289,16 @@ def trigger_sync(
             detail=f"Knowledge Source '{source.name}' sedang dinonaktifkan. Silakan aktifkan terlebih dahulu untuk melakukan sinkronisasi."
         )
 
+    conf = source.config or {}
+    if conf.get("is_tool") or (source.source_type in ["database", "api"] and conf.get("parameters")):
+        source.sync_status = "active (tool)"
+        db.commit()
+        return {
+            "message": f"Sumber '{source.name}' beroperasi sebagai AI Tool On-Demand (Real-time Live Query). Tidak memerlukan sinkronisasi vektor karena di-query langsung ke database saat AI membutuhkan data.",
+            "is_tool": True,
+            "sync_status": "active (tool)"
+        }
+
     run_ingest_source_task.delay(source.id)
     return {"message": f"Sync queued for source '{source.name}'"}
 
@@ -324,14 +347,13 @@ def update_source(
         source.is_active = payload.is_active
     db.commit()
 
-    is_tool_mode = bool((payload.config or {}).get("is_tool"))
+    is_tool_mode = bool(
+        (payload.config or {}).get("is_tool") or 
+        (source.source_type in ["database", "api"] and (payload.config or {}).get("parameters") and len((payload.config or {}).get("parameters", [])) > 0)
+    )
 
     if is_tool_mode:
         source.sync_status = "active (tool)"
-        try:
-            vector_store.delete_by_source(source.id)
-        except Exception:
-            pass
     db.commit()
 
     if re_sync and not is_tool_mode and source.is_active:
@@ -811,7 +833,7 @@ def get_orchestration_guidelines(
                     "STRICT GROUNDING: Base all factual assertions strictly on data returned by knowledge sources or tools.",
                     "MANDATORY CITATIONS: Clearly state the Source Name and Document ID / Tool Name for every key fact.",
                     "HANDLING ABSENCE: If a requested record, person, or document does not exist in the retrieved context, explicitly acknowledge: 'Data tidak ditemukan dalam basis pengetahuan yang terhubung.' NEVER invent or hallucinate missing data.",
-                    "DATA CONFLICT PRECEDENCE: When a conflict arises between historical document text and a live API/Database tool, treat the live API/Database as authoritative and explicitly note the document snapshot difference."
+                    "DATA PRECEDENCE & GROUND TRUTH: Data yang diambil secara langsung dari basis data atau API real-time (melalui pemanggilan Tools) adalah PRIORITAS UTAMA MUTLAK yang WAJIB ditampilkan kepada pengguna. Data dokumen RAG atau ChromaDB (Bank Data) hanya sebagai pendukung/historis sekunder. Jika terdapat konflik fakta, data live database langsung WAJIB dimenangkan."
                 ]
             },
             {

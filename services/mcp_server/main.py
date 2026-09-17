@@ -555,6 +555,7 @@ async def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
             "applicable_tools": applicable_tools,
             "ai_guidelines": [
                 f"Retrieved {len(vector_results)} document chunk(s) and {len(graph_entities)} graph entity profile(s).",
+                "PRIORITAS SUMBER DATA: Data yang didapat langsung dari query database/API live adalah PRIORITAS UTAMA MUTLAK yang wajib ditampilkan terlebih dahulu kepada pengguna di atas dokumen RAG/vektor.",
                 "Ground your answer strictly in these findings. Cite document IDs and source names.",
                 "If information is missing, clearly state that it is not found in the knowledge repository."
             ]
@@ -656,8 +657,11 @@ async def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
                         "success": res.status_code == 200 and res_data.get("success", True),
                         "status_code": res_data.get("status_code", res.status_code),
                         "arguments": args,
+                        "data_priority": "PRIORITAS_UTAMA_MUTLAK (Data diambil langsung secara real-time dari database/source data resmi KPK)",
+                        "fetch_mode": "LIVE_DIRECT_DATABASE_QUERY",
                         "data": res_data.get("data"),
-                        "text": res_data.get("text")
+                        "text": res_data.get("text"),
+                        "error": res_data.get("error") or (res_data.get("detail") if res.status_code >= 400 else None)
                     }
             except Exception as e:
                 return {"tool": name, "error": f"Failed to execute dynamic tool: {str(e)}"}

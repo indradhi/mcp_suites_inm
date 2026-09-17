@@ -3333,16 +3333,31 @@ export default function Chat() {
                                       ({tool.source_name || (isDb ? 'Database Source' : 'API Source')})
                                     </span>
                                   </div>
-                                  <span style={{
-                                    background: tool.success ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)',
-                                    color: tool.success ? 'var(--accent-emerald)' : '#f87171',
-                                    padding: '2px 8px',
-                                    borderRadius: '12px',
-                                    fontSize: '10px',
-                                    fontWeight: '700'
-                                  }}>
-                                    {tool.success ? (tool.status_code ? `${tool.status_code} OK` : 'SUCCESS') : 'FAILED'}
-                                  </span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    {tool.success && (
+                                      <span style={{
+                                        background: 'rgba(16, 185, 129, 0.15)',
+                                        color: '#34d399',
+                                        padding: '2px 8px',
+                                        borderRadius: '12px',
+                                        fontSize: '10px',
+                                        fontWeight: '700',
+                                        border: '1px solid rgba(16, 185, 129, 0.3)'
+                                      }}>
+                                        ⭐ PRIORITAS UTAMA (LIVE DATA)
+                                      </span>
+                                    )}
+                                    <span style={{
+                                      background: tool.success ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)',
+                                      color: tool.success ? 'var(--accent-emerald)' : '#f87171',
+                                      padding: '2px 8px',
+                                      borderRadius: '12px',
+                                      fontSize: '10px',
+                                      fontWeight: '700'
+                                    }}>
+                                      {tool.success ? (tool.status_code ? `${tool.status_code} OK` : 'SUCCESS') : 'FAILED'}
+                                    </span>
+                                  </div>
                                 </div>
 
                                 {tool.url && (

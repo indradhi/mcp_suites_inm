@@ -640,9 +640,11 @@ export default function KnowledgeSources() {
                   display: 'flex',
                   justifyContent: 'space-between'
                 }}>
-                  <span>{isTool ? (isDbTool ? 'Type: Dynamic DB Tool' : 'Type: Dynamic API Tool') : `Last sync: ${source.last_synced_at ? formatDateTimeWIB(source.last_synced_at) : 'Never'}`}</span>
+                  <span title={isTool ? "On-Demand Tool: Query langsung ke database/API secara real-time, dan setiap data otomatis disimpan ke ChromaDB sebagai Bank Data" : ""}>
+                    {isTool ? (isDbTool ? '⚡ On-Demand (Auto Bank Data)' : '⚡ Live API (Auto Bank Data)') : `Last sync: ${source.last_synced_at ? formatDateTimeWIB(source.last_synced_at) : 'Never'}`}
+                  </span>
                   <span style={{ color: !isActive ? 'var(--text-muted)' : (isTool ? accentColor : 'var(--text-secondary)') }}>
-                    {isTool ? '⚡ MCP & Chat Ready' : `${source.document_count} chunks`}
+                    {isTool ? (source.document_count > 0 ? `📦 ${source.document_count} bank data tersimpan` : '⚡ MCP & Chat Ready') : `${source.document_count} chunks`}
                   </span>
                 </div>
 

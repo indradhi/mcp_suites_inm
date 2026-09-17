@@ -1,4 +1,44 @@
-# Backoffice AI Chat Document Upload & Analysis (PDF, DOCX, Excel, CSV, Text) — Walkthrough
+# Fitur Database On-Demand Querying, Auto Bank Data & Hierarki Prioritas Data
+
+---
+
+## ⚡ Fitur Mode Query On-Demand & Auto-Simpan ke Bank Data Vektor
+
+Knowledge Base Database & API telah disempurnakan secara menyeluruh dengan konsep **Auto Query On-Demand** dan **Auto-Simpan ke Bank Data Vektor**, dengan aturan mutlak bahwa **data yang diambil langsung dari database atau source data adalah Prioritas Utama (Ground Truth)** yang ditampilkan kepada pengguna:
+
+1. **Hierarki Prioritas Data (Ground Truth Mutlak)**:
+   - ⭐ **Prioritas 1 (SUMBER KEBENARAN UTAMA / LIVE GROUND TRUTH)**:
+     - Data yang berhasil diambil secara langsung dari basis data atau API real-time (hasil eksekusi *AI Function Tools*).
+     - Seluruh jawaban, nama lengkap, NIK, status perkawinan, alamat, nomor sertifikat kepemilikan tanah, dan foto profil **WAJIB MENAMPILKAN dan MEMPRIORITASKAN** data langsung dari sumber resmi ini.
+     - Dilarang keras menimpa atau mengabaikan data hasil query langsung ini dengan data perkiraan, asumsi umum, atau data historis lainnya.
+   - 📦 **Prioritas 2 (BANK DATA VEKTOR & DOKUMEN HISTORIS PENDUKUNG)**:
+     - Data dari ChromaDB (Bank Data Vektor), Dokumen RAG, atau Graf Pengetahuan.
+     - Berfungsi sebagai referensi pendukung, konteks latar belakang historis, atau cadangan saat query database live tidak menemukan hasil.
+     - Jika terdapat perbedaan antara data live database langsung dengan data bank data/vektor, **DATA LIVE DATABASE LANGSUNG WAJIB MENANG**.
+
+2. **Letak Kode Eksekusi Auto Query ke Database**:
+   - **Registrasi Skema & Parameter Tool**:
+     - `services/backoffice_api/routers/knowledge.py` (`list_api_tools`): Membaca konfigurasi query berparameter (e.g. `WHERE nik = :nik` atau MongoDB `{NAMA_LGKP: {$regex: :nama}}`) dan mengeksposnya sebagai *tool definition*.
+     - `services/mcp_server/main.py` (`fetch_dynamic_api_tools`): Menyediakan metadata tool untuk protokol MCP eksternal.
+   - **Keputusan Pemanggilan Tool oleh AI**:
+     - `services/backoffice_api/services/chat_service.py` (`chat_with_knowledge`): Menginjeksi definisi tool dan instruksi pemanggilan ke model AI.
+   - **Dispatcher Eksekusi**:
+     - `services/backoffice_api/routers/knowledge.py` (`execute_api_tool`): Titik masuk eksekusi tool berparameter.
+     - `services/mcp_server/main.py` (`execute_tool` / `rpc_endpoint`): Menghubungkan MCP client (OpenWebUI/Claude) ke database KPK.
+   - **Interpolasi Parameter & Driver TCP Database**:
+     - `services/backoffice_api/services/ingestion/database_ingester.py` (`execute_tool_call` & `substitute_query_parameters`): Melakukan sanitasi parameter, membuka koneksi pool database (MySQL, PostgreSQL, Oracle, MongoDB, SQL Server), mengeksekusi query, dan mengembalikan data mentah terverifikasi.
+
+3. **📦 Mekanisme Auto-Simpan ke Bank Data Vektor (`bank_data_saver.py`)**:
+   - Setiap kali AI melakukan query on-demand dengan parameter dan database mengembalikan record yang valid, sistem **secara otomatis meng-ingest record tersebut ke dalam ChromaDB (Vector Store)**.
+   - **Idempotent (Anti-Duplikasi)**: Menggunakan ID chunk deterministik berbasis hash (`bank_src_{source_id}_{hash}`) sehingga entitas yang sama yang di-query berulang kali hanya diperbarui tanpa menduplikasi data vektor.
+   - **Bank Data Bertumbuh Organik**: Analis tidak perlu meng-ingest jutaan baris data di awal. ChromaDB bertindak sebagai "Bank Data" yang otomatis menampung riwayat data yang pernah dicari, siap digunakan untuk pencarian semantik berikutnya.
+   - Terintegrasi otomatis pada:
+     - `routers/knowledge.py` (`execute_api_tool` via MCP/SSE)
+     - `chat_service.py` (`chat_with_knowledge` via Backoffice Chat)
+
+4. **Penegasan Sistem pada Backoffice UI (`Chat.jsx` & `KnowledgeSources.jsx`)**:
+   - Di kartu eksekusi alat chat, sistem menampilkan badge: `⭐ PRIORITAS UTAMA (LIVE DATA)` bersama status `200 OK / SUCCESS`.
+   - Di kartu sumber data Knowledge Base, tertulis: `⚡ On-Demand (Auto Bank Data)` dan `📦 {count} bank data tersimpan`.
 
 ---
 
