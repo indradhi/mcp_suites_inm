@@ -24,8 +24,7 @@ DEFAULT_PERSONALITY: Dict[str, Any] = {
         "Prioritaskan penggunaan alat/tool database resmi (seperti verifikasi profil penduduk, sertifikat tanah BPN, atau database internal) jika pertanyaan menanyakan subjek orang atau aset fisik.",
         "STRICT GROUNDING: Jawab murni berdasarkan fakta dan dokumen yang tersedia. Jika data tidak ditemukan, katakan secara jujur bahwa data tidak ditemukan dalam basis data yang terhubung. DILARANG KERAS mengarang (halusinasi) nama, nomor sertifikat, NIK, atau aset fiktif.",
         "Sajikan kutipan sumber, nomor dokumen, dan konteks data pendukung secara transparan dan jelas.",
-        "Gunakan format Markdown terstruktur: tabel untuk data tabular/inventaris, bullet points untuk rincian fakta, dan teks tebal untuk entitas penting.",
-        "Jika hasil query atau alat mengandung foto/gambar (base64 atau URL), selalu render dalam format Markdown Image `![Foto](data:image/jpeg;base64,...)`."
+        "Jika hasil query atau alat memuat foto, tampilkan foto dalam format Markdown Image `![Foto](data:image/jpeg;base64,...)` HANYA JIKA identitas orang dalam foto cocok secara persis (berdasarkan NIK atau Nama) dengan orang yang sedang dibahas. DILARANG KERAS menampilkan foto orang lain atau foto acak jika tidak relevan dengan subjek yang ditanyakan."
     ],
     "custom_instructions": "",
     "anti_hallucination_level": "strict",
@@ -53,7 +52,7 @@ CURATED_PRESETS: List[Dict[str, Any]] = [
             "STRICT GROUNDING: Jawab murni berdasarkan fakta dan dokumen yang tersedia. Jika data tidak ditemukan, katakan secara jujur bahwa data tidak ditemukan dalam basis data yang terhubung. DILARANG KERAS mengarang (halusinasi) nama, nomor sertifikat, NIK, atau aset fiktif.",
             "Sajikan kutipan sumber, nomor dokumen, dan konteks data pendukung secara transparan dan jelas.",
             "Gunakan format Markdown terstruktur: tabel untuk data tabular/inventaris, bullet points untuk rincian fakta, dan teks tebal untuk entitas penting.",
-            "Jika hasil query atau alat mengandung foto/gambar (base64 atau URL), selalu render dalam format Markdown Image `![Foto](data:image/jpeg;base64,...)`."
+            "Jika hasil query atau alat memuat foto, tampilkan foto dalam format Markdown Image `![Foto](data:image/jpeg;base64,...)` HANYA JIKA identitas orang dalam foto cocok secara persis (berdasarkan NIK atau Nama) dengan orang yang sedang dibahas. DILARANG KERAS menampilkan foto orang lain atau foto acak jika tidak relevan dengan subjek yang ditanyakan."
         ]
     },
     {
@@ -292,9 +291,11 @@ class PersonalityService:
         # Image & photo rendering directive
         prompt += (
             f"\nPENAMPILAN GAMBAR & FOTO:\n"
-            f"Jika konteks basis data atau hasil eksekusi alat memuat foto, URL gambar, atau string base64 (/9j/ atau data:image/),\n"
-            f"SELALU render dalam format Markdown Image: `![Deskripsi Foto](data:image/jpeg;base64,...)` atau `![Deskripsi Foto](http://...)`.\n"
-            f"Dilarang menampilkan blok teks mentah base64 tanpa format Markdown Image.\n"
+            f"- Tampilkan foto/gambar HANYA JIKA subjek dalam foto terbukti cocok secara persis (berdasarkan NIK atau Nama Lengkap) dengan orang/entitas yang sedang dibahas.\n"
+            f"- Jika konteks memuat data banyak orang (batch) atau hasil query memuat beberapa entri, pastikan hanya merender foto milik orang yang sedang ditanyakan. DILARANG KERAS menampilkan foto orang lain.\n"
+            f"- Jika pertanyaan umum atau subjek yang ditanyakan tidak memiliki foto dalam basis data, JANGAN tampilkan foto siapapun.\n"
+            f"- Saat merender foto yang cocok, gunakan format Markdown Image: `![Foto: Nama](data:image/jpeg;base64,...)`.\n"
+            f"- Dilarang menampilkan blok teks mentah base64 tanpa format Markdown Image.\n"
         )
 
         # Uploaded document directive

@@ -72,6 +72,7 @@ class ChatService:
         top_k: int = 5,
         db: Any = None,
         liked_examples: Optional[List[Dict[str, str]]] = None,
+        dislike_notes: Optional[List[str]] = None,
         strict_mode: bool = True,
         temperature: Optional[float] = None
     ) -> Dict[str, Any]:
@@ -269,6 +270,16 @@ class ChatService:
             context_parts.append(
                 "Use the above examples as a style guide: match their level of detail, "
                 "language (Indonesian/English), and formatting when answering the current question."
+            )
+
+        # Inject negative feedback guidelines (lessons learned from user dislikes)
+        if dislike_notes:
+            context_parts.append("=== USER FEEDBACK & QUALITY CORRECTIONS (Avoid These Issues) ===")
+            for n_idx, note in enumerate(dislike_notes[:4], start=1):
+                context_parts.append(f"- Catatan Koreksi {n_idx}: {note}")
+            context_parts.append(
+                "PENTING: Perhatikan catatan koreksi di atas agar tidak mengulangi kesalahan yang sama "
+                "(seperti menampilkan foto yang keliru, data tidak terverifikasi, atau foto orang lain)."
             )
 
         if retrieved_chunks:
@@ -538,7 +549,7 @@ Instructions:
 - If the question can be answered or queried using one of the available tools, call the tool first.
 - Only formulate a direct answer from the context above if none of the tools are applicable.
 - STRICT ANTI-HALLUCINATION: If neither the tools nor the context contain the requested data, state clearly: "Data tidak ditemukan dalam basis data atau dokumen yang tersedia." DO NOT invent, fabricate, or guess any details.
-- When tool results or context contain photos (e.g. 'FOTO' with base64 /9j/ or URL), render them as Markdown image `![Foto](data:image/jpeg;base64,...)`."""
+- When tool results or context contain photos, render the photo in Markdown image `![Foto](data:image/jpeg;base64,...)` ONLY IF the photo strictly belongs to the specific person or entity being profiled (matching NIK or Full Name). NEVER display another person's photo or an unverified photo."""
         else:
             if not has_real_context and strict_mode:
                 prompt_content = f"""Context Information from Knowledge Base:
@@ -804,39 +815,8 @@ Patuhi aturan:
                 else:
                     thinking_process = trailing_thought
 
-            # 5. Base64 Image & Photo Auto-Healing (prevent any LLM token truncation or corruption)
+            # 5. Entity-Aware Photo Extraction & Source-Grounded Auto-Healing
             try:
-                available_full_photos = []
-
-                def _extract_photos(val):
-                    if not val:
-                        return
-                    if isinstance(val, str):
-                        s = val.strip()
-                        if s.startswith("data:image/") or s.startswith("/9j/") or s.startswith("iVBORw0KGgo"):
-                            if len(s) > 80 and s not in available_full_photos:
-                                available_full_photos.append(s)
-                        for m in re.finditer(r'(?:FOTO|photo|image|avatar|gambar)[\s:=]+(["\']?)(/9j/[A-Za-z0-9+/=]{80,}|data:image/[a-zA-Z0-9+.-]+;base64,[A-Za-z0-9+/=]{80,})\1', s, flags=re.IGNORECASE):
-                            p_val = m.group(2).strip()
-                            if p_val not in available_full_photos:
-                                available_full_photos.append(p_val)
-                    elif isinstance(val, dict):
-                        for k, v in val.items():
-                            k_lower = str(k).lower()
-                            if any(img_k in k_lower for img_k in ["foto", "photo", "image", "avatar", "picture", "gambar"]):
-                                if isinstance(v, str) and len(v.strip()) > 80 and v.strip() not in available_full_photos:
-                                    available_full_photos.append(v.strip())
-                            _extract_photos(v)
-                    elif isinstance(val, (list, tuple)):
-                        for item in val:
-                            _extract_photos(item)
-
-                for t_info in executed_tools_info:
-                    _extract_photos(t_info.get("data"))
-                    _extract_photos(t_info.get("arguments"))
-                for c in retrieved_chunks:
-                    _extract_photos(c.get("content"))
-
                 def _normalize_data_uri(b64_str: str) -> str:
                     clean = b64_str.strip()
                     if clean.startswith("http://") or clean.startswith("https://") or clean.startswith("data:image/"):
@@ -854,25 +834,128 @@ Patuhi aturan:
                         return f"data:image/bmp;base64,{clean_chars}"
                     return f"data:image/jpeg;base64,{clean_chars}"
 
-                # Deduplicate and sort by length descending so the longest, most complete photo wins!
-                available_full_photos.sort(key=lambda x: len(str(x)), reverse=True)
-                valid_photos = []
-                for p in available_full_photos:
-                    clean_p = p.split(";base64,")[1] if ";base64," in p else p
-                    clean_p = re.sub(r"\s+", "", clean_p)
-                    # Discard if it ends with truncated markers or is shorter than a known version
-                    clean_p = re.sub(r'(?:\.\.\.|\[truncated[^\]]*\]|\)+)$', '', clean_p)
-                    if len(clean_p) < 80:
-                        continue
-                    if any(clean_p[:30] == v[:30] for v in valid_photos):
-                        continue
-                    valid_photos.append(clean_p)
+                class EntityPhoto:
+                    def __init__(self, photo: str, name: Optional[str] = None, nik: Optional[str] = None, source: str = ""):
+                        clean_p = photo.split(";base64,")[1] if ";base64," in photo else photo
+                        clean_p = re.sub(r"\s+", "", clean_p)
+                        clean_p = re.sub(r'(?:\.\.\.|\[truncated[^\]]*\]|\)+)$', '', clean_p)
+                        self.photo = clean_p
+                        self.raw_photo = photo.strip()
+                        self.name = name.strip() if name and isinstance(name, str) else None
+                        self.nik = str(nik).strip() if nik else None
+                        self.source = source
 
-                for raw_b64 in valid_photos:
-                    prefix_30 = raw_b64[:30]
-                    full_uri = _normalize_data_uri(raw_b64)
+                extracted_entities: List[EntityPhoto] = []
 
-                    # Replace any truncated or broken markdown image matching this prefix
+                def _extract_from_tool_data(data, source_name="tool"):
+                    if not data:
+                        return
+                    if isinstance(data, dict):
+                        photo_val = None
+                        name_val = None
+                        nik_val = None
+                        for k, v in data.items():
+                            k_lower = str(k).lower()
+                            if any(img_k in k_lower for img_k in ["foto", "photo", "image", "avatar", "picture", "gambar"]):
+                                if isinstance(v, str) and len(v.strip()) > 80:
+                                    photo_val = v.strip()
+                            if any(n_k == k_lower for n_k in ["nama_lgkp", "nama", "nama_lengkap", "name", "full_name", "nama_subjek"]):
+                                if isinstance(v, str) and len(v.strip()) > 2:
+                                    name_val = v.strip()
+                            if any(id_k == k_lower for id_k in ["nik", "no_ktp", "nomor_induk", "id_number", "no_identitas"]):
+                                if v:
+                                    nik_val = str(v).strip()
+
+                        if photo_val and len(photo_val) > 80:
+                            extracted_entities.append(EntityPhoto(photo=photo_val, name=name_val, nik=nik_val, source=source_name))
+
+                        for k, v in data.items():
+                            if isinstance(v, (dict, list, tuple)):
+                                _extract_from_tool_data(v, source_name)
+                    elif isinstance(data, (list, tuple)):
+                        for item in data:
+                            _extract_from_tool_data(item, source_name)
+                    elif isinstance(data, str):
+                        _extract_from_text(data, source_name=source_name)
+
+                def _extract_from_text(text: str, source_name="chunk"):
+                    if not text or not isinstance(text, str):
+                        return
+                    # Split into record blocks or lines to preserve entity boundaries
+                    blocks = re.split(r'(?:\r?\n|\s*(?=Record\s*\d+:))', text)
+                    for blk in blocks:
+                        if not blk or len(blk) < 40:
+                            continue
+                        photo_match = re.search(
+                            r'(?:FOTO|photo|image|avatar|gambar)[\s:=]+(["\']?)(/9j/[A-Za-z0-9+/=]{60,}|data:image/[a-zA-Z0-9+.-]+;base64,[A-Za-z0-9+/=]{60,})\1',
+                            blk,
+                            flags=re.IGNORECASE
+                        )
+                        photo_val = None
+                        if photo_match:
+                            photo_val = photo_match.group(2).strip()
+                        else:
+                            standalone = re.search(r'(/9j/[A-Za-z0-9+/=]{80,}|data:image/[a-zA-Z0-9+.-]+;base64,[A-Za-z0-9+/=]{80,})', blk)
+                            if standalone:
+                                photo_val = standalone.group(1).strip()
+
+                        if not photo_val or len(photo_val) < 80:
+                            continue
+
+                        nik_match = re.search(r'(?:NIK|NO_KTP|ID|NO_IDENTITAS)[\s:=]+(["\']?)([0-9]{6,20})\1', blk, flags=re.IGNORECASE)
+                        nik_val = nik_match.group(2).strip() if nik_match else None
+
+                        name_match = re.search(
+                            r'(?:NAMA_LGKP|NAMA_LENGKAP|NAMA|FULL_NAME|NAME)[\s:=]+(["\']?)([^|:\n\r",]{3,60})\1(?=\s*(?:\||$|\n|\r))',
+                            blk,
+                            flags=re.IGNORECASE
+                        )
+                        name_val = None
+                        if name_match:
+                            raw_name = name_match.group(2).strip()
+                            raw_name = re.sub(r'\s+(?:NIK|FOTO|TMPT_LHR|TGL_LHR|AGAMA|STATUS|JENIS_KLMIN).*$', '', raw_name, flags=re.IGNORECASE).strip()
+                            if len(raw_name) >= 3:
+                                name_val = raw_name
+
+                        extracted_entities.append(EntityPhoto(photo=photo_val, name=name_val, nik=nik_val, source=source_name))
+
+                for t_info in executed_tools_info:
+                    _extract_from_tool_data(t_info.get("data"), source_name=f"tool:{t_info.get('tool_name', 'tool')}")
+                    _extract_from_tool_data(t_info.get("arguments"), source_name="tool_args")
+                for c in retrieved_chunks:
+                    _extract_from_text(c.get("content"), source_name=f"chunk:{c.get('id', 'chunk')}")
+
+                # Deduplicate entities: keep the longest photo string per entity (NIK or Name or Photo prefix)
+                unique_entities: List[EntityPhoto] = []
+                for ep in extracted_entities:
+                    if len(ep.photo) < 80:
+                        continue
+                    existing = None
+                    for u in unique_entities:
+                        if ep.nik and u.nik and ep.nik == u.nik:
+                            existing = u
+                            break
+                        if ep.name and u.name and ep.name.lower() == u.name.lower() and len(ep.name) >= 4:
+                            existing = u
+                            break
+                        if ep.photo[:40] == u.photo[:40]:
+                            existing = u
+                            break
+                    if existing:
+                        if len(ep.photo) > len(existing.photo):
+                            existing.photo = ep.photo
+                            existing.raw_photo = ep.raw_photo
+                        if not existing.name and ep.name:
+                            existing.name = ep.name
+                        if not existing.nik and ep.nik:
+                            existing.nik = ep.nik
+                    else:
+                        unique_entities.append(ep)
+
+                # Step 1: Auto-heal any truncated or broken markdown images that the LLM already attempted to render
+                for ep in unique_entities:
+                    prefix_30 = ep.photo[:30]
+                    full_uri = _normalize_data_uri(ep.photo)
                     trunc_md_pattern = re.compile(
                         r'!\[([^\]]*)\]\((?:data:image\/[a-zA-Z0-9+.-]+;base64,)?' + re.escape(prefix_30) + r'[^)\n\r]*(?:\)|$)',
                         re.MULTILINE
@@ -883,11 +966,43 @@ Patuhi aturan:
                         raw_pattern = re.compile(
                             r'(?:data:image\/[a-zA-Z0-9+.-]+;base64,)?' + re.escape(prefix_30) + r'[A-Za-z0-9+/=]*(?:\.\.\.|\s*\[truncated[^\]]*\])?'
                         )
-                        clean_answer = raw_pattern.sub(f'![Foto]({full_uri})', clean_answer)
+                        label = f"Foto - {ep.name}" if ep.name else "Foto Profil"
+                        clean_answer = raw_pattern.sub(f'![{label}]({full_uri})', clean_answer)
 
-                # If the final answer lacks image markdown but verified photos are available, inject the primary photo at the top
-                if valid_photos and not re.search(r'!\[.*?\]\([^\)]+\)', clean_answer):
-                    clean_answer = f"![Foto Profil]({_normalize_data_uri(valid_photos[0])})\n\n" + clean_answer
+                # Step 2: Strict Entity-Grounded Injection (ONLY if no markdown image exists and EXACTLY ONE entity unambiguously matches)
+                if not re.search(r'!\[.*?\]\([^\)]+\)', clean_answer):
+                    ans_lower = clean_answer.lower()
+                    msg_lower = (message or "").lower()
+                    generic_names = {"admin", "user", "kpk", "indonesia", "pemerintah", "null", "none", "unknown"}
+
+                    matching_photos: List[EntityPhoto] = []
+                    for ep in unique_entities:
+                        is_match = False
+                        # NIK Match (very high confidence)
+                        if ep.nik and len(ep.nik) >= 8:
+                            if ep.nik in clean_answer or ep.nik in (message or ""):
+                                is_match = True
+                        # Name Match (high confidence if name is distinct and appears in answer)
+                        if not is_match and ep.name and len(ep.name) >= 4 and ep.name.lower() not in generic_names:
+                            if ep.name.lower() in ans_lower:
+                                is_match = True
+                            elif len(ep.name.split()) >= 2 and all(w.lower() in ans_lower for w in ep.name.split() if len(w) > 2):
+                                is_match = True
+
+                        if is_match and ep not in matching_photos:
+                            matching_photos.append(ep)
+
+                    # INJECT ONLY IF EXACTLY ONE ENTITY MATCHES!
+                    # If 0 matches: query or answer is general or unrelated -> DO NOT inject any photo!
+                    # If >1 matches: multiple people discussed (e.g. list/table) -> DO NOT pick an arbitrary one!
+                    if len(matching_photos) == 1:
+                        target = matching_photos[0]
+                        target_uri = _normalize_data_uri(target.photo)
+                        label = f"Foto Profil - {target.name}" if target.name else "Foto Profil Terverifikasi"
+                        clean_answer = f"![{label}]({target_uri})\n\n" + clean_answer
+                        logger.info(f"Entity-aware photo injected for '{target.name or target.nik}'")
+                    elif len(matching_photos) > 1:
+                        logger.info(f"Multiple entities matched ({len(matching_photos)}), omitting top photo injection to prevent confusion.")
 
             except Exception as heal_err:
                 logger.warning(f"Error during base64 image auto-healing: {heal_err}")

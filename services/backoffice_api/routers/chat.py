@@ -158,6 +158,23 @@ def chat_with_knowledge_endpoint(
     except Exception as fe:
         logger.warning(f"Could not load liked examples for few-shot tuning: {fe}")
 
+    # Load recent dislike feedback to extract quality correction guidelines
+    dislike_notes = []
+    try:
+        dislike_q = db.query(ChatFeedback).filter(
+            ChatFeedback.feedback == "dislike"
+        )
+        dislike_records = dislike_q.order_by(ChatFeedback.created_at.desc()).limit(15).all()
+        for rec in dislike_records:
+            if rec.notes and rec.notes.strip():
+                clean_note = rec.notes.strip()
+                if clean_note not in dislike_notes:
+                    dislike_notes.append(clean_note[:200])
+            if len(dislike_notes) >= 3:
+                break
+    except Exception as dfe:
+        logger.warning(f"Could not load dislike notes for tuning: {dfe}")
+
     result = chat_service.chat_with_knowledge(
         message=effective_message,
         image_base64=req.image_base64,
@@ -171,6 +188,7 @@ def chat_with_knowledge_endpoint(
         top_k=req.top_k or 5,
         db=db,
         liked_examples=liked_examples,  # few-shot context injection
+        dislike_notes=dislike_notes,    # negative feedback correction injection
         strict_mode=req.strict_mode if req.strict_mode is not None else True,
         temperature=req.temperature
     )
