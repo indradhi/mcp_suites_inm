@@ -92,13 +92,21 @@ export default function MCPPersonality() {
       const res = await api.get('/settings/personality');
       if (res.data) {
         if (res.data.personality) {
-          setPersonality(res.data.personality);
+          const p = res.data.personality;
+          setPersonality({
+            preset: p.preset_id || p.preset || 'kpk_investigator',
+            name: p.name || 'Analis Intelijen & Penyelidikan KPK',
+            role: p.role_title || p.role || 'Enterprise AI Knowledge & Investigation Orchestrator',
+            tone_of_voice: p.tone_label || p.tone_of_voice || p.tone || 'Formal, Tegas & Berbasis Bukti Faktual',
+            core_mission: p.core_mission || '',
+            custom_instructions: p.custom_instructions || ''
+          });
         }
         if (res.data.presets) {
           setPresets(res.data.presets);
         }
-        if (res.data.system_instruction) {
-          setPreviewPrompt(res.data.system_instruction);
+        if (res.data.system_instruction || res.data.preview) {
+          setPreviewPrompt(res.data.system_instruction || res.data.preview);
         }
       }
     } catch (err) {
@@ -140,12 +148,13 @@ export default function MCPPersonality() {
 
   // Handler when selecting a preset
   const handleSelectPreset = (presetItem) => {
+    if (!presetItem) return;
     setPersonality({
-      preset: presetItem.id,
-      name: presetItem.name.replace(/\s*\(Default\)/i, ''),
-      role: presetItem.role,
-      tone_of_voice: presetItem.tone_of_voice,
-      core_mission: presetItem.core_mission,
+      preset: presetItem.id || 'custom',
+      name: (presetItem.name || '').replace(/\s*\(Default\)/i, ''),
+      role: presetItem.role_title || presetItem.role || '',
+      tone_of_voice: presetItem.tone_label || presetItem.tone_of_voice || presetItem.tone || 'Formal',
+      core_mission: presetItem.core_mission || '',
       custom_instructions: presetItem.custom_instructions || ''
     });
     setSaveSuccess(false);
@@ -449,7 +458,7 @@ export default function MCPPersonality() {
                 }}>
                   <span>Tone:</span>
                   <span style={{ fontWeight: '400', fontStyle: 'italic', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                    {presetItem.tone_of_voice.split(',')[0]}
+                    {(presetItem.tone_label || presetItem.tone_of_voice || presetItem.tone || 'Formal').split(',')[0]}
                   </span>
                 </div>
               </div>

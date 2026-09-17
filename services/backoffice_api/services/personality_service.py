@@ -211,9 +211,15 @@ class PersonalityService:
 
     def get_presets(self) -> List[Dict[str, Any]]:
         """
-        Returns the curated presets list.
+        Returns the curated presets list with aliases.
         """
-        return CURATED_PRESETS
+        results = []
+        for p in CURATED_PRESETS:
+            cp = dict(p)
+            cp["role"] = p.get("role_title", "")
+            cp["tone_of_voice"] = p.get("tone_label", "")
+            results.append(cp)
+        return results
 
     def build_system_instruction(
         self,
