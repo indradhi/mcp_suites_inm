@@ -622,7 +622,13 @@ Patuhi aturan:
 
         # 7. Execute LLM Completion (with dynamic Tool Calling support)
         executed_tools_info = []
-        client = llm_service.get_client(api_base, api_key)
+        is_cloud = any(domain in (api_base or "").lower() for domain in [
+            "openrouter.ai", "api.openai.com", "api.deepseek.com",
+            "groq.com", "googleapis.com", "anthropic.com",
+            "mistral.ai", "together.xyz", "cohere.com"
+        ])
+        is_local_vllm = not is_cloud and ("172.16." in (api_base or "") or "vllm" in (api_base or "").lower() or "qwen" in (model or "").lower())
+        client = llm_service.get_client(api_base, api_key, timeout=45.0 if is_cloud else 120.0)
         try:
             kwargs = {
                 "model": model,
@@ -638,12 +644,15 @@ Patuhi aturan:
                     kwargs["tool_choice"] = "auto"
 
             try:
-                response = client.chat.completions.create(
-                    **kwargs,
-                    extra_body={"chat_template_kwargs": {"enable_thinking": False}}
-                )
+                if is_local_vllm:
+                    response = client.chat.completions.create(
+                        **kwargs,
+                        extra_body={"chat_template_kwargs": {"enable_thinking": False}}
+                    )
+                else:
+                    response = client.chat.completions.create(**kwargs)
             except Exception as be_err:
-                logger.info(f"extra_body enable_thinking not supported by backend ({be_err}), trying without extra_body")
+                logger.info(f"Primary completion attempt error ({be_err}), trying fallback parameters")
                 try:
                     response = client.chat.completions.create(**kwargs)
                 except Exception as tool_err:
@@ -736,13 +745,21 @@ Patuhi aturan:
                 # Follow-up completion with tool output
                 try:
                     try:
-                        followup_resp = client.chat.completions.create(
-                            model=model,
-                            messages=messages,
-                            temperature=effective_temperature,
-                            max_tokens=4500,
-                            extra_body={"chat_template_kwargs": {"enable_thinking": False}}
-                        )
+                        if is_local_vllm:
+                            followup_resp = client.chat.completions.create(
+                                model=model,
+                                messages=messages,
+                                temperature=effective_temperature,
+                                max_tokens=4500,
+                                extra_body={"chat_template_kwargs": {"enable_thinking": False}}
+                            )
+                        else:
+                            followup_resp = client.chat.completions.create(
+                                model=model,
+                                messages=messages,
+                                temperature=effective_temperature,
+                                max_tokens=4500
+                            )
                     except Exception:
                         try:
                             followup_resp = client.chat.completions.create(
@@ -921,7 +938,38 @@ Patuhi aturan:
 
         except Exception as e:
             logger.error(f"Error calling LLM for chat response: {e}")
-            clean_answer = f"⚠️ An error occurred while generating the AI response: {str(e)}"
+            err_str = str(e)
+            err_lower = err_str.lower()
+            if "timeout" in err_lower or "timed out" in err_lower:
+                clean_answer = (
+                    f"⚠️ **Waktu Tunggu Habis (Timeout):** Permintaan ke model AI `{model}` ({backend_name}) melebihi batas waktu tunggu.\n\n"
+                    f"**Penyebab:** Model cloud OpenRouter sedang mengalami antrean padat di server hulu, atau model yang digunakan memerlukan waktu penalaran (*reasoning*) yang terlalu lama.\n\n"
+                    f"💡 **Solusi Cepat:**\n"
+                    f"- Beralih ke model yang lebih cepat dan responsif: **`deepseek/deepseek-chat`** atau **`openai/gpt-4o-mini`** pada menu pilihan model di atas.\n"
+                    f"- Jika menggunakan akun OpenRouter free tier, pastikan tidak menggunakan model besar yang sedang padat antrean."
+                )
+            elif "504" in err_str or "gateway" in err_lower:
+                clean_answer = (
+                    f"⚠️ **Gateway Timeout (504):** Layanan model AI `{model}` ({backend_name}) gagal merespons dalam batas waktu.\n\n"
+                    f"💡 **Solusi Cepat:** Silakan gunakan model alternatif yang lebih cepat seperti **`deepseek/deepseek-chat`** atau **`openai/gpt-4o-mini`**."
+                )
+            elif "404" in err_str or "no endpoints found" in err_lower:
+                clean_answer = (
+                    f"⚠️ **Model Tidak Ditemukan (404):** Pengenal model `{model}` tidak lagi aktif atau telah diperbarui di OpenRouter.\n\n"
+                    f"💡 **Solusi:** Buka menu **LLM Management**, lakukan *Test Connection* pada backend `{backend_name}`, dan gunakan nama model resmi terbaru (misalnya: `deepseek/deepseek-chat`, `openai/gpt-4o-mini`, atau `meta-llama/llama-3.3-70b-instruct`)."
+                )
+            elif "401" in err_str or "unauthorized" in err_lower:
+                clean_answer = (
+                    f"⚠️ **Autentikasi Gagal (401):** API Key untuk backend `{backend_name}` tidak valid atau telah kedaluwarsa.\n\n"
+                    f"💡 **Solusi:** Periksa kembali API Key Anda di menu **LLM Management**."
+                )
+            elif "429" in err_str or "rate limit" in err_lower or "credit" in err_lower:
+                clean_answer = (
+                    f"⚠️ **Batas Kuota / Rate Limit (429):** Akun OpenRouter telah mencapai batas permintaan harian atau kehabisan kredit saldo.\n\n"
+                    f"💡 **Solusi:** Periksa saldo kredit akun Anda di [openrouter.ai/credits](https://openrouter.ai/credits) atau gunakan model gratis/vLLM lokal."
+                )
+            else:
+                clean_answer = f"⚠️ Terjadi kendala saat menghubungi backend AI ({backend_name} / {model}): {err_str}"
 
         elapsed_ms = int((time.time() - start_time) * 1000)
 

@@ -51,11 +51,11 @@ CLOUD_PROVIDERS = [
         "description": "Universal gateway to Claude 3.5 Sonnet, GPT-4o, Gemini 2.0, and open models",
         "default_api_base": "https://openrouter.ai/api/v1",
         "default_models": [
-            "anthropic/claude-3.5-sonnet",
+            "deepseek/deepseek-chat",
+            "openai/gpt-4o-mini",
+            "meta-llama/llama-3.3-70b-instruct",
             "openai/gpt-4o",
-            "google/gemini-2.0-flash-001",
-            "deepseek/deepseek-r1",
-            "meta-llama/llama-3.3-70b-instruct"
+            "anthropic/claude-3.7-sonnet"
         ],
         "api_key_placeholder": "sk-or-v1-...",
         "docs_url": "https://openrouter.ai/keys",

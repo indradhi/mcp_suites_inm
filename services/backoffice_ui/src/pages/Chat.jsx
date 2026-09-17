@@ -517,10 +517,14 @@ export default function Chat() {
       setMessages(prev => [...prev, aiMessage]);
       // All additional info sections (sources, tools, graph, map, face) default to COLLAPSED
     } catch (err) {
+      let errorDetail = err.response?.data?.detail || err.message;
+      if (err.response?.status === 504 || (err.message && err.message.includes('504'))) {
+        errorDetail = `Gateway Timeout (504): Permintaan ke model AI memerlukan waktu lebih dari 60 detik. Hal ini biasanya terjadi jika model cloud (seperti OpenRouter) sedang mengalami antrean padat di server penyedia atau model penalaran (*reasoning*) membutuhkan waktu komputasi yang terlalu lama.\n\n💡 **Saran Solusi:** Coba pilih model yang lebih cepat dan responsif seperti **'deepseek/deepseek-chat'** atau **'openai/gpt-4o-mini'** pada pilihan model di panel pengaturan atas.`;
+      }
       const errorMsg = {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        content: `⚠️ **Error communicating with AI Knowledge service:**\n\n\`${err.response?.data?.detail || err.message}\``,
+        content: `⚠️ **Kendala Komunikasi dengan AI Knowledge Service:**\n\n${errorDetail}`,
         sources: [],
         entities: [],
         metrics: null,

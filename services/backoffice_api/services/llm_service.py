@@ -15,7 +15,7 @@ class LLMService:
         self.default_api_key = settings.DEFAULT_OPENAI_API_KEY
         self.default_model = settings.DEFAULT_OPENAI_MODEL
 
-    def get_client(self, api_base: Optional[str] = None, api_key: Optional[str] = None) -> OpenAI:
+    def get_client(self, api_base: Optional[str] = None, api_key: Optional[str] = None, timeout: Optional[float] = None) -> OpenAI:
         base = api_base or self.default_base_url
         key = api_key or self.default_api_key or "EMPTY"
         default_headers = {
@@ -23,14 +23,23 @@ class LLMService:
             "HTTP-Referer": "http://localhost:5173",
             "X-Title": "MCP Knowledge Backoffice"
         }
+        if timeout is None:
+            is_cloud = any(domain in (base or "").lower() for domain in [
+                "openrouter.ai", "api.openai.com", "api.deepseek.com",
+                "groq.com", "googleapis.com", "anthropic.com",
+                "mistral.ai", "together.xyz", "cohere.com"
+            ])
+            # 45s for cloud endpoints ensures python times out before corporate reverse proxies drop connection at 60s
+            timeout = 45.0 if is_cloud else 120.0
+
         return OpenAI(
             base_url=base,
             api_key=key,
             default_headers=default_headers,
-            timeout=120.0
+            timeout=timeout
         )
 
-    def get_async_client(self, api_base: Optional[str] = None, api_key: Optional[str] = None) -> AsyncOpenAI:
+    def get_async_client(self, api_base: Optional[str] = None, api_key: Optional[str] = None, timeout: Optional[float] = None) -> AsyncOpenAI:
         base = api_base or self.default_base_url
         key = api_key or self.default_api_key or "EMPTY"
         default_headers = {
@@ -38,11 +47,19 @@ class LLMService:
             "HTTP-Referer": "http://localhost:5173",
             "X-Title": "MCP Knowledge Backoffice"
         }
+        if timeout is None:
+            is_cloud = any(domain in (base or "").lower() for domain in [
+                "openrouter.ai", "api.openai.com", "api.deepseek.com",
+                "groq.com", "googleapis.com", "anthropic.com",
+                "mistral.ai", "together.xyz", "cohere.com"
+            ])
+            timeout = 45.0 if is_cloud else 120.0
+
         return AsyncOpenAI(
             base_url=base,
             api_key=key,
             default_headers=default_headers,
-            timeout=120.0
+            timeout=timeout
         )
 
     async def list_remote_models(self, api_base: str, api_key: Optional[str] = None) -> List[str]:

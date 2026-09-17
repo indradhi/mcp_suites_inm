@@ -64,11 +64,11 @@ const FALLBACK_PROVIDERS = [
     description: 'Universal gateway to Claude 3.5 Sonnet, GPT-4o, Gemini 2.0, and open models',
     default_api_base: 'https://openrouter.ai/api/v1',
     default_models: [
-      'anthropic/claude-3.5-sonnet',
+      'deepseek/deepseek-chat',
+      'openai/gpt-4o-mini',
+      'meta-llama/llama-3.3-70b-instruct',
       'openai/gpt-4o',
-      'google/gemini-2.0-flash-001',
-      'deepseek/deepseek-r1',
-      'meta-llama/llama-3.3-70b-instruct'
+      'anthropic/claude-3.7-sonnet'
     ],
     api_key_placeholder: 'sk-or-v1-...',
     docs_url: 'https://openrouter.ai/keys',
@@ -284,14 +284,24 @@ export default function LLMBackends() {
       });
       setTestResult(res.data);
       if (res.data.success && Array.isArray(res.data.models) && res.data.models.length > 0) {
-        // Merge newly discovered models with selected models
-        setSelectedModels(prev => {
-          const combined = [...prev];
-          res.data.models.forEach(m => {
-            if (!combined.includes(m)) combined.push(m);
+        if (res.data.models.length > 25) {
+          // Large cloud registry (e.g. OpenRouter with 400+ models) - do not flood selectedModels
+          setSelectedModels(prev => {
+            if (prev.length === 0) {
+              return res.data.models.slice(0, 5);
+            }
+            return prev;
           });
-          return combined;
-        });
+        } else {
+          // Moderate list (e.g. local vLLM or Ollama) - merge discovered models
+          setSelectedModels(prev => {
+            const combined = [...prev];
+            res.data.models.forEach(m => {
+              if (!combined.includes(m)) combined.push(m);
+            });
+            return combined;
+          });
+        }
       }
     } catch (err) {
       setTestResult({

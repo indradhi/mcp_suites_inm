@@ -31,6 +31,11 @@ services:
       LOG_LEVEL: DEBUG
       RELOAD: "true"
     command: uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+    dns:
+      - 172.16.11.14
+      - 172.16.11.13
+      - 172.20.10.1
+      - 8.8.8.8
 
   backoffice-api:
     ports:
@@ -44,6 +49,11 @@ services:
       LOG_LEVEL: DEBUG
       RELOAD: "true"
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    dns:
+      - 172.16.11.14
+      - 172.16.11.13
+      - 172.20.10.1
+      - 8.8.8.8
 
   celery-worker:
     environment:
@@ -53,6 +63,11 @@ services:
       - ./data/uploads:/app/uploads
     extra_hosts:
       - "pianaru:172.16.21.66"
+    dns:
+      - 172.16.11.14
+      - 172.16.11.13
+      - 172.20.10.1
+      - 8.8.8.8
 
   backoffice-ui:
     image: mcp_server_in_cec-backoffice-ui:latest
