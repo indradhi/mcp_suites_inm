@@ -545,9 +545,17 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                   {/* Sources Preview List */}
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: '700', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        Pilih Sumber untuk Diimpor ({selectedIndices.length} dari {parsedData.sources.length} dipilih)
-                      </span>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}>
+                        <input
+                          type="checkbox"
+                          checked={parsedData.sources.length > 0 && selectedIndices.length === parsedData.sources.length}
+                          onChange={selectAll}
+                          style={{ cursor: 'pointer', width: '15px', height: '15px', accentColor: 'var(--accent-primary)' }}
+                        />
+                        <span style={{ fontSize: '12px', fontWeight: '700', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Pilih Sumber untuk Diimpor ({selectedIndices.length} dari {parsedData.sources.length} dipilih)
+                        </span>
+                      </label>
                       <button
                         type="button"
                         onClick={selectAll}
@@ -588,8 +596,19 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                               <input
                                 type="checkbox"
                                 checked={isSelected}
-                                onChange={() => {}} // handled by parent div onClick
-                                onClick={(e) => e.stopPropagation()}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  toggleSelectIndex(idx);
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                }}
+                                style={{
+                                  cursor: 'pointer',
+                                  width: '16px',
+                                  height: '16px',
+                                  accentColor: 'var(--accent-primary)'
+                                }}
                               />
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 {getSourceIcon(src.source_type)}
