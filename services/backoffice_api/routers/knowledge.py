@@ -2,9 +2,12 @@ import os
 import re
 import shutil
 import logging
+import json
 import copy
+from datetime import datetime
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
@@ -26,6 +29,7 @@ class SourceCreate(BaseModel):
     description: Optional[str] = None
     config: Dict[str, Any]
     schedule_cron: Optional[str] = None
+    is_active: Optional[bool] = None
 
 class TestConnectionRequest(BaseModel):
     source_type: str
@@ -179,6 +183,7 @@ def create_knowledge_source(
         description=payload.description,
         config=payload.config,
         schedule_cron=payload.schedule_cron,
+        is_active=payload.is_active if payload.is_active is not None else True,
         sync_status="active (tool)" if is_tool_mode else "idle",
         created_by=user.id
     )
@@ -225,6 +230,7 @@ async def upload_file_source(
             "file_type": file_ext,
             "file_size": file_size
         },
+        is_active=True,
         created_by=user.id
     )
     db.add(source)
@@ -263,8 +269,37 @@ def trigger_sync(
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
 
+    if not source.is_active:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Knowledge Source '{source.name}' sedang dinonaktifkan. Silakan aktifkan terlebih dahulu untuk melakukan sinkronisasi."
+        )
+
     run_ingest_source_task.delay(source.id)
     return {"message": f"Sync queued for source '{source.name}'"}
+
+@router.patch("/sources/{source_id}/toggle-active")
+def toggle_source_active(
+    source_id: int,
+    db: Session = Depends(get_db),
+    user = Depends(require_role(["admin", "editor"]))
+):
+    source = db.query(KnowledgeSource).filter(KnowledgeSource.id == source_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+
+    source.is_active = not bool(source.is_active)
+    db.commit()
+    db.refresh(source)
+
+    status_str = "diaktifkan" if source.is_active else "dinonaktifkan"
+    return {
+        "success": True,
+        "id": source.id,
+        "name": source.name,
+        "is_active": source.is_active,
+        "message": f"Knowledge Source '{source.name}' berhasil {status_str}"
+    }
 
 @router.put("/sources/{source_id}")
 def update_source(
@@ -284,6 +319,8 @@ def update_source(
     source.schedule_cron = payload.schedule_cron
     if payload.source_type:
         source.source_type = payload.source_type.lower()
+    if payload.is_active is not None:
+        source.is_active = payload.is_active
     db.commit()
 
     is_tool_mode = bool((payload.config or {}).get("is_tool"))
@@ -296,10 +333,10 @@ def update_source(
             pass
     db.commit()
 
-    if re_sync and not is_tool_mode:
+    if re_sync and not is_tool_mode and source.is_active:
         run_ingest_source_task.delay(source.id)
 
-    return {"message": "Source updated successfully", "sync_scheduled": re_sync and not is_tool_mode}
+    return {"message": "Source updated successfully", "sync_scheduled": re_sync and not is_tool_mode and source.is_active}
 
 @router.delete("/sources/{source_id}")
 def delete_source(
@@ -413,6 +450,231 @@ def duplicate_knowledge_source(
         "created_at": (new_source.created_at.isoformat() + "Z") if new_source.created_at else None,
         "message": f"Koneksi '{original.name}' berhasil diduplikat sebagai '{new_source.name}'"
     }
+
+
+# ── Export & Import Knowledge Catalog Endpoints ─────────────────────
+
+class ImportCatalogRequest(BaseModel):
+    collision_strategy: Optional[str] = "rename"  # "rename", "overwrite", "skip"
+    auto_sync: Optional[bool] = False
+    sources: List[Dict[str, Any]]
+
+def _mask_sensitive_data(obj: Any):
+    if isinstance(obj, dict):
+        for k, v in list(obj.items()):
+            if any(s in k.lower() for s in ["password", "secret", "token", "api_key", "apikey", "pass"]):
+                if isinstance(v, str) and v:
+                    obj[k] = "***MASKED***"
+            elif isinstance(v, (dict, list)):
+                _mask_sensitive_data(v)
+    elif isinstance(obj, list):
+        for item in obj:
+            _mask_sensitive_data(item)
+
+def process_import_sources(
+    sources_data: List[Dict[str, Any]],
+    collision_strategy: str,
+    auto_sync: bool,
+    db: Session,
+    user
+) -> Dict[str, Any]:
+    strategy = (collision_strategy or "rename").lower()
+    created_sources = []
+    updated_sources = []
+    skipped_sources = []
+    errors = []
+
+    for idx, item in enumerate(sources_data):
+        try:
+            name = (item.get("name") or "").strip()
+            if not name:
+                errors.append(f"Item #{idx + 1}: Nama sumber pengetahuan wajib diisi.")
+                continue
+
+            source_type = (item.get("source_type") or "database").lower()
+            valid_types = ["database", "api", "website", "websearch", "google_drive", "file"]
+            if source_type not in valid_types:
+                source_type = "database"
+
+            description = item.get("description")
+            config = copy.deepcopy(item.get("config") or {})
+            schedule_cron = item.get("schedule_cron")
+            is_active = item.get("is_active", True)
+            is_tool_mode = bool(config.get("is_tool"))
+
+            # Check if source with same name already exists
+            existing = db.query(KnowledgeSource).filter(KnowledgeSource.name == name).first()
+
+            if existing:
+                if strategy == "skip":
+                    skipped_sources.append(name)
+                    continue
+                elif strategy == "overwrite":
+                    existing.source_type = source_type
+                    existing.description = description or existing.description
+                    existing.config = config
+                    existing.schedule_cron = schedule_cron
+                    existing.is_active = is_active
+                    if is_tool_mode:
+                        existing.sync_status = "active (tool)"
+                        try:
+                            vector_store.delete_by_source(existing.id)
+                        except Exception:
+                            pass
+                    db.commit()
+
+                    if auto_sync and existing.is_active and not is_tool_mode:
+                        run_ingest_source_task.delay(existing.id)
+
+                    updated_sources.append(existing.name)
+                    continue
+                else:
+                    # Strategy "rename"
+                    cand = f"{name} (Import)"
+                    counter = 2
+                    while db.query(KnowledgeSource).filter(KnowledgeSource.name == cand).first():
+                        cand = f"{name} (Import {counter})"
+                        counter += 1
+                    name = cand
+
+            # Ensure tool_name uniqueness if AI Tool
+            if config.get("tool_name"):
+                orig_tool = str(config["tool_name"]).strip()
+                cand_tool = orig_tool
+                all_tools = db.query(KnowledgeSource).all()
+                existing_tool_names = set()
+                for s in all_tools:
+                    if s.config and isinstance(s.config, dict) and s.config.get("tool_name"):
+                        existing_tool_names.add(str(s.config["tool_name"]).strip())
+
+                t_counter = 2
+                while cand_tool in existing_tool_names:
+                    cand_tool = f"{orig_tool}_import_{t_counter}"
+                    t_counter += 1
+                config["tool_name"] = cand_tool
+
+            new_source = KnowledgeSource(
+                name=name,
+                source_type=source_type,
+                description=description,
+                config=config,
+                schedule_cron=schedule_cron,
+                is_active=is_active,
+                sync_status="active (tool)" if is_tool_mode else "idle",
+                created_by=user.id
+            )
+            db.add(new_source)
+            db.commit()
+            db.refresh(new_source)
+
+            if auto_sync and new_source.is_active and not is_tool_mode:
+                run_ingest_source_task.delay(new_source.id)
+
+            created_sources.append(new_source.name)
+
+        except Exception as e:
+            errors.append(f"Item #{idx + 1} ('{item.get('name', 'Unknown')}'): {str(e)}")
+
+    return {
+        "success": True,
+        "total_processed": len(sources_data),
+        "created_count": len(created_sources),
+        "updated_count": len(updated_sources),
+        "skipped_count": len(skipped_sources),
+        "created_sources": created_sources,
+        "updated_sources": updated_sources,
+        "skipped_sources": skipped_sources,
+        "errors": errors,
+        "message": f"Import selesai: {len(created_sources)} dibuat, {len(updated_sources)} diperbarui, {len(skipped_sources)} dilewati."
+    }
+
+@router.get("/export")
+def export_knowledge_catalog(
+    source_ids: Optional[str] = Query(None, description="Comma-separated IDs or omit for all"),
+    mask_passwords: bool = Query(False, description="Whether to mask sensitive passwords/keys"),
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    query = db.query(KnowledgeSource)
+    if source_ids:
+        try:
+            ids = [int(i.strip()) for i in source_ids.split(",") if i.strip()]
+            if ids:
+                query = query.filter(KnowledgeSource.id.in_(ids))
+        except ValueError:
+            pass
+
+    sources = query.order_by(KnowledgeSource.id.asc()).all()
+    exported_sources = []
+
+    for s in sources:
+        conf = copy.deepcopy(s.config or {})
+        if mask_passwords:
+            _mask_sensitive_data(conf)
+
+        exported_sources.append({
+            "name": s.name,
+            "source_type": s.source_type,
+            "description": s.description,
+            "config": conf,
+            "schedule_cron": s.schedule_cron,
+            "is_active": s.is_active
+        })
+
+    now_str = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    filename = f"knowledge_catalog_export_{now_str}.json"
+
+    export_payload = {
+        "version": "1.0",
+        "system": "MCP Knowledge Platform",
+        "exported_at": datetime.utcnow().isoformat() + "Z",
+        "total_sources": len(exported_sources),
+        "sources": exported_sources
+    }
+
+    return JSONResponse(
+        content=export_payload,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Access-Control-Expose-Headers": "Content-Disposition"
+        }
+    )
+
+@router.post("/import")
+def import_knowledge_catalog(
+    payload: ImportCatalogRequest,
+    db: Session = Depends(get_db),
+    user = Depends(require_role(["admin", "editor"]))
+):
+    if not payload.sources:
+        raise HTTPException(status_code=400, detail="Daftar sumber pengetahuan untuk diimpor tidak boleh kosong.")
+    return process_import_sources(payload.sources, payload.collision_strategy or "rename", payload.auto_sync or False, db, user)
+
+@router.post("/import-file")
+async def import_knowledge_catalog_file(
+    file: UploadFile = File(...),
+    collision_strategy: str = Form("rename"),
+    auto_sync: bool = Form(False),
+    db: Session = Depends(get_db),
+    user = Depends(require_role(["admin", "editor"]))
+):
+    try:
+        content = await file.read()
+        data = json.loads(content.decode("utf-8"))
+        if isinstance(data, dict) and "sources" in data and isinstance(data["sources"], list):
+            sources_list = data["sources"]
+        elif isinstance(data, list):
+            sources_list = data
+        else:
+            raise HTTPException(status_code=400, detail="Format file JSON tidak valid. Harus memiliki properti 'sources' atau array objek sumber.")
+
+        return process_import_sources(sources_list, collision_strategy, auto_sync, db, user)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="File yang diunggah bukan format JSON yang valid.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal memproses file import: {str(e)}")
 
 
 

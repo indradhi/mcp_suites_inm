@@ -102,7 +102,8 @@ class ChatService:
             try:
                 from models.knowledge_source import KnowledgeSource
                 selected_sources = db.query(KnowledgeSource).filter(
-                    KnowledgeSource.id.in_(active_source_ids)
+                    KnowledgeSource.id.in_(active_source_ids),
+                    KnowledgeSource.is_active == True
                 ).all()
                 for sel_s in selected_sources:
                     if (sel_s.config or {}).get("is_tool") or (sel_s.config or {}).get("parameters"):
@@ -135,6 +136,22 @@ class ChatService:
                     filter_meta = {"source_id": active_source_ids[0]}
                 else:
                     filter_meta = {"source_id": {"$in": active_source_ids}}
+            elif db:
+                try:
+                    from models.knowledge_source import KnowledgeSource
+                    active_sources = db.query(KnowledgeSource.id).filter(
+                        KnowledgeSource.is_active == True
+                    ).all()
+                    active_ids = [s[0] for s in active_sources]
+                    if active_ids:
+                        if len(active_ids) == 1:
+                            filter_meta = {"source_id": active_ids[0]}
+                        else:
+                            filter_meta = {"source_id": {"$in": active_ids}}
+                    else:
+                        filter_meta = {"source_id": -999999}
+                except Exception as e:
+                    logger.warning(f"Error filtering active sources for vector retrieval: {e}")
 
             try:
                 retrieved_chunks = vector_store.query_similarity(
@@ -142,6 +159,16 @@ class ChatService:
                     n_results=top_k,
                     filter_meta=filter_meta
                 )
+                if retrieved_chunks and db:
+                    try:
+                        from models.knowledge_source import KnowledgeSource
+                        active_ids_set = set(s[0] for s in db.query(KnowledgeSource.id).filter(KnowledgeSource.is_active == True).all())
+                        retrieved_chunks = [
+                            c for c in retrieved_chunks
+                            if c.get("metadata", {}).get("source_id") in active_ids_set or c.get("metadata", {}).get("source_id") is None
+                        ]
+                    except Exception as e:
+                        logger.warning(f"Error checking active chunks: {e}")
             except Exception as e:
                 logger.warning(f"Vector retrieval warning in chat: {e}")
 

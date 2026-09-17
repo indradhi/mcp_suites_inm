@@ -29,6 +29,12 @@ def run_ingest_source_task(self, source_id: int):
             logger.error(f"Source with id {source_id} not found.")
             return
 
+        if not source.is_active:
+            logger.warning(f"Source with id {source_id} ('{source.name}') is disabled (is_active=False). Ingestion aborted.")
+            source.sync_status = "idle"
+            db.commit()
+            return
+
         job = IngestJob(
             source_id=source.id,
             status="processing",
