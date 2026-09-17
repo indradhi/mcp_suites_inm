@@ -11,7 +11,16 @@ const ENTITY_LEGEND = [
   { type: 'OTHER', label: 'Lainnya', color: '#8b5cf6' }
 ];
 
-export default function CytoscapeGraph({ elements, onSelectNode, selectedNodeId, layoutName = 'cose' }) {
+export default function CytoscapeGraph({ 
+  elements, 
+  onSelectNode, 
+  selectedNodeId, 
+  layoutName = 'cose',
+  searchQuery = '',
+  selectedType = 'ALL',
+  filterMode = 'highlight',
+  onSelectType = null
+}) {
   const containerRef = useRef(null);
   const cyRef = useRef(null);
   const [hoveredType, setHoveredType] = useState(null);
@@ -140,26 +149,84 @@ export default function CytoscapeGraph({ elements, onSelectNode, selectedNodeId,
     }
   }, [selectedNodeId]);
 
-  // 4. Highlight nodes when hovering legend
+  // 4. Live Filtering & Highlighting (by searchQuery, selectedType, filterMode, and legend hover)
   useEffect(() => {
     if (!cyRef.current) return;
-    if (!hoveredType) {
-      cyRef.current.nodes().style('opacity', 1);
-      cyRef.current.edges().style('opacity', 1);
-    } else {
+    const q = (searchQuery || '').toLowerCase().trim();
+    const isTypeFilterActive = selectedType && selectedType !== 'ALL';
+    const effectiveHoverType = hoveredType;
+
+    cyRef.current.batch(() => {
+      const matchedNodes = [];
+
       cyRef.current.nodes().forEach(node => {
+        const label = (node.data('label') || '').toLowerCase();
+        const id = (node.data('id') || '').toLowerCase();
+        const desc = (node.data('description') || '').toLowerCase();
         const nType = (node.data('type') || '').toUpperCase();
-        if (nType === hoveredType) {
-          node.style('opacity', 1);
-          node.style('border-width', 3);
+
+        const matchesQuery = !q || label.includes(q) || id.includes(q) || desc.includes(q);
+        const matchesType = !isTypeFilterActive || nType === selectedType;
+        const matchesHover = !effectiveHoverType || nType === effectiveHoverType;
+
+        const isMatched = matchesQuery && matchesType && matchesHover;
+
+        if (isMatched) {
+          matchedNodes.push(node);
+          node.style({
+            'display': 'element',
+            'opacity': 1,
+            'border-width': q ? 4 : 2,
+            'border-color': q ? '#38bdf8' : 'rgba(255, 255, 255, 0.45)'
+          });
         } else {
-          node.style('opacity', 0.2);
-          node.style('border-width', 1);
+          if (filterMode === 'isolate') {
+            node.style('display', 'none');
+          } else {
+            node.style({
+              'display': 'element',
+              'opacity': 0.12,
+              'border-width': 1,
+              'border-color': 'rgba(255, 255, 255, 0.1)'
+            });
+          }
         }
       });
-      cyRef.current.edges().style('opacity', 0.15);
-    }
-  }, [hoveredType]);
+
+      // Update edges: display only if both source and target nodes are visible
+      cyRef.current.edges().forEach(edge => {
+        const source = edge.source();
+        const target = edge.target();
+        const sVisible = source.style('display') !== 'none' && parseFloat(source.style('opacity')) > 0.3;
+        const tVisible = target.style('display') !== 'none' && parseFloat(target.style('opacity')) > 0.3;
+
+        if (sVisible && tVisible) {
+          edge.style({
+            'display': 'element',
+            'opacity': 0.85,
+            'width': 1.8
+          });
+        } else {
+          if (filterMode === 'isolate') {
+            edge.style('display', 'none');
+          } else {
+            edge.style({
+              'display': 'element',
+              'opacity': 0.05,
+              'width': 1
+            });
+          }
+        }
+      });
+
+      // Auto-fit to matched nodes when searching and results exist
+      if (q && matchedNodes.length > 0 && matchedNodes.length < cyRef.current.nodes().length) {
+        cyRef.current.animate({
+          fit: { eles: cyRef.current.collection(matchedNodes), padding: 70 }
+        }, { duration: 350 });
+      }
+    });
+  }, [searchQuery, selectedType, filterMode, hoveredType, elements]);
 
   // Canvas Action Helpers
   const handleZoomIn = () => {
@@ -339,35 +406,59 @@ export default function CytoscapeGraph({ elements, onSelectNode, selectedNodeId,
         <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
           Tipe Entitas:
         </span>
-        {ENTITY_LEGEND.map((leg, lIdx) => (
-          <div
-            key={lIdx}
-            onMouseEnter={() => setHoveredType(leg.type)}
-            onMouseLeave={() => setHoveredType(null)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '11px',
-              fontWeight: '600',
-              color: hoveredType === leg.type ? '#ffffff' : '#cbd5e1',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-              opacity: hoveredType && hoveredType !== leg.type ? 0.4 : 1
-            }}
-            title={`Sorot entitas tipe ${leg.label}`}
-          >
-            <span style={{
-              width: '10px',
-              height: '10px',
-              borderRadius: '50%',
-              backgroundColor: leg.color,
-              boxShadow: `0 0 8px ${leg.color}88`,
-              display: 'inline-block'
-            }} />
-            {leg.label}
-          </div>
-        ))}
+        {ENTITY_LEGEND.map((leg, lIdx) => {
+          const isFilterActive = selectedType === leg.type;
+          return (
+            <div
+              key={lIdx}
+              onClick={() => {
+                if (onSelectType) {
+                  onSelectType(isFilterActive ? 'ALL' : leg.type);
+                }
+              }}
+              onMouseEnter={() => setHoveredType(leg.type)}
+              onMouseLeave={() => setHoveredType(null)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '11px',
+                fontWeight: isFilterActive ? '700' : '600',
+                color: isFilterActive ? '#ffffff' : (hoveredType === leg.type ? '#ffffff' : '#cbd5e1'),
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                padding: '3px 8px',
+                borderRadius: '6px',
+                background: isFilterActive ? `${leg.color}35` : (hoveredType === leg.type ? 'rgba(255, 255, 255, 0.06)' : 'transparent'),
+                border: isFilterActive ? `1px solid ${leg.color}90` : '1px solid transparent',
+                opacity: hoveredType && hoveredType !== leg.type && !isFilterActive ? 0.35 : 1
+              }}
+              title={isFilterActive ? `Klik untuk membatalkan filter ${leg.label}` : `Klik untuk memfilter hanya tipe ${leg.label}`}
+            >
+              <span style={{
+                width: '10px',
+                height: '10px',
+                borderRadius: '50%',
+                backgroundColor: leg.color,
+                boxShadow: isFilterActive ? `0 0 10px ${leg.color}` : `0 0 6px ${leg.color}88`,
+                display: 'inline-block'
+              }} />
+              {leg.label}
+              {isFilterActive && (
+                <span style={{
+                  fontSize: '9px',
+                  background: leg.color,
+                  color: '#ffffff',
+                  padding: '1px 4px',
+                  borderRadius: '3px',
+                  fontWeight: '800'
+                }}>
+                  AKTIF
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -14,12 +14,26 @@ import {
   Shuffle, 
   ChevronDown, 
   Check, 
-  SlidersHorizontal 
+  SlidersHorizontal,
+  Filter,
+  Eye,
+  EyeOff,
+  RotateCcw
 } from 'lucide-react';
 import api from '../api/client';
 import CytoscapeGraph from '../components/graph/CytoscapeGraph';
 import EntityProfilePanel from '../components/graph/EntityProfilePanel';
 import PathFinderPanel from '../components/graph/PathFinderPanel';
+
+const ENTITY_TYPES = [
+  { id: 'ALL', label: 'Semua Tipe', color: '#94a3b8' },
+  { id: 'PERSON', label: 'Orang / Individu', color: '#6366f1' },
+  { id: 'ORGANIZATION', label: 'Organisasi / Korporasi', color: '#06b6d4' },
+  { id: 'DATABASE_RECORD', label: 'Data Record', color: '#10b981' },
+  { id: 'API_ENDPOINT', label: 'API Endpoint', color: '#f59e0b' },
+  { id: 'DOCUMENT', label: 'Dokumen', color: '#ec4899' },
+  { id: 'OTHER', label: 'Lainnya', color: '#8b5cf6' }
+];
 
 const NETWORK_LAYOUTS = [
   {
@@ -99,8 +113,15 @@ export default function NetworkExplorer() {
   const [isLayoutDropdownOpen, setIsLayoutDropdownOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('graph'); // 'graph', 'path', 'insights'
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedType, setSelectedType] = useState('ALL');
+  const [filterMode, setFilterMode] = useState('highlight'); // 'highlight' or 'isolate'
+  const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [loading, setLoading] = useState(true);
+
   const layoutDropdownRef = useRef(null);
+  const typeDropdownRef = useRef(null);
+  const searchContainerRef = useRef(null);
 
   useEffect(() => {
     fetchGraph();
@@ -108,11 +129,17 @@ export default function NetworkExplorer() {
     fetchInsights();
   }, []);
 
-  // Close dropdown on outside click
+  // Close popovers on outside click
   useEffect(() => {
     function handleClickOutside(event) {
       if (layoutDropdownRef.current && !layoutDropdownRef.current.contains(event.target)) {
         setIsLayoutDropdownOpen(false);
+      }
+      if (typeDropdownRef.current && !typeDropdownRef.current.contains(event.target)) {
+        setIsTypeDropdownOpen(false);
+      }
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
+        setShowSearchDropdown(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -153,9 +180,29 @@ export default function NetworkExplorer() {
     setSelectedEntity(node.id);
   };
 
-  const filteredNodes = graphData.elements.nodes.filter(n =>
-    n.data.label.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const allNodes = graphData?.elements?.nodes || [];
+  const allEdges = graphData?.elements?.edges || [];
+
+  const filteredNodes = allNodes.filter(n => {
+    const q = (searchQuery || '').toLowerCase().trim();
+    const label = (n.data?.label || '').toLowerCase();
+    const id = (n.data?.id || '').toLowerCase();
+    const desc = (n.data?.description || '').toLowerCase();
+    const nType = (n.data?.type || 'OTHER').toUpperCase();
+
+    const matchesQuery = !q || label.includes(q) || id.includes(q) || desc.includes(q);
+    const matchesType = selectedType === 'ALL' || nType === selectedType;
+    return matchesQuery && matchesType;
+  });
+
+  const countByType = allNodes.reduce((acc, n) => {
+    const t = (n.data?.type || 'OTHER').toUpperCase();
+    acc[t] = (acc[t] || 0) + 1;
+    return acc;
+  }, {});
+
+  const isFilterActive = (searchQuery && searchQuery.trim() !== '') || (selectedType && selectedType !== 'ALL');
+  const activeTypeObj = ENTITY_TYPES.find(t => t.id === selectedType) || ENTITY_TYPES[0];
 
   const activeLayout = NETWORK_LAYOUTS.find(l => l.id === layoutName) || NETWORK_LAYOUTS[0];
   const ActiveLayoutIcon = activeLayout.icon;
@@ -252,43 +299,270 @@ export default function NetworkExplorer() {
               backdropFilter: 'blur(10px)',
               zIndex: 20
             }}>
-              {/* Left: Node Search & Stats */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                <div style={{ position: 'relative', width: '220px' }}>
+              {/* Left: Node Search, Autocomplete & Multi-Dimension Filter Controls */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                
+                {/* Search Input with Live Autocomplete Popover */}
+                <div ref={searchContainerRef} style={{ position: 'relative', width: '220px' }}>
                   <input
                     type="text"
                     className="input-field"
-                    placeholder="Cari node entitas..."
+                    placeholder="Cari entitas, ID, label..."
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    style={{ padding: '7px 28px 7px 32px', fontSize: '12px', borderRadius: '8px' }}
+                    onFocus={() => { if (searchQuery.trim()) setShowSearchDropdown(true); }}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setShowSearchDropdown(true);
+                    }}
+                    style={{ padding: '6px 28px 6px 30px', fontSize: '12px', borderRadius: '8px', width: '100%' }}
                   />
-                  <Search size={14} color="var(--text-muted)" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <Search size={13} color="var(--text-muted)" style={{ position: 'absolute', left: '9px', top: '50%', transform: 'translateY(-50%)' }} />
                   {searchQuery && (
                     <button
-                      onClick={() => setSearchQuery('')}
+                      onClick={() => {
+                        setSearchQuery('');
+                        setShowSearchDropdown(false);
+                      }}
                       style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}
+                      title="Hapus kata kunci pencarian"
                     >
                       <X size={13} />
                     </button>
                   )}
+
+                  {/* Autocomplete Suggestions Popover */}
+                  {showSearchDropdown && searchQuery.trim() && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 6px)',
+                      left: 0,
+                      width: '280px',
+                      background: 'rgba(13, 18, 30, 0.98)',
+                      backdropFilter: 'blur(20px)',
+                      border: '1px solid rgba(255, 255, 255, 0.16)',
+                      borderRadius: '10px',
+                      boxShadow: '0 12px 30px rgba(0,0,0,0.7)',
+                      padding: '6px',
+                      zIndex: 110,
+                      maxHeight: '260px',
+                      overflowY: 'auto'
+                    }}>
+                      <div style={{ padding: '4px 8px 6px', fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                        Saran Hasil ({filteredNodes.length})
+                      </div>
+                      {filteredNodes.length === 0 ? (
+                        <div style={{ padding: '12px 8px', fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center' }}>
+                          Tidak ada entitas yang cocok
+                        </div>
+                      ) : (
+                        filteredNodes.slice(0, 8).map((node) => {
+                          const nType = (node.data?.type || 'OTHER').toUpperCase();
+                          const typeMeta = ENTITY_TYPES.find(t => t.id === nType) || { color: '#8b5cf6', label: nType };
+                          return (
+                            <div
+                              key={node.data.id}
+                              onClick={() => {
+                                setSelectedEntity(node.data.id);
+                                setSearchQuery(node.data.label);
+                                setShowSearchDropdown(false);
+                              }}
+                              style={{
+                                padding: '6px 8px',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '8px',
+                                transition: 'all 0.15s ease'
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+                                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: typeMeta.color, flexShrink: 0 }} />
+                                <span style={{ fontSize: '11px', color: '#ffffff', fontWeight: '600', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                                  {node.data.label}
+                                </span>
+                              </div>
+                              <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '4px', background: `${typeMeta.color}25`, color: typeMeta.color, fontWeight: '700', flexShrink: 0 }}>
+                                {typeMeta.label.split('/')[0].trim()}
+                              </span>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
                 </div>
 
+                {/* Entity Type Filter Dropdown */}
+                <div ref={typeDropdownRef} style={{ position: 'relative' }}>
+                  <button
+                    onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: selectedType !== 'ALL' ? `${activeTypeObj.color}22` : 'rgba(255, 255, 255, 0.05)',
+                      border: selectedType !== 'ALL' ? `1px solid ${activeTypeObj.color}80` : '1px solid var(--border-color)',
+                      color: selectedType !== 'ALL' ? '#ffffff' : 'var(--text-secondary)',
+                      padding: '5px 10px',
+                      borderRadius: '8px',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <Filter size={12} color={selectedType !== 'ALL' ? activeTypeObj.color : 'currentColor'} />
+                    <span>Tipe: <strong>{activeTypeObj.label.split('/')[0].trim()}</strong></span>
+                    {selectedType !== 'ALL' && (
+                      <span style={{ fontSize: '10px', background: activeTypeObj.color, color: '#000', borderRadius: '10px', padding: '0 5px', fontWeight: '800' }}>
+                        {filteredNodes.length}
+                      </span>
+                    )}
+                    <ChevronDown size={12} style={{ transform: isTypeDropdownOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s ease' }} />
+                  </button>
+
+                  {/* Type Filter Popover Menu */}
+                  {isTypeDropdownOpen && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 6px)',
+                      left: 0,
+                      width: '240px',
+                      background: 'rgba(13, 18, 30, 0.98)',
+                      backdropFilter: 'blur(20px)',
+                      border: '1px solid rgba(255, 255, 255, 0.16)',
+                      borderRadius: '10px',
+                      boxShadow: '0 12px 30px rgba(0,0,0,0.7)',
+                      padding: '8px',
+                      zIndex: 110
+                    }}>
+                      <div style={{ padding: '2px 6px 6px', fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: '4px' }}>
+                        Filter Menurut Tipe Entitas
+                      </div>
+                      {ENTITY_TYPES.map(t => {
+                        const isSelected = selectedType === t.id;
+                        const count = t.id === 'ALL' ? allNodes.length : (countByType[t.id] || 0);
+                        return (
+                          <div
+                            key={t.id}
+                            onClick={() => {
+                              setSelectedType(t.id);
+                              setIsTypeDropdownOpen(false);
+                            }}
+                            style={{
+                              padding: '6px 8px',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              background: isSelected ? `${t.color}25` : 'transparent',
+                              border: isSelected ? `1px solid ${t.color}60` : '1px solid transparent',
+                              transition: 'all 0.12s ease'
+                            }}
+                            onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                            onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: t.color }} />
+                              <span style={{ fontSize: '11px', color: isSelected ? '#ffffff' : 'var(--text-secondary)', fontWeight: isSelected ? '700' : '500' }}>
+                                {t.label}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: '10px', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.06)', padding: '1px 5px', borderRadius: '4px' }}>
+                              {count}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Filter Mode Toggle (Highlight vs Isolate) */}
+                <button
+                  onClick={() => setFilterMode(filterMode === 'highlight' ? 'isolate' : 'highlight')}
+                  title={filterMode === 'highlight' ? 'Mode Sorot: Redupkan node yang tidak cocok (klik untuk sembunyikan sepenuhnya)' : 'Mode Isolasi: Sembunyikan node non-target (klik untuk redupkan saja)'}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: filterMode === 'isolate' ? 'rgba(236, 72, 153, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                    border: filterMode === 'isolate' ? '1px solid rgba(236, 72, 153, 0.4)' : '1px solid var(--border-color)',
+                    color: filterMode === 'isolate' ? '#f472b6' : 'var(--text-secondary)',
+                    padding: '5px 9px',
+                    borderRadius: '8px',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {filterMode === 'isolate' ? <EyeOff size={12} /> : <Eye size={12} />}
+                  <span>{filterMode === 'isolate' ? 'Isolasi' : 'Sorot'}</span>
+                </button>
+
+                {/* Reset Filter Button */}
+                {isFilterActive && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSelectedType('ALL');
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: 'rgba(239, 68, 68, 0.15)',
+                      border: '1px solid rgba(239, 68, 68, 0.35)',
+                      color: '#f87171',
+                      padding: '5px 8px',
+                      borderRadius: '8px',
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Kembalikan semua filter ke awal"
+                  >
+                    <RotateCcw size={11} />
+                    <span>Reset</span>
+                  </button>
+                )}
+
+                {/* Match Result Stats Pill */}
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  background: 'rgba(255, 255, 255, 0.04)',
+                  background: isFilterActive ? 'rgba(56, 189, 248, 0.1)' : 'rgba(255, 255, 255, 0.04)',
                   padding: '5px 10px',
                   borderRadius: '6px',
-                  border: '1px solid rgba(255, 255, 255, 0.06)',
-                  fontSize: '12px',
-                  color: 'var(--text-secondary)'
+                  border: isFilterActive ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid rgba(255, 255, 255, 0.06)',
+                  fontSize: '11px',
+                  color: isFilterActive ? '#38bdf8' : 'var(--text-secondary)'
                 }}>
-                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#34d399', boxShadow: '0 0 6px #34d399', display: 'inline-block' }} />
-                  <span><strong>{graphData.stats.total_nodes}</strong> entitas</span>
-                  <span style={{ color: 'rgba(255,255,255,0.2)' }}>·</span>
-                  <span><strong>{graphData.stats.total_edges}</strong> relasi</span>
+                  <span style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    background: isFilterActive ? '#38bdf8' : '#34d399',
+                    boxShadow: isFilterActive ? '0 0 6px #38bdf8' : '0 0 6px #34d399',
+                    display: 'inline-block'
+                  }} />
+                  {isFilterActive ? (
+                    <span><strong>{filteredNodes.length}</strong> / {allNodes.length} cocok</span>
+                  ) : (
+                    <>
+                      <span><strong>{graphData.stats.total_nodes}</strong> entitas</span>
+                      <span style={{ color: 'rgba(255,255,255,0.2)' }}>·</span>
+                      <span><strong>{graphData.stats.total_edges}</strong> relasi</span>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -588,6 +862,10 @@ export default function NetworkExplorer() {
                 onSelectNode={handleNodeClick}
                 selectedNodeId={selectedEntity}
                 layoutName={layoutName}
+                searchQuery={searchQuery}
+                selectedType={selectedType}
+                filterMode={filterMode}
+                onSelectType={(type) => setSelectedType(type)}
               />
             </div>
           </div>
