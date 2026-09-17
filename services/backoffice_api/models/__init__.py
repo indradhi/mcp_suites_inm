@@ -4,6 +4,7 @@ from models.knowledge_source import KnowledgeSource, KnowledgeDocument
 from models.ingest_job import IngestJob
 from models.llm_backend import LLMBackend, ModelAssignment
 from models.chat_feedback import ChatFeedback
+from models.system_setting import SystemSetting
 
 __all__ = [
     "Base",
@@ -15,5 +16,6 @@ __all__ = [
     "IngestJob",
     "LLMBackend",
     "ModelAssignment",
-    "ChatFeedback"
+    "ChatFeedback",
+    "SystemSetting"
 ]

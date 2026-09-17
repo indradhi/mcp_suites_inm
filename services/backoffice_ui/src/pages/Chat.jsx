@@ -187,6 +187,7 @@ export default function Chat() {
   const [feedbackState, setFeedbackState] = useState({}); // msgId -> 'like' | 'dislike' | null
   const [dislikeNotes, setDislikeNotes] = useState({}); // msgId -> string
   const [pendingFeedback, setPendingFeedback] = useState({}); // msgId -> true (submitting)
+  const [activePersonality, setActivePersonality] = useState(null);
 
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
@@ -246,6 +247,7 @@ export default function Chat() {
     fetchSources();
     fetchTools();
     fetchActiveModels();
+    fetchActivePersonality();
   }, []);
 
   useEffect(() => {
@@ -282,6 +284,17 @@ export default function Chat() {
       setActiveTools(res.data?.tools || []);
     } catch (err) {
       console.warn('Could not fetch tools for chat:', err);
+    }
+  };
+
+  const fetchActivePersonality = async () => {
+    try {
+      const res = await api.get('/settings/personality');
+      if (res.data?.personality) {
+        setActivePersonality(res.data.personality);
+      }
+    } catch (err) {
+      console.warn('Could not fetch active personality for chat:', err);
     }
   };
 
@@ -1799,6 +1812,33 @@ export default function Chat() {
                   {activeTools.length} Tools
                 </span>
               )}
+
+              {/* Active Personality pill */}
+              <a 
+                href="/personality"
+                title="Klik untuk melihat dan mengubah kepribadian sistem MCP"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '2px 8px',
+                  borderRadius: '6px',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#f87171',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  textDecoration: 'none',
+                  cursor: 'pointer',
+                  maxWidth: '180px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <Sparkles size={11} />
+                {activePersonality?.name ? activePersonality.name.replace(/\s*\(Default\)/i, '') : 'Persona: KPK'}
+              </a>
             </div>
           </div>
 
@@ -1919,8 +1959,31 @@ export default function Chat() {
             <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#ffffff', letterSpacing: '-0.01em' }}>
               AI Knowledge Chat
             </h2>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Query ChromaDB vectors & Neo4j graph entities with LLM RAG
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                Query ChromaDB vectors & Neo4j graph entities with LLM RAG
+              </span>
+              <a 
+                href="/personality"
+                title="Klik untuk melihat dan mengubah kepribadian sistem MCP"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '2px 8px',
+                  borderRadius: '6px',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#f87171',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  textDecoration: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                <Sparkles size={11} />
+                {activePersonality?.name ? activePersonality.name.replace(/\s*\(Default\)/i, '') : 'Persona: KPK'}
+              </a>
             </div>
           </div>
         </div>

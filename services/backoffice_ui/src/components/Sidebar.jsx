@@ -31,6 +31,7 @@ export default function Sidebar() {
     { to: '/knowledge', label: 'Knowledge Sources', icon: Database },
     { to: '/network', label: 'Network Explorer', icon: Network },
     { to: '/llm-backends', label: 'LLM Backends', icon: Cpu },
+    { to: '/personality', label: 'MCP Personality', icon: Sparkles },
     { to: '/jobs', label: 'Ingest Jobs', icon: Activity },
   ];
 

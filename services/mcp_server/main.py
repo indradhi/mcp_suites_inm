@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel, Field
+import httpx
 
 from vector_client import VectorClient
 from graph_client import GraphClient
@@ -444,7 +445,13 @@ async def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
             "tool": name,
             "status": "success (local synthesis)",
             "guidelines": {
-                "core_mission": "Enterprise AI Knowledge Orchestrator. Uphold strict grounding, attribute all sources, and route queries to the most authoritative source.",
+                "core_mission": "Analis Intelijen & Penyelidikan KPK. Melakukan penelaahan bukti, penelusuran aset, profiling entitas terduga, verifikasi silang dokumen & data lapangan, serta menjaga integritas anti-halusinasi.",
+                "personality": {
+                    "name": "Analis Intelijen & Penyelidikan KPK",
+                    "role": "Analis Intelijen & Penyelidikan Korupsi",
+                    "tone_of_voice": "Formal, lugas, analitis, presisi, objektif, berintegritas tinggi",
+                    "preset": "kpk_investigator"
+                },
                 "input_processing_protocol": [
                     {
                         "step": 1,
@@ -802,12 +809,96 @@ async def rpc_endpoint(req: JsonRpcRequest):
                 "capabilities": {
                     "tools": {"listChanged": False},
                     "resources": {},
-                    "prompts": {}
+                    "prompts": {"listChanged": False}
                 },
                 "serverInfo": {
                     "name": "mcp-knowledge-server",
                     "version": "1.0.0"
                 }
+            }
+        }
+
+    elif method == "prompts/list":
+        # Dynamic discovery of MCP default personality prompt
+        p_name = "Analis Intelijen & Penyelidikan KPK"
+        p_desc = "Default personality and system instructions for this MCP knowledge assistant (configured via Backoffice)"
+        try:
+            async with httpx.AsyncClient(timeout=4.0) as client:
+                res = await client.get(f"{BACKOFFICE_API_URL}/api/settings/personality")
+                if res.status_code == 200:
+                    p_data = res.json().get("personality", {})
+                    if p_data.get("name"):
+                        p_name = p_data["name"]
+                        p_desc = f"[{p_name}] {p_data.get('role', '')} - {p_data.get('tone_of_voice', '')}".strip(" - ")
+        except Exception:
+            pass
+
+        return {
+            "jsonrpc": "2.0",
+            "id": req.id,
+            "result": {
+                "prompts": [
+                    {
+                        "name": "default_personality",
+                        "description": p_desc,
+                        "arguments": [
+                            {
+                                "name": "user_context",
+                                "description": "Optional user context or specific investigation query",
+                                "required": False
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+
+    elif method == "prompts/get":
+        prompt_name = params.get("name")
+        args_data = params.get("arguments", {}) or {}
+        user_context = args_data.get("user_context", "")
+
+        system_instruction = ""
+        prompt_title = "Default MCP Personality"
+
+        try:
+            async with httpx.AsyncClient(timeout=4.0) as client:
+                res = await client.get(f"{BACKOFFICE_API_URL}/api/settings/personality")
+                if res.status_code == 200:
+                    data = res.json()
+                    system_instruction = data.get("system_instruction", "")
+                    p_data = data.get("personality", {})
+                    prompt_title = p_data.get("name", prompt_title)
+        except Exception as e:
+            logger.warning(f"Could not fetch personality from backoffice: {e}")
+
+        if not system_instruction:
+            system_instruction = (
+                "Anda adalah asisten AI resmi KPK (Komisi Pemberantasan Korupsi) dengan spesialisasi "
+                "sebagai Analis Intelijen & Penyelidikan. Tugas utama Anda adalah membantu analisis kasus, "
+                "penelusuran aset, profiling entitas, dan verifikasi silang data.\n"
+                "Gunakan Bahasa Indonesia yang formal, lugas, presisi, objektif, dan berlandaskan fakta hukum. "
+                "Jangan pernah mengarang informasi (anti-halusinasi)."
+            )
+
+        full_prompt_text = system_instruction
+        if user_context:
+            full_prompt_text += f"\n\n### KONTEKS TAMBAHAN PENGGUNA:\n{user_context}"
+
+        return {
+            "jsonrpc": "2.0",
+            "id": req.id,
+            "result": {
+                "description": prompt_title,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": {
+                            "type": "text",
+                            "text": full_prompt_text
+                        }
+                    }
+                ]
             }
         }
 

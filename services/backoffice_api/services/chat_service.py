@@ -6,6 +6,7 @@ from typing import List, Dict, Any, Optional
 from services.vector_store import vector_store
 from services.graph.neo4j_client import neo4j_client
 from services.llm_service import llm_service
+from services.personality_service import personality_service
 
 logger = logging.getLogger(__name__)
 
@@ -490,46 +491,18 @@ class ChatService:
         else:
             effective_temperature = 0.0 if strict_mode else 0.3
 
-        # 6. Build LLM Prompt
-        if strict_mode:
-            system_instruction = """You are the official Enterprise AI Knowledge Assistant for the MCP Knowledge Platform.
-Your mission is to provide 100% FACTUAL, ACCURATE, and TRUTHFUL responses strictly grounded in the provided Knowledge Base context and live tool results.
-
-CRITICAL ANTI-HALLUCINATION & ZERO-FABRICATION DIRECTIVES (STRICT GROUNDING):
-1. STRICT TRUTH & ZERO GUESSING: You are strictly forbidden from inventing, guessing, hallucinating, or extrapolating any information, identities, NIKs, dates of birth, marital status, addresses, phone numbers, assets, family members, or facts that are NOT explicitly stated in the provided context or tool results.
-2. ABSENCE OF DATA: If the requested person, entity, document, or relationship is NOT found in the provided context or tool results, you MUST explicitly state:
-   "Data untuk '[nama/entitas yang dicari]' tidak ditemukan dalam basis data atau dokumen yang tersedia."
-   Never attempt to answer using general assumptions or invent a plausible-sounding profile.
-3. CHARACTER-FOR-CHARACTER FIDELITY: Values such as NIK (16 digits), Nomor KK, Nomor Telepon, Nomor Sertifikat Tanah, Tanggal Lahir, and financial/asset numbers MUST match the source data exactly. Never round, modify, or fabricate digits.
-4. ZERO RECORD CONTAMINATION: Never mix or merge attributes of two different people or database records. If multiple records are returned, list each distinct record clearly.
-5. SOURCE ATTRIBUTION: Clearly cite the Document Source Name or Tool Name for every verified fact.
-6. OUTPUT ONLY THE FINAL ANSWER: Output ONLY your final verified response in clear Markdown. Do NOT include thinking tags (<think>...</think>), internal planning, or meta-commentary. Start directly with the answer."""
-        else:
-            system_instruction = """You are the AI Knowledge Assistant for the MCP Knowledge Platform.
-Your goal is to answer user queries accurately, comprehensively, and truthfully based on the provided Knowledge Base context (both indexed documents and knowledge graph entities).
-
-Guidelines:
-1. Ground your answers in the provided context.
-2. Cite the relevant Document numbers or Source names clearly.
-3. If the knowledge base does not contain enough information, acknowledge what is available and clarify what is missing.
-4. Format your answer using clear Markdown (headings, bullet points, code blocks, bold text).
-5. Output ONLY your final answer without internal thinking commentary."""
-
-        if tools:
-            tool_names_str = ", ".join(tool_dispatch_map.keys())
-            system_instruction += f"\n7. Dynamic Real-time Tools: You have access to active real-time API and Database tools: [{tool_names_str}]. Whenever answering the user question requires real-time search, looking up records, querying databases or tables, checking land/BPN ownership by name, or querying an external service, you MUST call the corresponding tool first with arguments extracted from the user query."
-            system_instruction += (
-                "\n8. MANDATORY TOOL USAGE FOR PERSON & RECORD LOOKUPS: "
-                "When a user asks to profile, find, or look up a specific person, citizen, NIK, or entity (e.g. 'siapa [nama]', 'profil [nama]', 'cari data [nama]'), "
-                "and an active profiling/search tool exists (such as `db_profiling_data_orang_...`), you MUST ALWAYS call the tool first to fetch their official, complete database record and photo. "
-                "Do NOT assume brief metadata mentions, audit trail entries (like 'updated_by'), or partial snippets in indexed documents represent the person's citizen profile. "
-                "If the tool returns no matching records (empty or null), answer clearly that the record is not found in the database. DO NOT make up citizen data."
-            )
-            if is_single_tool_selected and single_selected_tool_name:
-                system_instruction += f"\n9. Selected Tool: The user has explicitly selected the tool '{single_selected_tool_name}'. You MUST call '{single_selected_tool_name}' using arguments extracted from the user question."
-            elif selected_tool_names:
-                tools_list_str = ", ".join(selected_tool_names)
-                system_instruction += f"\n9. Selected Tools: The user has explicitly filtered by tools: [{tools_list_str}]. Prioritize calling these tools if relevant to the user question."
+        # 6. Build LLM Prompt with Configured MCP Personality
+        system_instruction = personality_service.build_system_instruction(
+            db=db,
+            is_indonesian=True,
+            tools=tools,
+            tool_dispatch_map=tool_dispatch_map,
+            is_single_tool_selected=is_single_tool_selected,
+            single_selected_tool_name=single_selected_tool_name,
+            selected_tool_names=selected_tool_names,
+            uploaded_document=uploaded_document,
+            strict_mode=strict_mode
+        )
 
         if face_result:
             if face_result.get("matched"):
@@ -538,31 +511,17 @@ Guidelines:
                 pid = face_result.get("person_id")
                 dept = face_result.get("department")
                 system_instruction += (
-                    f"\n10. Biometric Face Recognition Result: An image was attached to the user message and biometrically scanned. "
-                    f"Result: POSITIVE MATCH -> Person: **{person}** (ID: {pid or 'N/A'}, Department: {dept or 'N/A'}) with **{conf}%** confidence. "
-                    f"Answer the user by confirming this positive facial identification."
+                    f"\n\nHASIL PENGENALAN WAJAH BIOMETRIK:\n"
+                    f"Gambar terlampir telah dipindai biometrik. "
+                    f"Hasil: IDENTIFIKASI POSITIF -> Orang: **{person}** (ID: {pid or 'N/A'}, Departemen: {dept or 'N/A'}) dengan tingkat keyakinan **{conf}%**.\n"
+                    f"Jawab pengguna dengan mengonfirmasi identitas wajah yang terverifikasi ini."
                 )
             elif face_result.get("detection", {}).get("face_detected"):
                 system_instruction += (
-                    "\n10. Biometric Face Recognition Result: A face was detected in the image, but it does not match any enrolled identity in the database. "
-                    "Inform the user that a face was detected, but no matching profile exists in the enrolled knowledge base."
+                    "\n\nHASIL PENGENALAN WAJAH BIOMETRIK:\n"
+                    "Wajah terdeteksi pada gambar, namun tidak cocok dengan data profil wajah terdaftar dalam basis pengetahuan. "
+                    "Sampaikan secara santun bahwa wajah terdeteksi tetapi belum terdaftar dalam basis data."
                 )
-
-        system_instruction += (
-            "\n11. Displaying Images & Photos: If the context, database records, or tool execution results contain photos, image URLs, or base64 photo strings (such as 'foto', 'image', 'avatar', 'photo', 'picture', 'image_base64'), ALWAYS render them in your final answer using Markdown image syntax: `![Photo Description](data:image/jpeg;base64,...)` or `![Photo Description](http://...)`. If the string is raw base64 (e.g. starts with /9j/), prepend `data:image/jpeg;base64,` so it displays immediately as an image. Never output unrendered raw base64 text blocks."
-        )
-
-        if uploaded_document:
-            doc_fname = uploaded_document.get("file_name", "Dokumen")
-            doc_type = (uploaded_document.get("file_type") or "dokumen").upper()
-            system_instruction += (
-                f"\n\n12. ANALISIS DOKUMEN TERUNGGAH ({doc_fname} [{doc_type}]): "
-                f"Pengguna telah mengunggah file '{doc_fname}'. Prioritaskan membaca, mengekstrak informasi, merangkum, "
-                f"dan menjawab pertanyaan pengguna berdasarkan isi dokumen tersebut. "
-                f"Sajikan data secara rapi (gunakan format tabel Markdown, bullet points, atau kutipan langsung). "
-                f"Sebutkan nomor halaman atau nama sheet jika ada dalam data sumber. "
-                f"Jika pengguna membandingkan dengan data Knowledge Base atau mencari relasi korupsi/penyelidikan, sandingkan temuan dokumen dengan data yang relevan."
-            )
 
         has_real_context = bool(retrieved_chunks or graph_entities or face_result or uploaded_document)
 

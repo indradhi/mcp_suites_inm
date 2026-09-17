@@ -19,6 +19,7 @@ from config import settings
 from services.vector_store import vector_store
 from services.ingestion.database_ingester import database_ingester
 from services.ingestion.api_ingester import api_ingester
+from services.personality_service import personality_service
 from tasks.ingest_tasks import run_ingest_source_task
 
 router = APIRouter(prefix="/knowledge", tags=["Knowledge Sources"])
@@ -764,9 +765,17 @@ def get_orchestration_guidelines(
 
     catalog["summary"]["source_types"] = type_counts
 
-    # 2. Comprehensive AI Guidelines
+    # 2. Comprehensive AI Guidelines (tailored by active MCP Personality)
+    active_personality = personality_service.get_personality(db)
     guidelines = {
-        "core_mission": "You are the Enterprise AI Knowledge Orchestrator. Your mission is to analyze user queries, consult the appropriate enterprise knowledge sources, uphold strict grounding standards, and synthesize accurate, well-attributed answers.",
+        "core_mission": active_personality.get("core_mission") or "You are the Enterprise AI Knowledge Orchestrator. Your mission is to analyze user queries, consult the appropriate enterprise knowledge sources, uphold strict grounding standards, and synthesize accurate, well-attributed answers.",
+        "personality": {
+            "name": active_personality.get("name"),
+            "role": active_personality.get("role"),
+            "tone_of_voice": active_personality.get("tone_of_voice"),
+            "preset": active_personality.get("preset"),
+            "custom_instructions": active_personality.get("custom_instructions", "")
+        },
         "input_processing_protocol": [
             {
                 "step": 1,

@@ -8,6 +8,7 @@ import DataOrchestrator from './pages/DataOrchestrator';
 import KnowledgeSources from './pages/KnowledgeSources';
 import NetworkExplorer from './pages/NetworkExplorer';
 import LLMBackends from './pages/LLMBackends';
+import MCPPersonality from './pages/MCPPersonality';
 import Jobs from './pages/Jobs';
 import Users from './pages/Users';
 import { useAuthStore } from './store/authStore';
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="knowledge" element={<KnowledgeSources />} />
           <Route path="network" element={<NetworkExplorer />} />
           <Route path="llm-backends" element={<LLMBackends />} />
+          <Route path="personality" element={<MCPPersonality />} />
           <Route path="jobs" element={<Jobs />} />
           <Route
             path="users"

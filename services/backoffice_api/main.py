@@ -13,7 +13,7 @@ from models.llm_backend import LLMBackend
 from models.chat_feedback import ChatFeedback
 from security import get_current_user
 
-from routers import auth, users, knowledge, jobs, graph, llm_backends, chat, face
+from routers import auth, users, knowledge, jobs, graph, llm_backends, chat, face, personality
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("backoffice_api")
@@ -74,6 +74,7 @@ app.include_router(graph.router, prefix="/api")
 app.include_router(llm_backends.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(face.router, prefix="/api")
+app.include_router(personality.router, prefix="/api")
 
 @app.get("/health")
 def health():
