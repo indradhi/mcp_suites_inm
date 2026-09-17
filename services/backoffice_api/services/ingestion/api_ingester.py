@@ -5,6 +5,21 @@ import httpx
 logger = logging.getLogger(__name__)
 
 class APIIngester:
+    def _get_verify_ssl(self, config: Dict[str, Any]) -> bool:
+        """
+        Determines whether SSL certificate verification is enabled.
+        Defaults to False for enterprise/government internal endpoints
+        (such as *.kpk.go.id, internal CAs, or self-signed certificates),
+        or reads explicit config flag 'verify_ssl' / 'ssl_verify'.
+        """
+        if not config:
+            return False
+        if "verify_ssl" in config:
+            return bool(config["verify_ssl"])
+        if "ssl_verify" in config:
+            return bool(config["ssl_verify"])
+        return False
+
     async def get_bearer_token(self, auth_config: Dict[str, Any]) -> Optional[str]:
         """
         Supports dynamic token acquisition:
@@ -23,15 +38,27 @@ class APIIngester:
             if not token_url:
                 raise ValueError("token_url is required for dynamic token acquisition")
 
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                resp = await client.post(token_url, json=payload, headers=headers)
-                resp.raise_for_status()
-                data = resp.json()
-                # Search common token fields
-                token = data.get("access_token") or data.get("token") or data.get("id_token")
-                if not token:
-                    raise ValueError(f"Token field not found in response: {list(data.keys())}")
-                return token
+            verify_ssl = self._get_verify_ssl(auth_config)
+            try:
+                async with httpx.AsyncClient(timeout=15.0, verify=verify_ssl) as client:
+                    resp = await client.post(token_url, json=payload, headers=headers)
+                    resp.raise_for_status()
+                    data = resp.json()
+            except Exception as ssl_e:
+                if any(err_kw in str(ssl_e).lower() for err_kw in ["certificate verify failed", "unable to get local issuer certificate", "certificate_verify_failed"]):
+                    logger.warning(f"SSL verification failed for token_url {token_url}. Retrying with verify=False.")
+                    async with httpx.AsyncClient(timeout=15.0, verify=False) as client:
+                        resp = await client.post(token_url, json=payload, headers=headers)
+                        resp.raise_for_status()
+                        data = resp.json()
+                else:
+                    raise ssl_e
+
+            # Search common token fields
+            token = data.get("access_token") or data.get("token") or data.get("id_token")
+            if not token:
+                raise ValueError(f"Token field not found in response: {list(data.keys())}")
+            return token
 
         return None
 
@@ -48,13 +75,33 @@ class APIIngester:
             if token:
                 headers["Authorization"] = f"Bearer {token}"
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            if method == "GET":
-                response = await client.get(endpoint, headers=headers, params=params)
+        import urllib.parse
+        if endpoint and "?" in endpoint:
+            parsed = urllib.parse.urlsplit(endpoint)
+            endpoint = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, '', ''))
+            existing_query = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
+            merged_params = existing_query.copy()
+            merged_params.update(params or {})
+            params = merged_params
+
+        verify_ssl = self._get_verify_ssl(config)
+        async def _do_fetch(v_ssl: bool):
+            async with httpx.AsyncClient(timeout=30.0, verify=v_ssl) as client:
+                if method == "GET":
+                    resp = await client.get(endpoint, headers=headers, params=params)
+                else:
+                    resp = await client.post(endpoint, headers=headers, params=params, json=body)
+                resp.raise_for_status()
+                return resp.json()
+
+        try:
+            data = await _do_fetch(verify_ssl)
+        except Exception as ssl_e:
+            if any(err_kw in str(ssl_e).lower() for err_kw in ["certificate verify failed", "unable to get local issuer certificate", "certificate_verify_failed"]):
+                logger.warning(f"SSL certificate verify failed for {endpoint}. Retrying with verify=False.")
+                data = await _do_fetch(False)
             else:
-                response = await client.post(endpoint, headers=headers, params=params, json=body)
-            response.raise_for_status()
-            data = response.json()
+                raise ssl_e
 
         results = []
         # If response is a list of items
@@ -174,17 +221,64 @@ class APIIngester:
             else:
                 req_json = body_params if body_params else (arguments if method == "POST" and not query_params else None)
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            if method == "GET":
-                response = await client.get(endpoint, headers=headers, params=query_params)
-            elif method == "POST":
-                response = await client.post(endpoint, headers=headers, params=query_params, json=req_json)
-            elif method == "PUT":
-                response = await client.put(endpoint, headers=headers, params=query_params, json=req_json)
-            elif method == "DELETE":
-                response = await client.delete(endpoint, headers=headers, params=query_params)
+        import urllib.parse
+        if endpoint and "?" in endpoint:
+            parsed = urllib.parse.urlsplit(endpoint)
+            endpoint = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, '', ''))
+            existing_query = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
+            merged_params = existing_query.copy()
+            merged_params.update(query_params or {})
+            query_params = merged_params
+
+        verify_ssl = self._get_verify_ssl(config)
+        async def _do_exec_call(v_ssl: bool):
+            async with httpx.AsyncClient(timeout=30.0, verify=v_ssl) as client:
+                if method == "GET":
+                    return await client.get(endpoint, headers=headers, params=query_params)
+                elif method == "POST":
+                    return await client.post(endpoint, headers=headers, params=query_params, json=req_json)
+                elif method == "PUT":
+                    return await client.put(endpoint, headers=headers, params=query_params, json=req_json)
+                elif method == "DELETE":
+                    return await client.delete(endpoint, headers=headers, params=query_params)
+                else:
+                    return await client.request(method, endpoint, headers=headers, params=query_params, json=req_json)
+
+        try:
+            response = await _do_exec_call(verify_ssl)
+        except Exception as ssl_e:
+            if any(err_kw in str(ssl_e).lower() for err_kw in ["certificate verify failed", "unable to get local issuer certificate", "certificate_verify_failed"]):
+                logger.warning(f"SSL certificate verify failed for {endpoint}. Retrying with verify=False.")
+                try:
+                    response = await _do_exec_call(False)
+                except Exception as req_err:
+                    latency_ms = int((time.time() - start_time) * 1000)
+                    logger.error(f"Error executing API tool call to {endpoint}: {req_err}")
+                    return {
+                        "success": False,
+                        "status_code": getattr(req_err, "response", None).status_code if hasattr(req_err, "response") and req_err.response else 500,
+                        "endpoint": endpoint,
+                        "method": method,
+                        "arguments": arguments,
+                        "latency_ms": latency_ms,
+                        "error": str(req_err),
+                        "data": None,
+                        "text": f"Error executing API call: {str(req_err)}"
+                    }
             else:
-                response = await client.request(method, endpoint, headers=headers, params=query_params, json=req_json)
+                latency_ms = int((time.time() - start_time) * 1000)
+                logger.error(f"Error executing API tool call to {endpoint}: {ssl_e}")
+                return {
+                    "success": False,
+                    "status_code": getattr(ssl_e, "response", None).status_code if hasattr(ssl_e, "response") and ssl_e.response else 500,
+                    "endpoint": endpoint,
+                    "method": method,
+                    "arguments": arguments,
+                    "latency_ms": latency_ms,
+                    "error": str(ssl_e),
+                    "data": None,
+                    "text": f"Error executing API call: {str(ssl_e)}"
+                }
 
         latency_ms = int((time.time() - start_time) * 1000)
         try:
@@ -264,13 +358,21 @@ class APIIngester:
             elif mode in ["oauth2", "token_endpoint"]:
                 token_url = auth_config.get("token_url")
                 if token_url:
-                    with httpx.Client(timeout=15.0) as client:
-                        resp = client.post(token_url, json=auth_config.get("payload", {}), headers=auth_config.get("headers", {}))
-                        if resp.is_success:
-                            data = resp.json()
-                            token = data.get("access_token") or data.get("token") or data.get("id_token")
-                            if token:
-                                headers["Authorization"] = f"Bearer {token}"
+                    v_ssl = self._get_verify_ssl(auth_config)
+                    try:
+                        with httpx.Client(timeout=15.0, verify=v_ssl) as client:
+                            resp = client.post(token_url, json=auth_config.get("payload", {}), headers=auth_config.get("headers", {}))
+                    except Exception as ssl_e:
+                        if any(err_kw in str(ssl_e).lower() for err_kw in ["certificate verify failed", "unable to get local issuer certificate", "certificate_verify_failed"]):
+                            with httpx.Client(timeout=15.0, verify=False) as client:
+                                resp = client.post(token_url, json=auth_config.get("payload", {}), headers=auth_config.get("headers", {}))
+                        else:
+                            raise ssl_e
+                    if resp.is_success:
+                        data = resp.json()
+                        token = data.get("access_token") or data.get("token") or data.get("id_token")
+                        if token:
+                            headers["Authorization"] = f"Bearer {token}"
 
         req_json = None
         if method in ["POST", "PUT", "PATCH"]:
@@ -286,17 +388,64 @@ class APIIngester:
             else:
                 req_json = body_params if body_params else (arguments if method == "POST" and not query_params else None)
 
-        with httpx.Client(timeout=30.0) as client:
-            if method == "GET":
-                response = client.get(endpoint, headers=headers, params=query_params)
-            elif method == "POST":
-                response = client.post(endpoint, headers=headers, params=query_params, json=req_json)
-            elif method == "PUT":
-                response = client.put(endpoint, headers=headers, params=query_params, json=req_json)
-            elif method == "DELETE":
-                response = client.delete(endpoint, headers=headers, params=query_params)
+        import urllib.parse
+        if endpoint and "?" in endpoint:
+            parsed = urllib.parse.urlsplit(endpoint)
+            endpoint = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, '', ''))
+            existing_query = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
+            merged_params = existing_query.copy()
+            merged_params.update(query_params or {})
+            query_params = merged_params
+
+        verify_ssl = self._get_verify_ssl(config)
+        def _do_sync_call(v_ssl: bool):
+            with httpx.Client(timeout=30.0, verify=v_ssl) as client:
+                if method == "GET":
+                    return client.get(endpoint, headers=headers, params=query_params)
+                elif method == "POST":
+                    return client.post(endpoint, headers=headers, params=query_params, json=req_json)
+                elif method == "PUT":
+                    return client.put(endpoint, headers=headers, params=query_params, json=req_json)
+                elif method == "DELETE":
+                    return client.delete(endpoint, headers=headers, params=query_params)
+                else:
+                    return client.request(method, endpoint, headers=headers, params=query_params, json=req_json)
+
+        try:
+            response = _do_sync_call(verify_ssl)
+        except Exception as ssl_e:
+            if any(err_kw in str(ssl_e).lower() for err_kw in ["certificate verify failed", "unable to get local issuer certificate", "certificate_verify_failed"]):
+                logger.warning(f"SSL certificate verify failed for {endpoint}. Retrying with verify=False.")
+                try:
+                    response = _do_sync_call(False)
+                except Exception as req_err:
+                    latency_ms = int((time.time() - start_time) * 1000)
+                    logger.error(f"Error executing sync API tool call to {endpoint}: {req_err}")
+                    return {
+                        "success": False,
+                        "status_code": getattr(req_err, "response", None).status_code if hasattr(req_err, "response") and req_err.response else 500,
+                        "endpoint": endpoint,
+                        "method": method,
+                        "arguments": arguments,
+                        "latency_ms": latency_ms,
+                        "error": str(req_err),
+                        "data": None,
+                        "text": f"Error executing API call: {str(req_err)}"
+                    }
             else:
-                response = client.request(method, endpoint, headers=headers, params=query_params, json=req_json)
+                latency_ms = int((time.time() - start_time) * 1000)
+                logger.error(f"Error executing sync API tool call to {endpoint}: {ssl_e}")
+                return {
+                    "success": False,
+                    "status_code": getattr(ssl_e, "response", None).status_code if hasattr(ssl_e, "response") and ssl_e.response else 500,
+                    "endpoint": endpoint,
+                    "method": method,
+                    "arguments": arguments,
+                    "latency_ms": latency_ms,
+                    "error": str(ssl_e),
+                    "data": None,
+                    "text": f"Error executing API call: {str(ssl_e)}"
+                }
 
         latency_ms = int((time.time() - start_time) * 1000)
         try:

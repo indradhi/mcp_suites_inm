@@ -15,7 +15,7 @@ class WebsiteIngester:
     async def extract_url(self, url: str) -> List[Dict[str, Any]]:
         results = []
         try:
-            async with httpx.AsyncClient(timeout=self.timeout, headers=self.headers, follow_redirects=True) as client:
+            async with httpx.AsyncClient(timeout=self.timeout, headers=self.headers, follow_redirects=True, verify=False) as client:
                 response = await client.get(url)
                 response.raise_for_status()
 

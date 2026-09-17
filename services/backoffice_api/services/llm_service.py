@@ -86,7 +86,7 @@ class LLMService:
         last_err = None
         for test_url in candidate_urls:
             try:
-                async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
+                async with httpx.AsyncClient(timeout=12.0, follow_redirects=True, verify=False) as client:
                     resp = await client.get(test_url, headers=headers)
                     if resp.status_code == 200:
                         data = resp.json()

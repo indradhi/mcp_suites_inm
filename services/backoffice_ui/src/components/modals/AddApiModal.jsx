@@ -25,6 +25,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
   const [tokenUrl, setTokenUrl] = useState('');
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
+  const [verifySsl, setVerifySsl] = useState(false);
   
   // AI Tool Mode States
   const [isTool, setIsTool] = useState(false);
@@ -49,6 +50,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       setTokenUrl(auth.token_url || '');
       setClientId(auth.payload?.client_id || '');
       setClientSecret(auth.payload?.client_secret || '');
+      setVerifySsl(conf.verify_ssl !== undefined ? Boolean(conf.verify_ssl) : false);
       
       const isToolMode = Boolean(conf.is_tool || (conf.parameters && conf.parameters.length > 0));
       setIsTool(isToolMode);
@@ -71,6 +73,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       setTokenUrl('');
       setClientId('');
       setClientSecret('');
+      setVerifySsl(false);
       setIsTool(false);
       setToolName('');
       setToolDescription('');
@@ -141,6 +144,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       const configPayload = {
         endpoint,
         method,
+        verify_ssl: verifySsl,
         auth: authConfig,
         is_tool: isTool,
         tool_name: toolName.trim() || undefined,
@@ -182,6 +186,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
         config: {
           endpoint,
           method,
+          verify_ssl: verifySsl,
           auth: authConfig,
           is_tool: isTool,
           tool_name: isTool ? (toolName.trim() || `api_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`) : undefined,
@@ -226,6 +231,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
         config: {
           endpoint,
           method,
+          verify_ssl: verifySsl,
           auth: authConfig,
           is_tool: isTool,
           tool_name: copyToolName,
@@ -324,6 +330,20 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                 required
               />
             </div>
+          </div>
+
+          {/* SSL Verification Option */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '-4px' }}>
+            <input
+              type="checkbox"
+              id="verify_ssl"
+              checked={verifySsl}
+              onChange={(e) => setVerifySsl(e.target.checked)}
+              style={{ accentColor: 'var(--accent-cyan)', cursor: 'pointer', width: '15px', height: '15px' }}
+            />
+            <label htmlFor="verify_ssl" style={{ fontSize: '12px', color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
+              Verifikasi Sertifikat SSL <span style={{ color: 'var(--text-muted)' }}>(Biarkan tidak tercentang untuk endpoint internal KPK / sertifikat self-signed)</span>
+            </label>
           </div>
 
           {/* Authentication Mode */}
