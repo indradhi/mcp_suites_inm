@@ -15,7 +15,9 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: process.env.BACKOFFICE_API_URL || 'http://backoffice-api:8000',
-        changeOrigin: true
+        changeOrigin: true,
+        timeout: 600000,
+        proxyTimeout: 600000
       },
       '/docs': {
         target: process.env.BACKOFFICE_API_URL || 'http://backoffice-api:8000',

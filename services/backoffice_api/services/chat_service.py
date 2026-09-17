@@ -1,3 +1,4 @@
+import os
 import time
 import re
 import json
@@ -613,7 +614,10 @@ Patuhi aturan:
             "mistral.ai", "together.xyz", "cohere.com"
         ])
         is_local_vllm = not is_cloud and ("172.16." in (api_base or "") or "vllm" in (api_base or "").lower() or "qwen" in (model or "").lower())
-        client = llm_service.get_client(api_base, api_key, timeout=45.0 if is_cloud else 120.0)
+        cloud_llm_timeout = float(os.getenv("CLOUD_LLM_TIMEOUT", "60.0"))
+        local_llm_timeout = float(os.getenv("LOCAL_LLM_TIMEOUT", "600.0"))
+        active_llm_timeout = cloud_llm_timeout if is_cloud else local_llm_timeout
+        client = llm_service.get_client(api_base, api_key, timeout=active_llm_timeout)
         try:
             kwargs = {
                 "model": model,
@@ -1053,18 +1057,35 @@ Patuhi aturan:
             err_str = str(e)
             err_lower = err_str.lower()
             if "timeout" in err_lower or "timed out" in err_lower:
-                clean_answer = (
-                    f"⚠️ **Waktu Tunggu Habis (Timeout):** Permintaan ke model AI `{model}` ({backend_name}) melebihi batas waktu tunggu.\n\n"
-                    f"**Penyebab:** Model cloud OpenRouter sedang mengalami antrean padat di server hulu, atau model yang digunakan memerlukan waktu penalaran (*reasoning*) yang terlalu lama.\n\n"
-                    f"💡 **Solusi Cepat:**\n"
-                    f"- Beralih ke model yang lebih cepat dan responsif: **`deepseek/deepseek-chat`** atau **`openai/gpt-4o-mini`** pada menu pilihan model di atas.\n"
-                    f"- Jika menggunakan akun OpenRouter free tier, pastikan tidak menggunakan model besar yang sedang padat antrean."
-                )
+                if is_cloud:
+                    clean_answer = (
+                        f"⚠️ **Waktu Tunggu Habis (Timeout):** Permintaan ke model cloud AI `{model}` ({backend_name}) melebihi batas waktu tunggu ({int(cloud_llm_timeout)} detik).\n\n"
+                        f"**Penyebab:** Model cloud sedang mengalami antrean padat di server hulu, atau model yang digunakan memerlukan waktu penalaran (*reasoning*) yang terlalu lama.\n\n"
+                        f"💡 **Solusi Cepat:**\n"
+                        f"- Beralih ke model yang lebih cepat dan responsif: **`deepseek/deepseek-chat`** atau **`openai/gpt-4o-mini`** pada menu pilihan model di atas.\n"
+                        f"- Jika menggunakan akun OpenRouter free tier, pastikan tidak menggunakan model besar yang sedang padat antrean."
+                    )
+                else:
+                    timeout_mins = int(local_llm_timeout // 60)
+                    clean_answer = (
+                        f"⚠️ **Waktu Tunggu Habis (Timeout):** Permintaan ke AI lokal `{model}` ({backend_name}) melebihi batas waktu tunggu ({int(local_llm_timeout)} detik / {timeout_mins} menit).\n\n"
+                        f"**Penyebab:** Server AI lokal ({api_base}) membutuhkan waktu komputasi yang lebih lama untuk memproses prompt, konteks dokumen, atau eksekusi *tool calling*.\n\n"
+                        f"💡 **Solusi:**\n"
+                        f"- Batas waktu tunggu AI lokal telah ditingkatkan ke {timeout_mins} menit. Anda dapat memperpanjangnya lebih lanjut melalui variabel lingkungan `LOCAL_LLM_TIMEOUT` (misal 900 untuk 15 menit).\n"
+                        f"- Periksa ketersediaan beban CPU/GPU dan RAM pada server AI lokal ({api_base}).\n"
+                        f"- Kurangi jumlah knowledge source atau dokumen terpilih agar waktu komputasi inferensi lebih cepat."
+                    )
             elif "504" in err_str or "gateway" in err_lower:
-                clean_answer = (
-                    f"⚠️ **Gateway Timeout (504):** Layanan model AI `{model}` ({backend_name}) gagal merespons dalam batas waktu.\n\n"
-                    f"💡 **Solusi Cepat:** Silakan gunakan model alternatif yang lebih cepat seperti **`deepseek/deepseek-chat`** atau **`openai/gpt-4o-mini`**."
-                )
+                if is_cloud:
+                    clean_answer = (
+                        f"⚠️ **Gateway Timeout (504):** Layanan model AI `{model}` ({backend_name}) gagal merespons dalam batas waktu.\n\n"
+                        f"💡 **Solusi Cepat:** Silakan gunakan model alternatif yang lebih cepat seperti **`deepseek/deepseek-chat`** atau **`openai/gpt-4o-mini`**."
+                    )
+                else:
+                    clean_answer = (
+                        f"⚠️ **Gateway Timeout (504):** Layanan AI lokal `{model}` ({backend_name}) gagal merespons sebelum batas waktu ({int(local_llm_timeout)} detik).\n\n"
+                        f"💡 **Solusi:** Periksa apakah server AI lokal ({api_base}) mengalami out-of-memory (OOM) atau antrean beban prosesor terlalu tinggi."
+                    )
             elif "404" in err_str or "no endpoints found" in err_lower:
                 clean_answer = (
                     f"⚠️ **Model Tidak Ditemukan (404):** Pengenal model `{model}` tidak lagi aktif atau telah diperbarui di OpenRouter.\n\n"

@@ -29,8 +29,10 @@ class LLMService:
                 "groq.com", "googleapis.com", "anthropic.com",
                 "mistral.ai", "together.xyz", "cohere.com"
             ])
-            # 45s for cloud endpoints ensures python times out before corporate reverse proxies drop connection at 60s
-            timeout = 45.0 if is_cloud else 120.0
+            cloud_timeout = float(os.getenv("CLOUD_LLM_TIMEOUT", "60.0"))
+            local_timeout = float(os.getenv("LOCAL_LLM_TIMEOUT", "600.0"))
+            # 60s for cloud endpoints, 600s (10 mins) for local models to allow compute/tool calling
+            timeout = cloud_timeout if is_cloud else local_timeout
 
         return OpenAI(
             base_url=base,
@@ -53,7 +55,9 @@ class LLMService:
                 "groq.com", "googleapis.com", "anthropic.com",
                 "mistral.ai", "together.xyz", "cohere.com"
             ])
-            timeout = 45.0 if is_cloud else 120.0
+            cloud_timeout = float(os.getenv("CLOUD_LLM_TIMEOUT", "60.0"))
+            local_timeout = float(os.getenv("LOCAL_LLM_TIMEOUT", "600.0"))
+            timeout = cloud_timeout if is_cloud else local_timeout
 
         return AsyncOpenAI(
             base_url=base,

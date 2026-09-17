@@ -53,6 +53,8 @@ class Settings(BaseSettings):
     DEFAULT_OPENAI_API_BASE: str = os.getenv("OPENAI_API_BASE", "http://172.16.21.122:18000/v1")
     DEFAULT_OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "sk-IrR7Bwxtin0haWagUnPrBgq5PurnUz86")
     DEFAULT_OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "Qwen/Qwen3.6-35B-A3B-FP8")
+    LOCAL_LLM_TIMEOUT: float = float(os.getenv("LOCAL_LLM_TIMEOUT", "600.0"))
+    CLOUD_LLM_TIMEOUT: float = float(os.getenv("CLOUD_LLM_TIMEOUT", "60.0"))
 
     class Config:
         case_sensitive = True

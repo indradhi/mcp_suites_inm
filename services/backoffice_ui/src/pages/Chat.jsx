@@ -498,6 +498,8 @@ export default function Chat() {
         document_data: currentAttachedDoc || null,
         strict_mode: strictMode,
         temperature: temperature
+      }, {
+        timeout: 600000 // 10 minutes timeout for local AI compute & multi-turn tool calling
       });
 
       let cleanAnswer = res.data.answer || 'No response generated.';
@@ -531,8 +533,29 @@ export default function Chat() {
       // All additional info sections (sources, tools, graph, map, face) default to COLLAPSED
     } catch (err) {
       let errorDetail = err.response?.data?.detail || err.message;
-      if (err.response?.status === 504 || (err.message && err.message.includes('504'))) {
-        errorDetail = `Gateway Timeout (504): Permintaan ke model AI memerlukan waktu lebih dari 60 detik. Hal ini biasanya terjadi jika model cloud (seperti OpenRouter) sedang mengalami antrean padat di server penyedia atau model penalaran (*reasoning*) membutuhkan waktu komputasi yang terlalu lama.\n\n💡 **Saran Solusi:** Coba pilih model yang lebih cepat dan responsif seperti **'deepseek/deepseek-chat'** atau **'openai/gpt-4o-mini'** pada pilihan model di panel pengaturan atas.`;
+      const isTimeout = err.response?.status === 504 || 
+                        (err.message && err.message.includes('504')) || 
+                        err.code === 'ECONNABORTED' || 
+                        (err.message && err.message.toLowerCase().includes('timeout'));
+
+      if (isTimeout) {
+        const curBackend = activeBackends.find(b => String(b.id) === String(selectedBackendId));
+        const isLocalBackend = curBackend ? (
+          curBackend.name?.toLowerCase().includes('local') ||
+          curBackend.name?.toLowerCase().includes('vllm') ||
+          curBackend.name?.toLowerCase().includes('ollama') ||
+          curBackend.api_base?.includes('172.16.') ||
+          curBackend.api_base?.includes('192.168.') ||
+          curBackend.api_base?.includes('10.') ||
+          curBackend.api_base?.includes('localhost') ||
+          curBackend.api_base?.includes('127.0.0.1')
+        ) : (!selectedModelName?.includes('/') && !selectedModelName?.toLowerCase().includes('gpt') && !selectedModelName?.toLowerCase().includes('deepseek'));
+
+        if (isLocalBackend) {
+          errorDetail = `Waktu Tunggu Habis (Timeout): AI lokal memerlukan waktu komputasi lebih lama dari batas waktu yang ditentukan (10 menit).\n\nHal ini biasanya terjadi jika server AI lokal sedang memproses konteks dokumen/data yang sangat besar, menjalankan pemanggilan tools (*tool calling*), atau beban GPU/CPU pada server AI lokal sedang penuh.\n\n💡 **Saran Solusi:**\n- Periksa status utilisasi GPU/VRAM dan CPU pada server AI lokal.\n- Coba kurangi jumlah dokumen knowledge base yang dipilih atau ajukan pertanyaan yang lebih spesifik.\n- Batas waktu tunggu AI lokal dapat diperpanjang lebih lanjut melalui variabel 'LOCAL_LLM_TIMEOUT' di .env backend.`;
+        } else {
+          errorDetail = `Gateway Timeout (504): Permintaan ke model cloud AI memerlukan waktu lebih dari batas waktu tunggu. Hal ini biasanya terjadi jika server penyedia (seperti OpenRouter) sedang mengalami antrean padat atau model penalaran (*reasoning*) membutuhkan waktu komputasi yang terlalu lama.\n\n💡 **Saran Solusi:** Coba pilih model yang lebih cepat dan responsif seperti **'deepseek/deepseek-chat'** atau **'openai/gpt-4o-mini'** pada pilihan model di panel pengaturan atas.`;
+        }
       }
       const errorMsg = {
         id: `error-${Date.now()}`,
