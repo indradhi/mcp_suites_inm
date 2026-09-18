@@ -332,6 +332,14 @@ class PersonalityService:
             f"- DILARANG BERHENTI setelah hanya menampilkan Kepala Keluarga jika dokumen atau konteks memuat anggota keluarga lainnya (seperti Istri, Anak, atau Famili Lain).\n"
         )
 
+        # Directive for Multi-record Search Completeness (e.g. multiple people/entities found with matching query)
+        prompt += (
+            f"\nKELENGKAPAN HASIL PENCARIAN BANYAK ENTITAS / RECORD (MULTI-RECORD SEARCH COMPLETENESS):\n"
+            f"- Jika hasil pemanggilan alat/tool atau basis data menemukan BEBERAPA ORANG / BANYAK RECORD (misalnya pencarian nama yang membuahkan banyak individu atau NIK berbeda), Anda WAJIB MENAMPILKAN SELURUH DATA / SEMUA ORANG TERSEBUT secara lengkap tanpa ada yang ditinggalkan.\n"
+            f"- Sajikan dalam format tabel Markdown perbandingan atau daftar bernomor (1, 2, 3, dst.) dengan kolom/rincian: NIK, Nama Lengkap, Tempat & Tanggal Lahir, Alamat/Kota, dan Nomor KK.\n"
+            f"- DILARANG KERAS hanya memilih 1 atau 2 orang saja lalu mengabaikan atau menyimpulkan sisanya sebagai data tidak valid jika database resmi secara nyata mengembalikan banyak record orang yang cocok.\n"
+        )
+
         return prompt.strip()
 
 

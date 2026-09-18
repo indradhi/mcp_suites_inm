@@ -154,7 +154,7 @@ export default function Chat() {
   const [isSourceDropdownOpen, setIsSourceDropdownOpen] = useState(false);
   const [sourceSearchQuery, setSourceSearchQuery] = useState('');
   const sourceDropdownRef = useRef(null);
-  const [topK, setTopK] = useState(5);
+  const [topK, setTopK] = useState(20);
   const [includeGraph, setIncludeGraph] = useState(true);
   const [strictMode, setStrictMode] = useState(true);
   const [temperature, setTemperature] = useState(0.0);

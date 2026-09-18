@@ -33,7 +33,7 @@ class ChatRequest(BaseModel):
     backend_id: Optional[int] = None
     model_name: Optional[str] = None
     include_graph: Optional[bool] = True
-    top_k: Optional[int] = 5
+    top_k: Optional[int] = 20
     strict_mode: Optional[bool] = True
     temperature: Optional[float] = None
 
@@ -185,7 +185,7 @@ def chat_with_knowledge_endpoint(
         backend_id=req.backend_id,
         model_name=req.model_name,
         include_graph=req.include_graph if req.include_graph is not None else True,
-        top_k=req.top_k or 5,
+        top_k=req.top_k or 20,
         db=db,
         liked_examples=liked_examples,  # few-shot context injection
         dislike_notes=dislike_notes,    # negative feedback correction injection

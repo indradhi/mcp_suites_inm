@@ -70,7 +70,7 @@ class ChatService:
         backend_id: Optional[int] = None,
         model_name: Optional[str] = None,
         include_graph: bool = True,
-        top_k: int = 5,
+        top_k: int = 20,
         db: Any = None,
         liked_examples: Optional[List[Dict[str, str]]] = None,
         dislike_notes: Optional[List[str]] = None,
@@ -156,9 +156,9 @@ class ChatService:
                 except Exception as e:
                     logger.warning(f"Error filtering active sources for vector retrieval: {e}")
 
-            # If query looks like a KK (family search) or explicit multi-record request, expand retrieval budget
+            # Expand retrieval budget for multi-record requests or default to 20
             is_family_or_kk_query = bool(re.search(r'\b(?:kk|kartu\s+keluarga|no_kk)\b', message, re.IGNORECASE) or re.search(r'\b\d{16}\b', message))
-            effective_top_k = max(top_k or 5, 8) if is_family_or_kk_query else (top_k or 5)
+            effective_top_k = max(top_k or 20, 20) if is_family_or_kk_query else (top_k or 20)
 
             try:
                 retrieved_chunks = vector_store.query_similarity(
@@ -728,6 +728,21 @@ Patuhi aturan:
                 kwargs["tools"] = tools
                 if is_single_tool_selected and single_selected_tool_name:
                     kwargs["tool_choice"] = {"type": "function", "function": {"name": single_selected_tool_name}}
+                elif not history:
+                    # Intelligently route fresh search intents to guarantee tool calling on open-source local LLMs
+                    available_names = set(tool_dispatch_map.keys())
+                    is_person_search = bool(re.search(r'\b(?:orang|nik|kependudukan|ktp|kk|penduduk|nama|profil|profiling|siapa)\b', message, re.IGNORECASE) or (re.search(r'\bcari\b', message, re.IGNORECASE) and not re.search(r'\b(?:tanah|sertifikat|bpn|pt|perusahaan|usaha)\b', message, re.IGNORECASE)))
+                    is_land_search = bool(re.search(r'\b(?:tanah|sertifikat|bpn|bidang|hak\s+milik|hgb|shm)\b', message, re.IGNORECASE))
+                    is_company_search = bool(re.search(r'\b(?:pt|perusahaan|usaha|sikap|penyedia|vendor|cv)\b', message, re.IGNORECASE))
+
+                    if is_person_search and "data_orang_dukcapil" in available_names:
+                        kwargs["tool_choice"] = {"type": "function", "function": {"name": "data_orang_dukcapil"}}
+                    elif is_land_search and "cari_tanah_bpn" in available_names:
+                        kwargs["tool_choice"] = {"type": "function", "function": {"name": "cari_tanah_bpn"}}
+                    elif is_company_search and "db_sikap_pemilik_usaha" in available_names:
+                        kwargs["tool_choice"] = {"type": "function", "function": {"name": "db_sikap_pemilik_usaha"}}
+                    else:
+                        kwargs["tool_choice"] = "auto"
                 else:
                     kwargs["tool_choice"] = "auto"
 
@@ -851,6 +866,17 @@ Patuhi aturan:
                                 logger.warning(f"Notice saving tool bank data in chat: {cache_err}")
 
                         
+                        # Deduplicate list records if duplicate entries exist (e.g. from SQL joins or repeated pagination)
+                        if isinstance(payload_data, list) and len(payload_data) > 0 and isinstance(payload_data[0], dict):
+                            seen_keys = set()
+                            deduped_records = []
+                            for r in payload_data:
+                                dedup_key = r.get("NIK") or r.get("nik") or r.get("id") or r.get("_id") or json.dumps(r, sort_keys=True)
+                                if dedup_key not in seen_keys:
+                                    seen_keys.add(dedup_key)
+                                    deduped_records.append(r)
+                            payload_data = deduped_records
+
                         # Explicit empty result notification to prevent the LLM from inventing data
                         if isinstance(payload_data, list) and len(payload_data) == 0:
                             tool_output_str = json.dumps({
@@ -863,6 +889,14 @@ Patuhi aturan:
                             field_defs = (matched_source.config or {}).get("field_definitions", [])
                             v_tier = (matched_source.config or {}).get("validity_tier", "authoritative")
                             v_score = (matched_source.config or {}).get("validity_score", 95)
+                            rec_count = len(payload_data) if isinstance(payload_data, list) else 1
+                            completeness_instruction = (
+                                f"PERHATIAN SANGAT PENTING: Ditemukan {rec_count} record/individu unik dalam database resmi ini. "
+                                f"Anda WAJIB MENAMPILKAN SELURUH {rec_count} record/individu tersebut secara lengkap kepada pengguna "
+                                f"(gunakan tabel perbandingan Markdown atau daftar bernomor 1 s/d {rec_count} yang memuat NIK, Nama, TTL, Alamat, dan No KK untuk SETIAP orang). "
+                                f"DILARANG KERAS hanya menampilkan 1 orang atau memotong daftar! Pengguna memerlukan seluruh data hasil pencarian."
+                                if isinstance(payload_data, list) and rec_count > 1 else ""
+                            )
                             tool_output_payload = {
                                 "status": "success",
                                 "source_name": matched_source.name,
@@ -871,11 +905,15 @@ Patuhi aturan:
                                 "validity_tier": v_tier,
                                 "validity_score": v_score,
                                 "data_priority": f"PRIORITAS_UTAMA_MUTLAK (Tingkat Validitas: {v_tier.upper()} [{v_score}/100] - Data ini diambil langsung secara real-time dari database/source data resmi. WAJIB ditampilkan sebagai acuan utama kepada pengguna di atas data lainnya).",
+                                "total_records_found": rec_count,
+                                "completeness_instruction": completeness_instruction if completeness_instruction else None,
                                 "field_definitions": field_defs if (isinstance(field_defs, list) and len(field_defs) > 0) else None,
                                 "records": payload_data
                             }
                             if tool_output_payload.get("field_definitions") is None:
                                 tool_output_payload.pop("field_definitions", None)
+                            if tool_output_payload.get("completeness_instruction") is None:
+                                tool_output_payload.pop("completeness_instruction", None)
                             tool_output_str = json.dumps(tool_output_payload, default=str, ensure_ascii=False)
 
                         executed_tools_info.append({
@@ -1203,7 +1241,7 @@ Patuhi aturan:
 
                     if matched_ep and not matched_ep.is_truncated:
                         healed_uri = _normalize_data_uri(matched_ep.photo)
-                        clean_label = label if label and "foto" in label.lower() else f"Foto - {matched_ep.name or 'Profil'}"
+                        clean_label = f"Foto Profil - {matched_ep.name}" if matched_ep.name else "Foto Profil Terverifikasi"
                         return f"![{clean_label}]({healed_uri})"
 
                     return match.group(0)
