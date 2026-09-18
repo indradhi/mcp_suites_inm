@@ -47,6 +47,12 @@ def list_sources(db: Session = Depends(get_db), user = Depends(get_current_user)
             if latest_job and latest_job.chunks_created:
                 doc_count = latest_job.chunks_created
 
+        conf = s.config or {}
+        validity_tier = conf.get("validity_tier") or ("authoritative" if s.source_type in ["database", "api"] and (conf.get("is_tool") or conf.get("parameters")) else "secondary")
+        default_score = 95 if validity_tier == "authoritative" else (85 if validity_tier == "verified" else (65 if validity_tier == "secondary" else 45))
+        validity_score = conf.get("validity_score") if conf.get("validity_score") is not None else default_score
+        validity_notes = conf.get("validity_notes") or ""
+
         results.append({
             "id": s.id,
             "name": s.name,
@@ -57,6 +63,9 @@ def list_sources(db: Session = Depends(get_db), user = Depends(get_current_user)
             "sync_status": s.sync_status,
             "last_synced_at": (s.last_synced_at.isoformat() + "Z") if s.last_synced_at else None,
             "document_count": doc_count,
+            "validity_tier": validity_tier,
+            "validity_score": validity_score,
+            "validity_notes": validity_notes,
             "created_at": (s.created_at.isoformat() + "Z") if s.created_at else None
         })
     return results
@@ -249,6 +258,9 @@ async def upload_file_source(
     file: UploadFile = File(...),
     name: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
+    validity_tier: Optional[str] = Form("secondary"),
+    validity_score: Optional[int] = Form(65),
+    validity_notes: Optional[str] = Form(""),
     db: Session = Depends(get_db),
     user = Depends(require_role(["admin", "editor"]))
 ):
@@ -271,7 +283,10 @@ async def upload_file_source(
             "file_path": save_path,
             "filename": clean_filename,
             "file_type": file_ext,
-            "file_size": file_size
+            "file_size": file_size,
+            "validity_tier": validity_tier or "secondary",
+            "validity_score": validity_score if validity_score is not None else 65,
+            "validity_notes": validity_notes or ""
         },
         is_active=True,
         created_by=user.id
@@ -773,6 +788,12 @@ def get_orchestration_guidelines(
         conf = s.config or {}
         is_tool = bool(conf.get("is_tool") or conf.get("parameters"))
 
+        # Extract validity hierarchy metadata
+        v_tier = conf.get("validity_tier") or ("authoritative" if s.source_type in ["database", "api"] and is_tool else "secondary")
+        default_v_score = 95 if v_tier == "authoritative" else (85 if v_tier == "verified" else (65 if v_tier == "secondary" else 45))
+        v_score = conf.get("validity_score") if conf.get("validity_score") is not None else default_v_score
+        v_notes = conf.get("validity_notes") or ""
+
         # Check doc counts for document-oriented sources
         doc_count = db.query(KnowledgeDocument).filter(KnowledgeDocument.source_id == s.id).count() if stype in ["file", "website"] else 0
 
@@ -784,7 +805,10 @@ def get_orchestration_guidelines(
             "is_tool": is_tool,
             "sync_status": s.sync_status,
             "last_synced_at": s.last_synced_at.isoformat() if s.last_synced_at else None,
-            "document_count": doc_count
+            "document_count": doc_count,
+            "validity_tier": v_tier,
+            "validity_score": v_score,
+            "validity_notes": v_notes
         }
 
         if is_tool:
@@ -797,7 +821,10 @@ def get_orchestration_guidelines(
                 "source_type": stype,
                 "title": s.name,
                 "description": conf.get("tool_description") or s.description or f"Tool for {s.name}",
-                "parameters": conf.get("parameters", [])
+                "parameters": conf.get("parameters", []),
+                "validity_tier": v_tier,
+                "validity_score": v_score,
+                "validity_notes": v_notes
             }
             catalog["available_ai_tools"].append(tool_meta)
             source_info["tool_name"] = clean_tool_name
@@ -826,6 +853,33 @@ def get_orchestration_guidelines(
             "tone_of_voice": active_personality.get("tone_of_voice"),
             "preset": active_personality.get("preset"),
             "custom_instructions": active_personality.get("custom_instructions", "")
+        },
+        "validity_hierarchy": {
+            "tier_1_authoritative": {
+                "tier": "authoritative",
+                "name": "Tingkat 1 - Otoritatif Primer / Sangat Valid (Ground Truth)",
+                "score_range": "90 - 100",
+                "description": "Sumber data resmi negara (Dukcapil, BPN ATR, Korlantas, AHU, Bank resmi). Berstatus kebenaran mutlak."
+            },
+            "tier_2_verified": {
+                "tier": "verified",
+                "name": "Tingkat 2 - Terverifikasi / Valid Internal",
+                "score_range": "75 - 89",
+                "description": "Basis data internal operasional, BAP, laporan audit resmi terkonfirmasi."
+            },
+            "tier_3_secondary": {
+                "tier": "secondary",
+                "name": "Tingkat 3 - Sekunder / Dokumen Publik",
+                "score_range": "55 - 74",
+                "description": "Portal berita resmi, website instansi, kliping media terverifikasi."
+            },
+            "tier_4_unverified": {
+                "tier": "unverified",
+                "name": "Tingkat 4 - Pendukung / Mentah / Belum Terverifikasi",
+                "score_range": "30 - 54",
+                "description": "Catatan observasi, data media sosial, laporan aduan masyarakat belum terkonfirmasi."
+            },
+            "conflict_resolution_rule": "Jika terdapat perbedaan atau kontradiksi data antar sumber, data dari sumber ber-Tingkat Validitas lebih tinggi (Skor lebih tinggi) WAJIB dimenangkan secara mutlak."
         },
         "input_processing_protocol": [
             {
@@ -860,9 +914,9 @@ def get_orchestration_guidelines(
                 "phase": "Grounding & Anti-Hallucination Rules",
                 "rules": [
                     "STRICT GROUNDING: Base all factual assertions strictly on data returned by knowledge sources or tools.",
-                    "MANDATORY CITATIONS: Clearly state the Source Name and Document ID / Tool Name for every key fact.",
+                    "MANDATORY CITATIONS: Clearly state the Source Name, Validity Tier, and Document ID / Tool Name for every key fact.",
                     "HANDLING ABSENCE: If a requested record, person, or document does not exist in the retrieved context, explicitly acknowledge: 'Data tidak ditemukan dalam basis pengetahuan yang terhubung.' NEVER invent or hallucinate missing data.",
-                    "DATA PRECEDENCE & GROUND TRUTH: Data yang diambil secara langsung dari basis data atau API real-time (melalui pemanggilan Tools) adalah PRIORITAS UTAMA MUTLAK yang WAJIB ditampilkan kepada pengguna. Data dokumen RAG atau ChromaDB (Bank Data) hanya sebagai pendukung/historis sekunder. Jika terdapat konflik fakta, data live database langsung WAJIB dimenangkan."
+                    "DATA PRECEDENCE & GROUND TRUTH: Data yang diambil secara langsung dari basis data atau API real-time (melalui pemanggilan Tools berstatus Otoritatif Tingkat 1) adalah PRIORITAS UTAMA MUTLAK yang WAJIB dimenangkan jika bertentangan dengan dokumen sekunder/tersier."
                 ]
             },
             {
@@ -879,6 +933,7 @@ def get_orchestration_guidelines(
 
     # 3. Dynamic Query Routing Recommendations (if query provided)
     query_recommendations = None
+    matched_flow_data = None
     if query:
         q_clean = query.strip().lower()
         matched_tools = []
@@ -914,6 +969,8 @@ def get_orchestration_guidelines(
                     "title": t["title"],
                     "relevance_score": score,
                     "suggested_arguments": extracted_args,
+                    "validity_tier": t.get("validity_tier", "authoritative"),
+                    "validity_score": t.get("validity_score", 95),
                     "reason": f"Tool '{tool_name}' matches query terms and intent."
                 })
 
@@ -921,6 +978,15 @@ def get_orchestration_guidelines(
         for s in active_sources:
             if s.name.lower() in q_clean or (s.description and any(w in q_clean for w in s.description.lower().split() if len(w) > 4)):
                 matched_sources.append({"source_id": s.id, "name": s.name, "type": s.source_type})
+
+        # Check matched orchestration flow from Flow Memory
+        try:
+            from services.flow_orchestrator import flow_orchestrator
+            flow_res = flow_orchestrator.match_flow_for_prompt(query, db)
+            if flow_res.get("matched"):
+                matched_flow_data = flow_res
+        except Exception:
+            pass
 
         # Determine suggested strategy
         if matched_tools and not any(w in q_clean for w in ["kebijakan", "sop", "regulasi", "panduan", "aturan"]):
@@ -930,12 +996,23 @@ def get_orchestration_guidelines(
         else:
             suggested_strategy = "hybrid"
 
+        rec_action = (
+            f"Terapkan Alur Acuan: '{matched_flow_data['flow_name']}'. Ikuti tahapan: {matched_flow_data['procedural_guidance']}"
+            if matched_flow_data
+            else (
+                f"Invoke tool '{matched_tools[0]['tool_name']}' with arguments {matched_tools[0]['suggested_arguments']}"
+                if (matched_tools and matched_tools[0].get("suggested_arguments"))
+                else "Run 'orchestrate_knowledge_search' to retrieve vector documents and graph context."
+            )
+        )
+
         query_recommendations = {
             "query": query,
             "suggested_strategy": suggested_strategy,
             "recommended_tools": matched_tools,
             "matched_sources": matched_sources,
-            "recommended_action": f"Invoke tool '{matched_tools[0]['tool_name']}' with arguments {matched_tools[0]['suggested_arguments']}" if (matched_tools and matched_tools[0].get("suggested_arguments")) else "Run 'orchestrate_knowledge_search' to retrieve vector documents and graph context."
+            "matched_orchestration_flow": matched_flow_data,
+            "recommended_action": rec_action
         }
 
     response_data = {
@@ -943,6 +1020,8 @@ def get_orchestration_guidelines(
         "guidelines": guidelines,
         "query_recommendations": query_recommendations
     }
+    if matched_flow_data:
+        response_data["matched_orchestration_flow"] = matched_flow_data
     if include_catalog:
         response_data["catalog"] = catalog
 
@@ -979,22 +1058,46 @@ async def orchestrate_search(
         "ai_synthesis_guidelines": []
     }
 
-    # 1. Vector Search in ChromaDB
+    # 1. Vector Search in ChromaDB with Validity Hybrid Reranking
     if strategy in ["hybrid", "semantic_only", "comprehensive"]:
         try:
             filter_meta = None
             if payload.source_types and len(payload.source_types) == 1:
                 filter_meta = {"source_type": payload.source_types[0]}
             vector_hits = vector_store.query_similarity(query=query, n_results=max_results, filter_meta=filter_meta)
+            
+            # Map source configs for validity tier resolution
+            sources_all = {s.id: s for s in db.query(KnowledgeSource).all()}
+            
+            raw_docs = []
             for h in vector_hits:
                 meta = h.get("metadata", {})
-                results["retrieved_documents"].append({
+                source_id = meta.get("source_id")
+                s_obj = sources_all.get(source_id) if source_id else None
+                s_conf = (s_obj.config if s_obj else {}) or {}
+                
+                v_tier = s_conf.get("validity_tier") or meta.get("validity_tier") or "secondary"
+                default_score = 95 if v_tier == "authoritative" else (85 if v_tier == "verified" else (65 if v_tier == "secondary" else 45))
+                v_score = s_conf.get("validity_score") if s_conf.get("validity_score") is not None else (meta.get("validity_score") or default_score)
+                raw_sim = round(float(h.get("score", 0.0)), 4)
+                
+                # Hybrid score: 70% semantic similarity + 30% source validity
+                hybrid_score = round(raw_sim * 0.7 + (float(v_score) / 100.0) * 0.3, 4)
+                
+                raw_docs.append({
                     "id": h.get("id"),
-                    "source_name": meta.get("source_name", "Knowledge Base"),
-                    "source_type": meta.get("source_type", "document"),
-                    "score": round(float(h.get("score", 0.0)), 4),
+                    "source_name": meta.get("source_name", s_obj.name if s_obj else "Knowledge Base"),
+                    "source_type": meta.get("source_type", s_obj.source_type if s_obj else "document"),
+                    "score": raw_sim,
+                    "validity_tier": v_tier,
+                    "validity_score": v_score,
+                    "hybrid_score": hybrid_score,
                     "content": h.get("content", "")[:1800]
                 })
+            
+            # Rerank by hybrid score
+            raw_docs.sort(key=lambda d: d.get("hybrid_score", 0.0), reverse=True)
+            results["retrieved_documents"] = raw_docs
         except Exception as e:
             results["retrieved_documents_error"] = str(e)
 
@@ -1039,7 +1142,7 @@ async def orchestrate_search(
         except Exception as e:
             results["graph_entities_error"] = str(e)
 
-    # 3. Dynamic Tool Matching
+    # 3. Dynamic Tool Matching with Validity Metadata
     try:
         active_tools = db.query(KnowledgeSource).filter(
             KnowledgeSource.source_type.in_(["api", "database"]),
@@ -1071,6 +1174,10 @@ async def orchestrate_search(
                     if name_match:
                         extracted_args["nama"] = name_match.group(1).strip()
 
+                v_tier = cfg.get("validity_tier") or "authoritative"
+                default_v = 95 if v_tier == "authoritative" else 85
+                v_score = cfg.get("validity_score") if cfg.get("validity_score") is not None else default_v
+
                 if match_score > 0 or extracted_args:
                     results["applicable_tools"].append({
                         "tool_name": clean_name,
@@ -1079,28 +1186,47 @@ async def orchestrate_search(
                         "title": s.name,
                         "parameters": cfg.get("parameters", []),
                         "suggested_arguments": extracted_args,
-                        "confidence": "high" if (match_score >= 8 or extracted_args) else "medium"
+                        "confidence": "high" if (match_score >= 8 or extracted_args) else "medium",
+                        "validity_tier": v_tier,
+                        "validity_score": v_score,
+                        "priority_rank": "PRIORITAS_UTAMA_MUTLAK (Data langsung dari basis data resmi)"
                     })
     except Exception as e:
         results["applicable_tools_error"] = str(e)
 
-    # 4. Formulate Tailored AI Synthesis Guidelines
+    # 4. Check Matched Orchestration Flow (Prompt Memory)
+    matched_flow = None
+    try:
+        from services.flow_orchestrator import flow_orchestrator
+        matched_flow_res = flow_orchestrator.match_flow_for_prompt(query, db)
+        if matched_flow_res.get("matched"):
+            matched_flow = matched_flow_res
+            results["matched_orchestration_flow"] = matched_flow_res
+    except Exception:
+        pass
+
+    # 5. Formulate Tailored AI Synthesis Guidelines
     guidance = []
+    if matched_flow:
+        guidance.append(f"⚡ Alur Investigasi Terpadu Terdeteksi: '{matched_flow.get('flow_name')}'. Ikuti tahapan baku: {matched_flow.get('procedural_guidance')}")
+
     if results["applicable_tools"]:
         top_tool = results["applicable_tools"][0]
-        guidance.append(f"A specialized real-time tool '{top_tool['tool_name']}' is available for live query. If verified current data is needed, invoke this tool.")
+        guidance.append(f"Alat Real-time Spesifik '{top_tool['tool_name']}' tersedia (Tingkat: {top_tool.get('validity_tier')}, Skor: {top_tool.get('validity_score')}). Panggil alat ini untuk mendapatkan data fakta primer mutlak.")
     if results["retrieved_documents"]:
         doc_count = len(results["retrieved_documents"])
-        guidance.append(f"Found {doc_count} relevant document passage(s). Ground your response in these texts and cite each Source Name.")
+        top_doc = results["retrieved_documents"][0]
+        guidance.append(f"Ditemukan {doc_count} dokumen terindeks. Dokumen teratas: '{top_doc['source_name']}' (Tingkat: {top_doc.get('validity_tier')}, Skor Efektif: {top_doc.get('hybrid_score')}).")
     if results["graph_entities"]:
         ent_count = len(results["graph_entities"])
-        guidance.append(f"Found {ent_count} Knowledge Graph entity profile(s). Highlight verified relationships and entity affiliations.")
+        guidance.append(f"Ditemukan {ent_count} entitas profil Knowledge Graph. Tampilkan relasi kepemilikan dan afiliasi antar entitas.")
     if not results["retrieved_documents"] and not results["graph_entities"] and not results["applicable_tools"]:
-        guidance.append("No matching records found in knowledge base or graph. Explicitly inform user that data is not found in the connected repository.")
+        guidance.append("Tidak ditemukan data pada repositori pengetahuan maupun graf. Sampaikan secara transparan bahwa data tidak ditemukan.")
 
-    guidance.append("Format output using clean Markdown (headings, bullet points, tables for tabular data). Do not invent missing facts.")
+    guidance.append("Prinsip Hierarki Validitas: Data Otoritatif Tingkat 1 (skor 90-100) WAJIB dimenangkan secara mutlak jika ada pertentangan dengan sumber sekunder/tersier.")
+    guidance.append("Format balikan menggunakan Markdown yang rapi (judul, poin-poin, dan tabel untuk data terstruktur). Dilarang mengarang informasi.")
 
-    # 5. Biometric Face Recognition (if image provided)
+    # 6. Biometric Face Recognition (if image provided)
     if payload.image_base64:
         try:
             from services.face_service import face_service

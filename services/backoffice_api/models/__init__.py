@@ -5,6 +5,7 @@ from models.ingest_job import IngestJob
 from models.llm_backend import LLMBackend, ModelAssignment
 from models.chat_feedback import ChatFeedback
 from models.system_setting import SystemSetting
+from models.orchestration_flow import OrchestrationFlow
 
 __all__ = [
     "Base",
@@ -17,5 +18,6 @@ __all__ = [
     "LLMBackend",
     "ModelAssignment",
     "ChatFeedback",
-    "SystemSetting"
+    "SystemSetting",
+    "OrchestrationFlow"
 ]

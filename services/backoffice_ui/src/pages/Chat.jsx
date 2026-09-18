@@ -41,11 +41,13 @@ import {
   ThumbsDown,
   MessageSquare,
   Paperclip,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Workflow
 } from 'lucide-react';
 import api from '../api/client';
 import { formatTimeWIB } from '../utils/dateUtils';
 import CytoscapeGraph from '../components/graph/CytoscapeGraph';
+import { ValidityBadge } from '../components/common/ValidityTierSelector';
 
 /**
  * Normalizes any image source string into a valid browser image src.
@@ -2292,6 +2294,11 @@ export default function Chat() {
                             {s.source_type}
                           </span>
 
+                          {/* Validity Badge */}
+                          {s.validity_tier && (
+                            <ValidityBadge tier={s.validity_tier} score={s.validity_score} />
+                          )}
+
                           {/* Tool badge */}
                           {s.is_tool && (
                             <span
@@ -2810,6 +2817,37 @@ export default function Chat() {
                     </div>
                   )}
 
+                  {/* Matched Orchestration Flow Banner (Assistant only) */}
+                  {isAssistant && msg.matched_flow && (
+                    <div style={{
+                      marginBottom: '12px',
+                      background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(16, 185, 129, 0.08) 100%)',
+                      border: '1px solid rgba(99, 102, 241, 0.35)',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '8px',
+                      flexWrap: 'wrap'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <Workflow size={15} color="#818cf8" />
+                        <span style={{ fontSize: '12px', fontWeight: '600', color: '#ffffff' }}>
+                          Alur Terpandu: {msg.matched_flow.name}
+                        </span>
+                        <span style={{ fontSize: '10px', background: 'rgba(99, 102, 241, 0.25)', color: '#c7d2fe', padding: '1px 6px', borderRadius: '10px', fontWeight: '600' }}>
+                          {msg.matched_flow.intent_category || 'Flow Memory'}
+                        </span>
+                      </div>
+                      {msg.matched_flow.validity_priority_rule && (
+                        <span style={{ fontSize: '11px', color: '#38bdf8' }}>
+                          ⚖️ Prioritas: {msg.matched_flow.validity_priority_rule}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {/* Collapsible Thinking Process Drawer (Assistant only) */}
                   {isAssistant && msg.thinking && (
                     <div style={{
@@ -3093,10 +3131,18 @@ export default function Chat() {
                                   fontSize: '12px'
                                 }}
                               >
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                                  <span style={{ fontWeight: '600', color: '#93c5fd' }}>
-                                    {src.metadata?.source_name || 'Indexed Record'}
-                                  </span>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', flexWrap: 'wrap', gap: '6px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                    <span style={{ fontWeight: '600', color: '#93c5fd' }}>
+                                      {src.metadata?.source_name || 'Indexed Record'}
+                                    </span>
+                                    {(src.validity_tier || src.metadata?.validity_tier) && (
+                                      <ValidityBadge
+                                        tier={src.validity_tier || src.metadata?.validity_tier}
+                                        score={src.validity_score || src.metadata?.validity_score}
+                                      />
+                                    )}
+                                  </div>
                                   {matchPercent !== null && (
                                     <span style={{
                                       background: 'rgba(16, 185, 129, 0.15)',
@@ -3110,6 +3156,11 @@ export default function Chat() {
                                     </span>
                                   )}
                                 </div>
+                                {(src.validity_notes || src.metadata?.validity_notes) && (
+                                  <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '6px', fontStyle: 'italic' }}>
+                                    ℹ️ {src.validity_notes || src.metadata?.validity_notes}
+                                  </div>
+                                )}
                                 <div style={{ 
                                   color: 'var(--text-secondary)', 
                                   fontFamily: 'JetBrains Mono, monospace', 

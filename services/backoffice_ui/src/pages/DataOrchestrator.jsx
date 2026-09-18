@@ -25,9 +25,21 @@ import {
   ChevronRight, 
   ChevronDown,
   Compass,
-  Code
+  Code,
+  Plus,
+  Trash2,
+  Edit2,
+  ShieldCheck,
+  Check,
+  ExternalLink,
+  BookOpen,
+  Filter,
+  History,
+  CheckCircle
 } from 'lucide-react';
 import api from '../api/client';
+import FlowEditorModal from '../components/modals/FlowEditorModal';
+import { ValidityBadge } from '../components/common/ValidityTierSelector';
 
 export default function DataOrchestrator() {
   const [query, setQuery] = useState('Cari tanah atas nama indradhi nugraha mulyanto');
@@ -39,7 +51,7 @@ export default function DataOrchestrator() {
   const [loading, setLoading] = useState(false);
   const [orchestrationData, setOrchestrationData] = useState(null);
   const [guidelinesData, setGuidelinesData] = useState(null);
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'vectors', 'graph', 'tools', 'biometrics'
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'flows', 'vectors', 'graph', 'tools', 'biometrics'
 
   // Tool execution testing state
   const [testingTool, setTestingTool] = useState(null);
@@ -50,12 +62,36 @@ export default function DataOrchestrator() {
   const [synthesizing, setSynthesizing] = useState(false);
   const [synthesizedAnswer, setSynthesizedAnswer] = useState(null);
 
+  // Prompt Flow Memory state
+  const [flows, setFlows] = useState([]);
+  const [flowsLoading, setFlowsLoading] = useState(false);
+  const [isFlowModalOpen, setIsFlowModalOpen] = useState(false);
+  const [editingFlow, setEditingFlow] = useState(null);
+  const [prefillPrompt, setPrefillPrompt] = useState('');
+  const [flowSearchQuery, setFlowSearchQuery] = useState('');
+  const [flowCategoryFilter, setFlowCategoryFilter] = useState('all');
+  const [flowTestingId, setFlowTestingId] = useState(null);
+  const [flowTestResult, setFlowTestResult] = useState(null);
+
   const fileInputRef = useRef(null);
 
   useEffect(() => {
     // Run initial orchestration for demonstration
     handleRunOrchestration();
+    fetchFlows();
   }, []);
+
+  const fetchFlows = async () => {
+    setFlowsLoading(true);
+    try {
+      const res = await api.get('/orchestrator/flows');
+      setFlows(res.data?.flows || []);
+    } catch (err) {
+      console.error('Error fetching orchestration flows:', err);
+    } finally {
+      setFlowsLoading(false);
+    }
+  };
 
   const handleImageSelect = (e) => {
     const file = e.target.files?.[0];
@@ -139,11 +175,95 @@ export default function DataOrchestrator() {
     }
   };
 
+  // Flow management operations
+  const handleToggleFlowActive = async (flow) => {
+    try {
+      const res = await api.put(`/orchestrator/flows/${flow.id}`, {
+        is_active: !flow.is_active
+      });
+      if (res.data?.success) {
+        setFlows(prev => prev.map(f => f.id === flow.id ? { ...f, is_active: !flow.is_active } : f));
+      }
+    } catch (err) {
+      alert('Gagal mengubah status alur: ' + (err.response?.data?.detail || err.message));
+    }
+  };
+
+  const handleDeleteFlow = async (flowId) => {
+    if (!window.confirm('Apakah Anda yakin ingin menghapus alur perolehan informasi ini?')) return;
+    try {
+      await api.delete(`/orchestrator/flows/${flowId}`);
+      setFlows(prev => prev.filter(f => f.id !== flowId));
+      if (flowTestResult?.flow_id === flowId) {
+        setFlowTestResult(null);
+      }
+    } catch (err) {
+      alert('Gagal menghapus alur: ' + (err.response?.data?.detail || err.message));
+    }
+  };
+
+  const handleResetDefaultFlows = async () => {
+    if (!window.confirm('Reset semua alur perolehan ke template default bawaan sistem KPK?')) return;
+    setFlowsLoading(true);
+    try {
+      const res = await api.post('/orchestrator/flows/seed');
+      setFlows(res.data?.flows || []);
+      alert(`Berhasil mereset template alur (${res.data?.flows?.length || 0} alur aktif).`);
+    } catch (err) {
+      alert('Gagal mereset template: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      setFlowsLoading(false);
+    }
+  };
+
+  const handleTestFlow = async (flow, customInput = null) => {
+    setFlowTestingId(flow.id);
+    setFlowTestResult(null);
+    try {
+      const testInput = customInput || query || flow.name;
+      const res = await api.post(`/orchestrator/flows/${flow.id}/execute`, {
+        query: testInput
+      });
+      setFlowTestResult({
+        flow_id: flow.id,
+        flow_name: flow.name,
+        input_query: testInput,
+        ...res.data
+      });
+      // Increment count locally
+      setFlows(prev => prev.map(f => f.id === flow.id ? { ...f, execution_count: (f.execution_count || 0) + 1 } : f));
+    } catch (err) {
+      setFlowTestResult({
+        flow_id: flow.id,
+        flow_name: flow.name,
+        error: err.response?.data?.detail || err.message
+      });
+    } finally {
+      setFlowTestingId(null);
+    }
+  };
+
+  const handleOpenCreateFlow = (promptToPrefill = '') => {
+    setEditingFlow(null);
+    setPrefillPrompt(promptToPrefill);
+    setIsFlowModalOpen(true);
+  };
+
+  const handleOpenEditFlow = (flow) => {
+    if (!flow) return;
+    const actualFlow = flow.flow 
+      ? { ...flow.flow, id: flow.flow?.id || flow.flow_id || flow.id } 
+      : { ...flow, id: flow.id || flow.flow_id };
+    setEditingFlow(actualFlow);
+    setPrefillPrompt('');
+    setIsFlowModalOpen(true);
+  };
+
   const sampleQueries = [
     { label: 'Cari Tanah BPN (Tool)', q: 'Cari tanah atas nama indradhi nugraha mulyanto' },
     { label: 'Relasi Entitas Graph', q: 'Apa hubungan PT Pianaru dengan aset dan entitas terkait?' },
     { label: 'Regulasi Dokumen (Vector)', q: 'Jelaskan kebijakan regulasi pertanahan dan sertifikat' },
-    { label: 'Status Pengetahuan Terkini', q: 'Bagaimana status sinkronisasi seluruh Knowledge Sources?' }
+    { label: 'Profiling NIK Terpadu', q: 'Lakukan profiling lengkap NIK 3171012345670001' }
   ];
 
   const sourceTypesList = ['database', 'api', 'file', 'website'];
@@ -153,6 +273,16 @@ export default function DataOrchestrator() {
       prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
     );
   };
+
+  // Filtered flows for the Flow Memory tab
+  const filteredFlows = flows.filter(f => {
+    const matchesCat = flowCategoryFilter === 'all' || f.intent_category === flowCategoryFilter;
+    const matchesQuery = !flowSearchQuery.trim() || 
+      (f.name && f.name.toLowerCase().includes(flowSearchQuery.toLowerCase())) ||
+      (f.prompt_pattern && f.prompt_pattern.toLowerCase().includes(flowSearchQuery.toLowerCase())) ||
+      (f.trigger_keywords && f.trigger_keywords.some(k => k.toLowerCase().includes(flowSearchQuery.toLowerCase())));
+    return matchesCat && matchesQuery;
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minHeight: 'calc(100vh - 100px)' }}>
@@ -187,13 +317,17 @@ export default function DataOrchestrator() {
               </span>
             </h1>
             <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '2px' }}>
-              Unified routing, multi-source retrieval (ChromaDB + Neo4j + Live Tools + Biometrics), and AI guideline synthesis.
+              Unified routing, multi-source retrieval (ChromaDB + Neo4j + Live Tools), 4-tier data validity hierarchy, dan Prompt Flow Memory.
             </p>
           </div>
         </div>
 
         {/* Engine Status Indicators */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', background: 'rgba(99, 102, 241, 0.1)', color: '#a5b4fc', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#818cf8' }}></span>
+            🧠 {flows.length} Alur Memori
+          </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent-emerald)', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
             <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-emerald)' }}></span>
             ChromaDB Vectors
@@ -215,7 +349,7 @@ export default function DataOrchestrator() {
           {/* Main Input */}
           <div style={{ flex: 1, minWidth: '320px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Search size={14} /> Search Query / Intent
+              <Search size={14} /> Search Query / Prompt Uji Coba
             </label>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <input
@@ -223,7 +357,7 @@ export default function DataOrchestrator() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleRunOrchestration()}
-                placeholder="Enter query or question to test orchestration routing..."
+                placeholder="Masukkan prompt atau pertanyaan untuk menguji routing dan alur..."
                 style={{
                   width: '100%',
                   background: 'rgba(15, 23, 42, 0.8)',
@@ -256,7 +390,7 @@ export default function DataOrchestrator() {
           {/* Search Strategy */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Sliders size={14} /> Search Strategy
+              <Sliders size={14} /> Strategi Pencarian
             </label>
             <select
               value={strategy}
@@ -298,10 +432,10 @@ export default function DataOrchestrator() {
                 cursor: 'pointer'
               }}
             >
-              <option value={3}>3 results</option>
-              <option value={5}>5 results</option>
-              <option value={10}>10 results</option>
-              <option value={15}>15 results</option>
+              <option value={3}>3 hasil</option>
+              <option value={5}>5 hasil</option>
+              <option value={10}>10 hasil</option>
+              <option value={15}>15 hasil</option>
             </select>
           </div>
 
@@ -328,7 +462,7 @@ export default function DataOrchestrator() {
               }}
             >
               {loading ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} fill="#ffffff" />}
-              Run Orchestration
+              Uji Orchestration
             </button>
           </div>
         </div>
@@ -337,7 +471,7 @@ export default function DataOrchestrator() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', paddingTop: '10px', borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
           {/* Source Types Multi-Select */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Filter Sources:</span>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Filter Sumber:</span>
             {sourceTypesList.map(st => {
               const active = selectedTypes.includes(st);
               return (
@@ -383,7 +517,7 @@ export default function DataOrchestrator() {
             {attachedImage ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(99, 102, 241, 0.15)', padding: '4px 10px', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
                 <img src={attachedImage} alt="Thumb" style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'cover' }} />
-                <span style={{ fontSize: '11px', color: '#ffffff' }}>Face Image Attached</span>
+                <span style={{ fontSize: '11px', color: '#ffffff' }}>Foto Wajah Terlampir</span>
                 <button onClick={() => setAttachedImage(null)} style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer' }}>
                   <X size={14} />
                 </button>
@@ -405,7 +539,7 @@ export default function DataOrchestrator() {
                   cursor: 'pointer'
                 }}
               >
-                <ImageIcon size={14} /> Attach Face Image (Biometrics)
+                <ImageIcon size={14} /> Lampirkan Foto Wajah
               </button>
             )}
           </div>
@@ -413,7 +547,7 @@ export default function DataOrchestrator() {
 
         {/* Sample Query Chips */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Quick Examples:</span>
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Contoh Prompt:</span>
           {sampleQueries.map((sq, idx) => (
             <button
               key={idx}
@@ -447,7 +581,523 @@ export default function DataOrchestrator() {
         </div>
       </div>
 
-      {/* Orchestration Results Layout */}
+      {/* Main Orchestration & Flow Navigation Tabs */}
+      <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', overflowX: 'auto' }}>
+        <button
+          onClick={() => setActiveTab('overview')}
+          style={{
+            padding: '8px 16px',
+            borderRadius: '8px',
+            fontSize: '13px',
+            fontWeight: '600',
+            background: activeTab === 'overview' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+            border: activeTab === 'overview' ? '1px solid var(--accent-primary)' : '1px solid transparent',
+            color: activeTab === 'overview' ? '#ffffff' : 'var(--text-muted)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <Compass size={14} /> Overview & Decision Matrix
+        </button>
+
+        <button
+          onClick={() => setActiveTab('flows')}
+          style={{
+            padding: '8px 16px',
+            borderRadius: '8px',
+            fontSize: '13px',
+            fontWeight: '600',
+            background: activeTab === 'flows' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+            border: activeTab === 'flows' ? '1px solid var(--accent-primary)' : '1px solid transparent',
+            color: activeTab === 'flows' ? '#ffffff' : 'var(--text-muted)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <Workflow size={14} color="#818cf8" />
+          Alur Perolehan (Memory) ({flows.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('vectors')}
+          style={{
+            padding: '8px 16px',
+            borderRadius: '8px',
+            fontSize: '13px',
+            fontWeight: '600',
+            background: activeTab === 'vectors' ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
+            border: activeTab === 'vectors' ? '1px solid var(--accent-emerald)' : '1px solid transparent',
+            color: activeTab === 'vectors' ? '#ffffff' : 'var(--text-muted)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <Layers size={14} /> Vector Chunks ({orchestrationData?.retrieved_documents?.length || 0})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('graph')}
+          style={{
+            padding: '8px 16px',
+            borderRadius: '8px',
+            fontSize: '13px',
+            fontWeight: '600',
+            background: activeTab === 'graph' ? 'rgba(168, 85, 247, 0.2)' : 'transparent',
+            border: activeTab === 'graph' ? '1px solid #c084fc' : '1px solid transparent',
+            color: activeTab === 'graph' ? '#ffffff' : 'var(--text-muted)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <Share2 size={14} /> Graph Entities ({orchestrationData?.graph_entities?.length || 0})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('tools')}
+          style={{
+            padding: '8px 16px',
+            borderRadius: '8px',
+            fontSize: '13px',
+            fontWeight: '600',
+            background: activeTab === 'tools' ? 'rgba(6, 182, 212, 0.2)' : 'transparent',
+            border: activeTab === 'tools' ? '1px solid var(--accent-cyan)' : '1px solid transparent',
+            color: activeTab === 'tools' ? '#ffffff' : 'var(--text-muted)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <Zap size={14} /> Real-Time Tools ({orchestrationData?.applicable_tools?.length || 0})
+        </button>
+
+        {orchestrationData?.biometric_face_result && (
+          <button
+            onClick={() => setActiveTab('biometrics')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: '600',
+              background: activeTab === 'biometrics' ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
+              border: activeTab === 'biometrics' ? '1px solid #fbbf24' : '1px solid transparent',
+              color: activeTab === 'biometrics' ? '#ffffff' : 'var(--text-muted)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <ScanFace size={14} /> Biometric Match
+          </button>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* TAB: FLOW MEMORY STUDIO (Alur Perolehan Informasi Terpandu) */}
+      {/* ========================================================================= */}
+      {activeTab === 'flows' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Header & Actions */}
+          <div className="glass-panel" style={{ padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+            <div>
+              <h2 style={{ fontSize: '17px', fontWeight: '700', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Workflow size={20} color="#818cf8" />
+                Alur Perolehan Informasi Terpandu (Prompt Flow Memory)
+              </h2>
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                Atur alur eksekusi bertahap (Tool Call, Graph, Vector, Sintesis) untuk pola prompt tertentu. Pola ini akan diingat oleh AI dan diaktifkan secara otomatis saat prompt serupa diajukan.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <button
+                onClick={handleResetDefaultFlows}
+                disabled={flowsLoading}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  color: 'var(--text-secondary)',
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <RefreshCw size={14} className={flowsLoading ? 'animate-spin' : ''} />
+                Reset Template Default
+              </button>
+
+              <button
+                onClick={() => handleOpenCreateFlow()}
+                style={{
+                  background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                  border: 'none',
+                  color: '#ffffff',
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4)'
+                }}
+              >
+                <Plus size={16} />
+                Buat Alur Baru
+              </button>
+            </div>
+          </div>
+
+          {/* Search & Category Filter */}
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: '240px', position: 'relative' }}>
+              <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input
+                type="text"
+                value={flowSearchQuery}
+                onChange={(e) => setFlowSearchQuery(e.target.value)}
+                placeholder="Cari alur berdasarkan nama, regex pattern, atau kata kunci..."
+                style={{
+                  width: '100%',
+                  background: 'rgba(15, 23, 42, 0.7)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '8px',
+                  padding: '8px 12px 8px 34px',
+                  color: '#ffffff',
+                  fontSize: '13px',
+                  outline: 'none'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Filter size={14} color="var(--text-muted)" />
+              <select
+                value={flowCategoryFilter}
+                onChange={(e) => setFlowCategoryFilter(e.target.value)}
+                style={{
+                  background: 'rgba(15, 23, 42, 0.7)',
+                  border: '1px solid var(--border-color)',
+                  color: '#ffffff',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  outline: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="all">Semua Kategori</option>
+                <option value="profiling">Profiling</option>
+                <option value="investigasi_aset">Investigasi Aset</option>
+                <option value="korporasi">Korporasi</option>
+                <option value="regulasi">Regulasi</option>
+                <option value="umum">Umum</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Flow Test Result Panel (if active) */}
+          {flowTestResult && (
+            <div className="glass-panel" style={{
+              padding: '18px 20px',
+              background: 'rgba(15, 23, 42, 0.9)',
+              border: flowTestResult.error ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(16, 185, 129, 0.4)',
+              borderRadius: '10px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {flowTestResult.error ? (
+                    <AlertCircle size={18} color="#ef4444" />
+                  ) : (
+                    <CheckCircle size={18} color="var(--accent-emerald)" />
+                  )}
+                  <span style={{ fontSize: '14px', fontWeight: '700', color: '#ffffff' }}>
+                    Hasil Uji Eksekusi Alur: {flowTestResult.flow_name}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    (Query: "{flowTestResult.input_query}")
+                  </span>
+                </div>
+                <button
+                  onClick={() => setFlowTestResult(null)}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {flowTestResult.error ? (
+                <div style={{ color: '#f87171', fontSize: '13px' }}>{flowTestResult.error}</div>
+              ) : (() => {
+                const stepsList = flowTestResult.result?.steps || flowTestResult.steps || flowTestResult.execution_log || [];
+                const totalSteps = flowTestResult.result?.total_steps || flowTestResult.total_steps || stepsList.length;
+                const totalElapsed = flowTestResult.result?.total_elapsed_ms || flowTestResult.total_elapsed_ms || 0;
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span>Status: <strong style={{ color: 'var(--accent-emerald)' }}>Sukses</strong></span>
+                      <span>Total Langkah: <strong>{totalSteps}</strong></span>
+                      <span>Durasi: <strong>{totalElapsed} ms</strong></span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '220px', overflowY: 'auto' }}>
+                      {stepsList.map((log, lIdx) => (
+                        <div key={lIdx} style={{
+                          background: 'rgba(0, 0, 0, 0.4)',
+                          padding: '8px 12px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontFamily: 'JetBrains Mono, monospace',
+                          color: log.status === 'success' ? '#a5b4fc' : '#fca5a5',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          border: '1px solid rgba(255, 255, 255, 0.04)'
+                        }}>
+                          <span style={{ color: '#ffffff', fontWeight: '700' }}>{log.step || lIdx + 1}.</span>
+                          <strong style={{ color: '#38bdf8', textTransform: 'capitalize' }}>{log.action?.replace('_', ' ')}</strong>
+                          <span style={{ color: '#e2e8f0' }}>➔ {log.target}</span>
+                          <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', color: log.status === 'success' ? 'var(--accent-emerald)' : '#ef4444' }}>
+                            <span>✓ {log.status}</span>
+                            {log.elapsed_ms !== undefined && (
+                              <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>({log.elapsed_ms}ms)</span>
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* Flows Grid */}
+          {flowsLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '40px', color: 'var(--accent-primary)' }}>
+              <Loader2 size={28} className="animate-spin" />
+            </div>
+          ) : filteredFlows.length === 0 ? (
+            <div className="glass-panel" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+              Tidak ada alur perolehan yang cocok dengan pencarian atau filter kategori.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '16px' }}>
+              {filteredFlows.map(fl => {
+                const isTestingThis = flowTestingId === fl.id;
+                return (
+                  <div
+                    key={fl.id}
+                    className="glass-panel"
+                    style={{
+                      padding: '18px 20px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '14px',
+                      border: fl.is_active ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid rgba(255, 255, 255, 0.05)',
+                      opacity: fl.is_active ? 1 : 0.65,
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {/* Flow Card Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff' }}>
+                            {fl.name}
+                          </h3>
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            background: 'rgba(99, 102, 241, 0.2)',
+                            color: '#a5b4fc',
+                            padding: '2px 8px',
+                            borderRadius: '10px',
+                            textTransform: 'capitalize'
+                          }}>
+                            {fl.intent_category || 'Umum'}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                          Prioritas: <strong style={{ color: '#38bdf8' }}>{fl.validity_priority_rule || 'authoritative_first'}</strong>
+                        </div>
+                      </div>
+
+                      {/* Active Toggle */}
+                      <button
+                        onClick={() => handleToggleFlowActive(fl)}
+                        title={fl.is_active ? 'Nonaktifkan alur' : 'Aktifkan alur'}
+                        style={{
+                          background: fl.is_active ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                          border: `1px solid ${fl.is_active ? 'rgba(16, 185, 129, 0.5)' : 'rgba(255, 255, 255, 0.15)'}`,
+                          color: fl.is_active ? 'var(--accent-emerald)' : 'var(--text-muted)',
+                          padding: '4px 10px',
+                          borderRadius: '14px',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {fl.is_active ? '● Aktif' : '○ Nonaktif'}
+                      </button>
+                    </div>
+
+                    {/* Regex Pattern & Triggers */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ color: 'var(--text-muted)', width: '60px' }}>Pattern:</span>
+                        <code style={{ background: 'rgba(0,0,0,0.4)', padding: '2px 6px', borderRadius: '4px', color: '#a5f3fc', fontFamily: 'JetBrains Mono, monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '250px' }}>
+                          {fl.prompt_pattern || '-'}
+                        </code>
+                      </div>
+                      {fl.trigger_keywords && fl.trigger_keywords.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span style={{ color: 'var(--text-muted)', width: '60px' }}>Triggers:</span>
+                          {fl.trigger_keywords.map((kw, kIdx) => (
+                            <span key={kIdx} style={{ background: 'rgba(255,255,255,0.06)', padding: '1px 6px', borderRadius: '4px', color: 'var(--text-secondary)' }}>
+                              {kw}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Sequential Steps Preview */}
+                    <div style={{
+                      background: 'rgba(5, 7, 12, 0.5)',
+                      borderRadius: '8px',
+                      padding: '10px 12px',
+                      border: '1px solid rgba(255, 255, 255, 0.05)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px'
+                    }}>
+                      <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Alur Bertahap ({fl.steps?.length || 0} Langkah):
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {fl.steps?.map((st, sIdx) => {
+                          const actionIcon = 
+                            st.action === 'tool_call' ? '⚡' :
+                            st.action === 'graph_traversal' ? '🕸️' :
+                            st.action === 'vector_search' ? '📄' : '🧠';
+                          return (
+                            <div key={sIdx} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#e2e8f0' }}>
+                              <span style={{ color: 'var(--text-muted)' }}>{sIdx + 1}.</span>
+                              <span>{actionIcon}</span>
+                              <strong style={{ color: '#a5b4fc', textTransform: 'capitalize' }}>{st.action?.replace('_', ' ')}</strong>
+                              <span style={{ color: '#94a3b8', fontFamily: 'JetBrains Mono, monospace' }}>➔ {st.target}</span>
+                              {st.required && (
+                                <span style={{ fontSize: '9px', background: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5', padding: '1px 4px', borderRadius: '4px', marginLeft: 'auto' }}>
+                                  WAJIB
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Card Footer */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <History size={12} />
+                        Dijalankan: {fl.execution_count || 0} kali
+                      </span>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          onClick={() => handleTestFlow(fl)}
+                          disabled={isTestingThis}
+                          title="Uji Eksekusi Alur"
+                          style={{
+                            background: 'rgba(99, 102, 241, 0.15)',
+                            border: '1px solid rgba(99, 102, 241, 0.3)',
+                            color: '#a5b4fc',
+                            padding: '5px 10px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          {isTestingThis ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} fill="#a5b4fc" />}
+                          Uji
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditFlow(fl)}
+                          title="Sunting Alur"
+                          style={{
+                            background: 'rgba(255, 255, 255, 0.08)',
+                            border: '1px solid rgba(255, 255, 255, 0.18)',
+                            color: '#ffffff',
+                            padding: '5px 10px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          <Edit2 size={13} />
+                          Sunting
+                        </button>
+
+                        <button
+                          onClick={() => handleDeleteFlow(fl.id)}
+                          title="Hapus Alur"
+                          style={{
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid rgba(239, 68, 68, 0.25)',
+                            color: '#f87171',
+                            padding: '5px 8px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* ORCHESTRATION RESULTS (OVERVIEW, VECTORS, GRAPH, TOOLS, BIOMETRICS) */}
+      {/* ========================================================================= */}
       {orchestrationData && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {/* Pipeline Summary Bar */}
@@ -457,7 +1107,7 @@ export default function DataOrchestrator() {
                 <Compass size={20} color="var(--accent-primary)" />
               </div>
               <div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Strategy Applied</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Strategi Aktif</div>
                 <div style={{ fontSize: '14px', fontWeight: '700', color: '#ffffff', textTransform: 'capitalize' }}>
                   {orchestrationData.strategy_applied}
                 </div>
@@ -515,232 +1165,339 @@ export default function DataOrchestrator() {
             )}
           </div>
 
-          {/* Strategic Decision Matrix & Guidelines */}
-          {guidelinesData?.query_recommendations && (
-            <div className="glass-panel" style={{ padding: '18px 24px', background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(6, 182, 212, 0.05) 100%)', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Sparkles size={18} color="var(--accent-cyan)" />
-                  <span style={{ fontSize: '14px', fontWeight: '700', color: '#ffffff' }}>
-                    AI Routing Decision & Intent Classification
-                  </span>
-                </div>
-                <span style={{
-                  background: 'rgba(99, 102, 241, 0.25)',
-                  color: '#a5b4fc',
-                  padding: '3px 10px',
-                  borderRadius: '12px',
-                  fontSize: '11px',
-                  fontWeight: '600'
-                }}>
-                  Intent Strategy: {guidelinesData.query_recommendations.suggested_strategy.toUpperCase()}
-                </span>
-              </div>
-
-              <div style={{ fontSize: '13px', color: '#e2e8f0', lineHeight: '1.6', marginBottom: '12px' }}>
-                <strong>Recommended Action:</strong> {guidelinesData.query_recommendations.recommended_action}
-              </div>
-
-              {/* Matched Tools Pills */}
-              {guidelinesData.query_recommendations.recommended_tools?.length > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Auto-Matched Tool:</span>
-                  {guidelinesData.query_recommendations.recommended_tools.map((mt, idx) => (
-                    <div key={idx} style={{
-                      background: 'rgba(6, 182, 212, 0.12)',
-                      border: '1px solid rgba(6, 182, 212, 0.3)',
-                      borderRadius: '8px',
-                      padding: '4px 10px',
-                      fontSize: '12px',
-                      color: 'var(--accent-cyan)',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}>
-                      <Zap size={13} />
-                      <strong>{mt.tool_name}</strong>
-                      {mt.suggested_arguments && Object.keys(mt.suggested_arguments).length > 0 && (
-                        <span style={{ opacity: 0.8, fontFamily: 'monospace', fontSize: '11px' }}>
-                          ({JSON.stringify(mt.suggested_arguments)})
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Section Navigation Tabs */}
-          <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', overflowX: 'auto' }}>
-            <button
-              onClick={() => setActiveTab('overview')}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: '600',
-                background: activeTab === 'overview' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
-                border: activeTab === 'overview' ? '1px solid var(--accent-primary)' : '1px solid transparent',
-                color: activeTab === 'overview' ? '#ffffff' : 'var(--text-muted)',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              Overview & Grounding Guidelines
-            </button>
-            <button
-              onClick={() => setActiveTab('vectors')}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: '600',
-                background: activeTab === 'vectors' ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
-                border: activeTab === 'vectors' ? '1px solid var(--accent-emerald)' : '1px solid transparent',
-                color: activeTab === 'vectors' ? '#ffffff' : 'var(--text-muted)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              <Layers size={14} /> Vector Chunks ({orchestrationData.retrieved_documents?.length || 0})
-            </button>
-            <button
-              onClick={() => setActiveTab('graph')}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: '600',
-                background: activeTab === 'graph' ? 'rgba(168, 85, 247, 0.2)' : 'transparent',
-                border: activeTab === 'graph' ? '1px solid #c084fc' : '1px solid transparent',
-                color: activeTab === 'graph' ? '#ffffff' : 'var(--text-muted)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              <Share2 size={14} /> Graph Entities ({orchestrationData.graph_entities?.length || 0})
-            </button>
-            <button
-              onClick={() => setActiveTab('tools')}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: '600',
-                background: activeTab === 'tools' ? 'rgba(6, 182, 212, 0.2)' : 'transparent',
-                border: activeTab === 'tools' ? '1px solid var(--accent-cyan)' : '1px solid transparent',
-                color: activeTab === 'tools' ? '#ffffff' : 'var(--text-muted)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              <Zap size={14} /> Real-Time Tools ({orchestrationData.applicable_tools?.length || 0})
-            </button>
-            {orchestrationData.biometric_face_result && (
-              <button
-                onClick={() => setActiveTab('biometrics')}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  background: activeTab === 'biometrics' ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
-                  border: activeTab === 'biometrics' ? '1px solid #fbbf24' : '1px solid transparent',
-                  color: activeTab === 'biometrics' ? '#ffffff' : 'var(--text-muted)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                <ScanFace size={14} /> Biometric Match
-              </button>
-            )}
-          </div>
-
           {/* TAB 1: OVERVIEW & SYNTHESIS */}
           {activeTab === 'overview' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
-              {/* Guidelines List */}
-              <div className="glass-panel" style={{ padding: '20px' }}>
-                <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Sparkles size={16} color="var(--accent-primary)" />
-                  AI Synthesis Directives (Anti-Hallucination)
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {orchestrationData.ai_synthesis_guidelines?.map((guide, gIdx) => (
-                    <div key={gIdx} style={{ display: 'flex', gap: '10px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                      <span style={{ color: 'var(--accent-primary)', fontWeight: 'bold' }}>•</span>
-                      <span>{guide}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Prompt Flow Memory Matched Banner */}
+              {(() => {
+                const matchedFlow = orchestrationData.matched_orchestration_flow || guidelinesData?.matched_orchestration_flow;
+                if (matchedFlow) {
+                  return (
+                    <div className="glass-panel" style={{
+                      padding: '18px 24px',
+                      background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(16, 185, 129, 0.08) 100%)',
+                      border: '1px solid rgba(99, 102, 241, 0.4)',
+                      borderRadius: '12px'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '8px',
+                            background: 'rgba(99, 102, 241, 0.25)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}>
+                            <Workflow size={18} color="#a5b4fc" />
+                          </div>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff' }}>
+                                {matchedFlow.name}
+                              </span>
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                background: 'rgba(99, 102, 241, 0.25)',
+                                color: '#c7d2fe',
+                                padding: '2px 8px',
+                                borderRadius: '10px'
+                              }}>
+                                {matchedFlow.intent_category || 'Flow Memory'}
+                              </span>
+                              <span style={{
+                                fontSize: '11px',
+                                background: 'rgba(16, 185, 129, 0.15)',
+                                color: 'var(--accent-emerald)',
+                                padding: '2px 8px',
+                                borderRadius: '10px',
+                                fontWeight: '600'
+                              }}>
+                                ✓ Alur Terdaftar Aktif
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
+                              Aturan Prioritas Validitas: <strong style={{ color: '#38bdf8' }}>{matchedFlow.validity_priority_rule || 'authoritative_first'}</strong>
+                            </div>
+                          </div>
+                        </div>
 
-              {/* Live LLM Synthesis Runner */}
-              <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-                  <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Cpu size={16} color="var(--accent-cyan)" />
-                    Grounded AI Response Synthesis
-                  </h3>
-                  <button
-                    onClick={handleSynthesizeWithLLM}
-                    disabled={synthesizing}
-                    style={{
-                      padding: '6px 14px',
-                      borderRadius: '8px',
-                      background: 'linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)',
-                      border: 'none',
-                      color: '#ffffff',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      cursor: synthesizing ? 'not-allowed' : 'pointer',
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <button
+                            onClick={() => handleOpenEditFlow(matchedFlow)}
+                            style={{
+                              background: 'rgba(255, 255, 255, 0.08)',
+                              border: '1px solid rgba(255, 255, 255, 0.15)',
+                              color: '#ffffff',
+                              padding: '6px 12px',
+                              borderRadius: '8px',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Edit2 size={13} /> Sunting Alur
+                          </button>
+                          <button
+                            onClick={() => handleTestFlow(matchedFlow)}
+                            disabled={flowTestingId === matchedFlow.id}
+                            style={{
+                              background: 'linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)',
+                              border: 'none',
+                              color: '#ffffff',
+                              padding: '6px 14px',
+                              borderRadius: '8px',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {flowTestingId === matchedFlow.id ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} fill="#ffffff" />}
+                            Uji Alur Ini
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Steps preview */}
+                      {matchedFlow.steps && matchedFlow.steps.length > 0 && (
+                        <div style={{
+                          background: 'rgba(5, 7, 12, 0.5)',
+                          borderRadius: '8px',
+                          padding: '12px 14px',
+                          border: '1px solid rgba(255, 255, 255, 0.06)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '8px'
+                        }}>
+                          <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Tahapan Perolehan Terpandu ({matchedFlow.steps.length} Langkah):
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                            {matchedFlow.steps.map((st, sIdx) => (
+                              <React.Fragment key={sIdx}>
+                                <div style={{
+                                  background: 'rgba(15, 23, 42, 0.8)',
+                                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                                  borderRadius: '6px',
+                                  padding: '6px 10px',
+                                  fontSize: '12px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px'
+                                }}>
+                                  <span style={{
+                                    width: '18px',
+                                    height: '18px',
+                                    borderRadius: '50%',
+                                    background: 'var(--accent-primary)',
+                                    color: '#ffffff',
+                                    fontSize: '10px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontWeight: '700'
+                                  }}>
+                                    {st.order || sIdx + 1}
+                                  </span>
+                                  <strong style={{ color: '#a5b4fc', textTransform: 'capitalize' }}>
+                                    {st.action?.replace('_', ' ')}
+                                  </strong>
+                                  <span style={{ color: '#e2e8f0', fontFamily: 'monospace', fontSize: '11px' }}>
+                                    {st.target}
+                                  </span>
+                                  {st.required && (
+                                    <span style={{ fontSize: '9px', background: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5', padding: '1px 4px', borderRadius: '4px' }}>
+                                      WAJIB
+                                    </span>
+                                  )}
+                                </div>
+                                {sIdx < matchedFlow.steps.length - 1 && (
+                                  <ArrowRight size={12} color="var(--text-muted)" />
+                                )}
+                              </React.Fragment>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                } else if (query.trim()) {
+                  return (
+                    <div className="glass-panel" style={{
+                      padding: '12px 18px',
+                      background: 'rgba(15, 23, 42, 0.5)',
+                      border: '1px dashed rgba(255, 255, 255, 0.15)',
+                      borderRadius: '10px',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    {synthesizing ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} fill="#ffffff" />}
-                    Synthesize with LLM
-                  </button>
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '10px'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        <Workflow size={16} color="var(--text-muted)" />
+                        <span>Belum ada alur perolehan spesifik yang cocok untuk pola prompt ini.</span>
+                      </div>
+                      <button
+                        onClick={() => handleOpenCreateFlow(query.trim())}
+                        style={{
+                          background: 'rgba(99, 102, 241, 0.15)',
+                          border: '1px solid rgba(99, 102, 241, 0.3)',
+                          color: '#a5b4fc',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <Plus size={13} /> Simpan Alur untuk Prompt Ini
+                      </button>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              {/* Strategic Decision Matrix & Guidelines */}
+              {guidelinesData?.query_recommendations && (
+                <div className="glass-panel" style={{ padding: '18px 24px', background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(6, 182, 212, 0.05) 100%)', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Sparkles size={18} color="var(--accent-cyan)" />
+                      <span style={{ fontSize: '14px', fontWeight: '700', color: '#ffffff' }}>
+                        AI Routing Decision & Intent Classification
+                      </span>
+                    </div>
+                    <span style={{
+                      background: 'rgba(99, 102, 241, 0.25)',
+                      color: '#a5b4fc',
+                      padding: '3px 10px',
+                      borderRadius: '12px',
+                      fontSize: '11px',
+                      fontWeight: '600'
+                    }}>
+                      Strategi Intent: {guidelinesData.query_recommendations.suggested_strategy.toUpperCase()}
+                    </span>
+                  </div>
+
+                  <div style={{ fontSize: '13px', color: '#e2e8f0', lineHeight: '1.6', marginBottom: '12px' }}>
+                    <strong>Rekomendasi Tindakan:</strong> {guidelinesData.query_recommendations.recommended_action}
+                  </div>
+
+                  {/* Matched Tools Pills */}
+                  {guidelinesData.query_recommendations.recommended_tools?.length > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Auto-Matched Tool:</span>
+                      {guidelinesData.query_recommendations.recommended_tools.map((mt, idx) => (
+                        <div key={idx} style={{
+                          background: 'rgba(6, 182, 212, 0.12)',
+                          border: '1px solid rgba(6, 182, 212, 0.3)',
+                          borderRadius: '8px',
+                          padding: '4px 10px',
+                          fontSize: '12px',
+                          color: 'var(--accent-cyan)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}>
+                          <Zap size={13} />
+                          <strong>{mt.tool_name}</strong>
+                          {mt.suggested_arguments && Object.keys(mt.suggested_arguments).length > 0 && (
+                            <span style={{ opacity: 0.8, fontFamily: 'monospace', fontSize: '11px' }}>
+                              ({JSON.stringify(mt.suggested_arguments)})
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Guidelines & Live LLM Synthesis Side by Side */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
+                {/* Guidelines List */}
+                <div className="glass-panel" style={{ padding: '20px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Sparkles size={16} color="var(--accent-primary)" />
+                    AI Synthesis Directives (Anti-Hallucination & Validitas)
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {orchestrationData.ai_synthesis_guidelines?.map((guide, gIdx) => (
+                      <div key={gIdx} style={{ display: 'flex', gap: '10px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+                        <span style={{ color: 'var(--accent-primary)', fontWeight: 'bold' }}>•</span>
+                        <span>{guide}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                <div style={{
-                  flex: 1,
-                  background: 'rgba(5, 7, 12, 0.6)',
-                  borderRadius: '10px',
-                  border: '1px solid var(--border-color)',
-                  padding: '14px',
-                  fontSize: '13px',
-                  color: synthesizedAnswer ? '#ffffff' : 'var(--text-muted)',
-                  lineHeight: '1.6',
-                  minHeight: '180px',
-                  maxHeight: '340px',
-                  overflowY: 'auto',
-                  whiteSpace: 'pre-wrap'
-                }}>
-                  {synthesizing ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--accent-primary)', padding: '20px 0' }}>
-                      <Loader2 size={18} className="animate-spin" />
-                      Synthesizing grounded answer using active LLM model...
-                    </div>
-                  ) : synthesizedAnswer ? (
-                    synthesizedAnswer
-                  ) : (
-                    "Click 'Synthesize with LLM' to generate an answer grounded in the orchestrated vector documents, graph entities, and live tools."
-                  )}
+                {/* Live LLM Synthesis Runner */}
+                <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                    <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Cpu size={16} color="var(--accent-cyan)" />
+                      Grounded AI Response Synthesis
+                    </h3>
+                    <button
+                      onClick={handleSynthesizeWithLLM}
+                      disabled={synthesizing}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '8px',
+                        background: 'linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)',
+                        border: 'none',
+                        color: '#ffffff',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        cursor: synthesizing ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      {synthesizing ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} fill="#ffffff" />}
+                      Sintesis dengan LLM
+                    </button>
+                  </div>
+
+                  <div style={{
+                    flex: 1,
+                    background: 'rgba(5, 7, 12, 0.6)',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border-color)',
+                    padding: '14px',
+                    fontSize: '13px',
+                    color: synthesizedAnswer ? '#ffffff' : 'var(--text-muted)',
+                    lineHeight: '1.6',
+                    minHeight: '180px',
+                    maxHeight: '340px',
+                    overflowY: 'auto',
+                    whiteSpace: 'pre-wrap'
+                  }}>
+                    {synthesizing ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--accent-primary)', padding: '20px 0' }}>
+                        <Loader2 size={18} className="animate-spin" />
+                        Mensintesis jawaban berbasis hierarki validitas dan alur memori...
+                      </div>
+                    ) : synthesizedAnswer ? (
+                      synthesizedAnswer
+                    ) : (
+                      "Klik 'Sintesis dengan LLM' untuk membuat jawaban yang berpijak pada data terverifikasi, graph entitas, dan tool resmi."
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -753,19 +1510,27 @@ export default function DataOrchestrator() {
                 Retrieved Vector Chunks from ChromaDB ({orchestrationData.retrieved_documents?.length || 0})
               </h3>
               {orchestrationData.retrieved_documents?.length === 0 ? (
-                <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>No vector chunks matched this query.</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Tidak ada vector chunks yang cocok dengan query ini.</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {orchestrationData.retrieved_documents?.map((doc, dIdx) => (
                     <div key={dIdx} style={{ background: 'rgba(5, 7, 12, 0.6)', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)', padding: '14px 18px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ fontWeight: '700', color: '#93c5fd', fontSize: '14px' }}>
-                          {doc.source_name} ({doc.source_type})
-                        </span>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: '700', color: '#93c5fd', fontSize: '14px' }}>
+                            {doc.source_name} ({doc.source_type})
+                          </span>
+                          <ValidityBadge tier={doc.validity_tier} score={doc.validity_score} />
+                        </div>
                         <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-emerald)', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '700' }}>
-                          Score: {doc.score}
+                          Hybrid Score: {doc.score}
                         </span>
                       </div>
+                      {doc.validity_notes && (
+                        <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px', fontStyle: 'italic' }}>
+                          ℹ️ {doc.validity_notes}
+                        </div>
+                      )}
                       <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace', whiteSpace: 'pre-wrap', maxHeight: '160px', overflowY: 'auto' }}>
                         {doc.content}
                       </div>
@@ -783,7 +1548,7 @@ export default function DataOrchestrator() {
                 Connected Knowledge Graph Entities ({orchestrationData.graph_entities?.length || 0})
               </h3>
               {orchestrationData.graph_entities?.length === 0 ? (
-                <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>No entities matched in Neo4j graph for this query.</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Tidak ada entitas yang terhubung di Neo4j untuk query ini.</div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
                   {orchestrationData.graph_entities?.map((ent, eIdx) => (
@@ -817,15 +1582,18 @@ export default function DataOrchestrator() {
                 Applicable Real-Time AI Tools ({orchestrationData.applicable_tools?.length || 0})
               </h3>
               {orchestrationData.applicable_tools?.length === 0 ? (
-                <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>No specialized real-time API or database tools matched.</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Tidak ada tools real-time yang cocok dengan query ini.</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   {orchestrationData.applicable_tools?.map((tool, tIdx) => (
                     <div key={tIdx} style={{ background: 'rgba(6, 182, 212, 0.06)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: '10px', padding: '16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
                         <div>
-                          <div style={{ fontWeight: '700', color: 'var(--accent-cyan)', fontSize: '15px', fontFamily: 'JetBrains Mono, monospace' }}>
-                            ⚡ {tool.tool_name}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: '700', color: 'var(--accent-cyan)', fontSize: '15px', fontFamily: 'JetBrains Mono, monospace' }}>
+                              ⚡ {tool.tool_name}
+                            </span>
+                            <ValidityBadge tier={tool.validity_tier || 'authoritative'} score={tool.validity_score || 95} />
                           </div>
                           <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
                             {tool.title} ({tool.source_type})
@@ -854,13 +1622,13 @@ export default function DataOrchestrator() {
                           ) : (
                             <Play size={14} fill="#ffffff" />
                           )}
-                          Execute Live Tool
+                          Eksekusi Live Tool
                         </button>
                       </div>
 
                       {tool.suggested_arguments && Object.keys(tool.suggested_arguments).length > 0 && (
                         <div style={{ marginBottom: '8px' }}>
-                          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>Auto-Extracted Arguments:</span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>Argumen Terdeteksi Otomatis:</span>
                           <code style={{ marginLeft: '8px', background: 'rgba(0,0,0,0.4)', padding: '2px 8px', borderRadius: '4px', color: '#a5f3fc', fontSize: '11px' }}>
                             {JSON.stringify(tool.suggested_arguments)}
                           </code>
@@ -871,7 +1639,7 @@ export default function DataOrchestrator() {
                       {toolTestResult && toolTestResult.tool_name === tool.tool_name && (
                         <div style={{ marginTop: '12px', background: 'rgba(0,0,0,0.5)', borderRadius: '8px', padding: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
                           <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--accent-emerald)', marginBottom: '6px' }}>
-                            Live Execution Output:
+                            Output Eksekusi Langsung:
                           </div>
                           <pre style={{ margin: 0, fontSize: '11px', color: '#e2e8f0', fontFamily: 'JetBrains Mono, monospace', maxHeight: '180px', overflowY: 'auto' }}>
                             {JSON.stringify(toolTestResult.data || toolTestResult.error, null, 2)}
@@ -899,7 +1667,7 @@ export default function DataOrchestrator() {
                       alt="Input Face"
                       style={{ width: '80px', height: '80px', borderRadius: '10px', objectFit: 'cover', border: '2px solid rgba(56, 189, 248, 0.6)' }}
                     />
-                    <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '600' }}>Input Face Crop</span>
+                    <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '600' }}>Crop Wajah Input</span>
                   </div>
                 )}
 
@@ -914,7 +1682,7 @@ export default function DataOrchestrator() {
                           alt="Enrolled Face"
                           style={{ width: '80px', height: '80px', borderRadius: '10px', objectFit: 'cover', border: '2px solid rgba(52, 211, 153, 0.6)' }}
                         />
-                        <span style={{ fontSize: '11px', color: '#34d399', fontWeight: '600' }}>Enrolled Face</span>
+                        <span style={{ fontSize: '11px', color: '#34d399', fontWeight: '600' }}>Foto Terdaftar</span>
                       </div>
                     )}
 
@@ -923,10 +1691,10 @@ export default function DataOrchestrator() {
                         {orchestrationData.biometric_face_result.person_name}
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                        Person ID: <strong style={{ color: '#ffffff' }}>{orchestrationData.biometric_face_result.person_id}</strong>
+                        ID Person: <strong style={{ color: '#ffffff' }}>{orchestrationData.biometric_face_result.person_id}</strong>
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                        Department: <span style={{ color: '#e2e8f0' }}>{orchestrationData.biometric_face_result.department}</span>
+                        Departemen: <span style={{ color: '#e2e8f0' }}>{orchestrationData.biometric_face_result.department}</span>
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--accent-emerald)', marginTop: '4px', fontWeight: '600' }}>
                         Confidence: {orchestrationData.biometric_face_result.confidence_percent}%
@@ -938,6 +1706,33 @@ export default function DataOrchestrator() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Flow Editor Modal */}
+      {isFlowModalOpen && (
+        <FlowEditorModal
+          isOpen={isFlowModalOpen}
+          flow={editingFlow}
+          initialFlow={editingFlow}
+          defaultPrompt={prefillPrompt}
+          onClose={() => {
+            setIsFlowModalOpen(false);
+            setEditingFlow(null);
+            setPrefillPrompt('');
+          }}
+          onSuccess={() => {
+            setIsFlowModalOpen(false);
+            setEditingFlow(null);
+            setPrefillPrompt('');
+            fetchFlows();
+          }}
+          onSaved={() => {
+            setIsFlowModalOpen(false);
+            setEditingFlow(null);
+            setPrefillPrompt('');
+            fetchFlows();
+          }}
+        />
       )}
     </div>
   );

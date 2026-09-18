@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import api from '../../api/client';
 import { inferFieldDescription, inferFieldDataType } from '../../utils/fieldDefinitionHelper';
+import ValidityTierSelector from '../common/ValidityTierSelector';
 
 export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = null }) {
   const [name, setName] = useState('');
@@ -40,6 +41,11 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
   // Field Definitions (Kamus Data Balikan)
   const [fieldDefinitions, setFieldDefinitions] = useState([]);
   
+  // Validity Hierarchy States
+  const [validityTier, setValidityTier] = useState('authoritative');
+  const [validityScore, setValidityScore] = useState(95);
+  const [validityNotes, setValidityNotes] = useState('');
+
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -65,6 +71,10 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       setParameters(conf.parameters || []);
       setFieldDefinitions(conf.field_definitions || []);
 
+      setValidityTier(conf.validity_tier || (isToolMode ? 'authoritative' : 'secondary'));
+      setValidityScore(conf.validity_score !== undefined ? conf.validity_score : (isToolMode ? 95 : 65));
+      setValidityNotes(conf.validity_notes || '');
+
       // Pre-fill test arguments from parameters defaults
       const initialTestArgs = {};
       (conf.parameters || []).forEach(p => {
@@ -86,6 +96,9 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       setToolDescription('');
       setParameters([]);
       setFieldDefinitions([]);
+      setValidityTier('authoritative');
+      setValidityScore(95);
+      setValidityNotes('');
       setTestArgs({});
       setTestResult(null);
     }
@@ -292,7 +305,10 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
           tool_name: isTool ? (toolName.trim() || `api_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`) : undefined,
           tool_description: isTool ? (toolDescription.trim() || `Dynamic API Tool for ${name}`) : undefined,
           parameters: validParameters,
-          field_definitions: validFieldDefs
+          field_definitions: validFieldDefs,
+          validity_tier: validityTier,
+          validity_score: validityScore,
+          validity_notes: validityNotes
         }
       };
 
@@ -339,7 +355,10 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
           tool_name: copyToolName,
           tool_description: isTool ? (toolDescription.trim() || `Dynamic API Tool for ${copyName}`) : undefined,
           parameters: validParameters,
-          field_definitions: validFieldDefs
+          field_definitions: validFieldDefs,
+          validity_tier: validityTier,
+          validity_score: validityScore,
+          validity_notes: validityNotes
         }
       };
 
@@ -1122,6 +1141,16 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
               )}
             </div>
           )}
+
+          {/* Validity Tier Hierarchy Selector */}
+          <ValidityTierSelector
+            valueTier={validityTier}
+            valueScore={validityScore}
+            valueNotes={validityNotes}
+            onChangeTier={setValidityTier}
+            onChangeScore={setValidityScore}
+            onChangeNotes={setValidityNotes}
+          />
 
           {/* Action Buttons */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap', gap: '10px' }}>

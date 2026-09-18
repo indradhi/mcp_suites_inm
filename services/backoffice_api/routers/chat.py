@@ -209,6 +209,9 @@ def list_chat_available_sources(
     output = []
     for s in sources:
         cfg = s.config or {}
+        v_tier = cfg.get("validity_tier") or ("authoritative" if s.source_type in ["database", "api"] else "secondary")
+        default_score = 95 if v_tier == "authoritative" else (85 if v_tier == "verified" else (65 if v_tier == "secondary" else 45))
+        v_score = cfg.get("validity_score", default_score)
         output.append({
             "id": s.id,
             "name": s.name,
@@ -216,6 +219,9 @@ def list_chat_available_sources(
             "source_type": s.source_type,
             "sync_status": s.sync_status,
             "is_tool": bool(cfg.get("is_tool") or cfg.get("parameters")),
+            "validity_tier": v_tier,
+            "validity_score": v_score,
+            "validity_notes": cfg.get("validity_notes", ""),
             "last_synced_at": s.last_synced_at.isoformat() if s.last_synced_at else None
         })
     return output

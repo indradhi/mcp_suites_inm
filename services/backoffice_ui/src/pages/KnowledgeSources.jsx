@@ -29,12 +29,14 @@ import AddWebsiteModal from '../components/modals/AddWebsiteModal';
 import AddWebSearchModal from '../components/modals/AddWebSearchModal';
 import AddGoogleDriveModal from '../components/modals/AddGoogleDriveModal';
 import ImportCatalogModal from '../components/modals/ImportCatalogModal';
+import { ValidityBadge, VALIDITY_TIERS } from '../components/common/ValidityTierSelector';
 
 export default function KnowledgeSources() {
   const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchFilter, setSearchFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'disabled'
+  const [validityFilter, setValidityFilter] = useState('all'); // 'all', 'authoritative', 'verified', 'secondary', 'unverified'
   const [duplicatingId, setDuplicatingId] = useState(null);
   const [togglingId, setTogglingId] = useState(null);
   const [exporting, setExporting] = useState(false);
@@ -196,6 +198,14 @@ export default function KnowledgeSources() {
     if (!matchesSearch) return false;
     if (statusFilter === 'active') return s.is_active !== false;
     if (statusFilter === 'disabled') return s.is_active === false;
+
+    if (validityFilter !== 'all') {
+      const tier = s.validity_tier || s.config?.validity_tier || (
+        (s.source_type === 'database' || s.source_type === 'api') && (s.config?.is_tool || s.config?.parameters) ? 'authoritative' : 'secondary'
+      );
+      if (tier !== validityFilter) return false;
+    }
+
     return true;
   });
 
@@ -428,6 +438,98 @@ export default function KnowledgeSources() {
               Nonaktif ({disabledCount})
             </button>
           </div>
+
+          {/* Validity Filter Tabs */}
+          <div style={{
+            display: 'flex',
+            background: 'rgba(0, 0, 0, 0.25)',
+            padding: '3px',
+            borderRadius: '8px',
+            border: '1px solid var(--border-color)',
+            gap: '2px',
+            flexWrap: 'wrap'
+          }}>
+            <button
+              type="button"
+              onClick={() => setValidityFilter('all')}
+              style={{
+                padding: '5px 9px',
+                fontSize: '11px',
+                fontWeight: '600',
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                background: validityFilter === 'all' ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
+                color: validityFilter === 'all' ? '#ffffff' : 'var(--text-muted)'
+              }}
+            >
+              Semua Validitas
+            </button>
+            <button
+              type="button"
+              onClick={() => setValidityFilter('authoritative')}
+              style={{
+                padding: '5px 9px',
+                fontSize: '11px',
+                fontWeight: '600',
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                background: validityFilter === 'authoritative' ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
+                color: validityFilter === 'authoritative' ? '#34d399' : 'var(--text-muted)'
+              }}
+            >
+              🟢 Tingkat 1 (Otoritatif)
+            </button>
+            <button
+              type="button"
+              onClick={() => setValidityFilter('verified')}
+              style={{
+                padding: '5px 9px',
+                fontSize: '11px',
+                fontWeight: '600',
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                background: validityFilter === 'verified' ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                color: validityFilter === 'verified' ? '#60a5fa' : 'var(--text-muted)'
+              }}
+            >
+              🔵 Tingkat 2 (Terverifikasi)
+            </button>
+            <button
+              type="button"
+              onClick={() => setValidityFilter('secondary')}
+              style={{
+                padding: '5px 9px',
+                fontSize: '11px',
+                fontWeight: '600',
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                background: validityFilter === 'secondary' ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
+                color: validityFilter === 'secondary' ? '#fbbf24' : 'var(--text-muted)'
+              }}
+            >
+              🟡 Tingkat 3 (Sekunder)
+            </button>
+            <button
+              type="button"
+              onClick={() => setValidityFilter('unverified')}
+              style={{
+                padding: '5px 9px',
+                fontSize: '11px',
+                fontWeight: '600',
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                background: validityFilter === 'unverified' ? 'rgba(148, 163, 184, 0.2)' : 'transparent',
+                color: validityFilter === 'unverified' ? '#cbd5e1' : 'var(--text-muted)'
+              }}
+            >
+              ⚪ Tingkat 4 (Pendukung)
+            </button>
+          </div>
         </div>
 
         <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
@@ -514,7 +616,12 @@ export default function KnowledgeSources() {
                   </div>
 
                   {/* Right Side: Badges & 1-Click Toggle Switch */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <ValidityBadge
+                      tier={source.validity_tier || source.config?.validity_tier}
+                      score={source.validity_score !== undefined ? source.validity_score : source.config?.validity_score}
+                      size="small"
+                    />
                     {isTool ? (
                       <span style={{
                         background: !isActive ? 'rgba(255, 255, 255, 0.05)' : accentBg,

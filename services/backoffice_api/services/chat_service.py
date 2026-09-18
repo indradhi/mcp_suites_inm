@@ -165,13 +165,39 @@ class ChatService:
                 if retrieved_chunks and db:
                     try:
                         from models.knowledge_source import KnowledgeSource
-                        active_ids_set = set(s[0] for s in db.query(KnowledgeSource.id).filter(KnowledgeSource.is_active == True).all())
-                        retrieved_chunks = [
-                            c for c in retrieved_chunks
-                            if c.get("metadata", {}).get("source_id") in active_ids_set or c.get("metadata", {}).get("source_id") is None
-                        ]
+                        sources_map = {s.id: s for s in db.query(KnowledgeSource).all()}
+                        active_ids_set = set(sid for sid, s in sources_map.items() if s.is_active)
+                        scored_chunks = []
+                        for c in retrieved_chunks:
+                            sid = c.get("metadata", {}).get("source_id")
+                            if sid is not None and sid not in active_ids_set:
+                                continue
+                            s_obj = sources_map.get(sid)
+                            cfg = (s_obj.config or {}) if s_obj else {}
+
+                            # Validity tier hierarchy defaults
+                            default_tier = "authoritative" if s_obj and s_obj.source_type in ["database", "api"] and (cfg.get("is_tool") or cfg.get("parameters")) else ("verified" if s_obj and s_obj.source_type in ["database", "file"] else "secondary")
+                            default_score = 95 if default_tier == "authoritative" else (85 if default_tier == "verified" else 65)
+
+                            v_tier = cfg.get("validity_tier") or default_tier
+                            v_score = int(cfg.get("validity_score", default_score)) if cfg.get("validity_score") is not None else default_score
+                            v_notes = cfg.get("validity_notes") or ""
+
+                            sim_score = float(c.get("score", 0.0))
+                            # Hybrid score: 70% semantic relevance + 30% authority validity score
+                            effective_score = round(sim_score * 0.7 + (v_score / 100.0) * 0.3, 4)
+
+                            c["validity_tier"] = v_tier
+                            c["validity_score"] = v_score
+                            c["validity_notes"] = v_notes
+                            c["effective_score"] = effective_score
+                            scored_chunks.append(c)
+
+                        # Sort chunks by effective score (high validity outranks lower validity when similarity is comparable)
+                        scored_chunks.sort(key=lambda x: x.get("effective_score", 0.0), reverse=True)
+                        retrieved_chunks = scored_chunks
                     except Exception as e:
-                        logger.warning(f"Error checking active chunks: {e}")
+                        logger.warning(f"Error evaluating validity scoring for chunks: {e}")
             except Exception as e:
                 logger.warning(f"Vector retrieval warning in chat: {e}")
 
@@ -333,7 +359,17 @@ class ChatService:
                         if end_pos < len(raw_content):
                             chunk_excerpt += "... [truncated for length]"
 
-                chunk_entry = f"[Document {idx}] (Source: {src_name} | Match Score: {score}):\n{chunk_excerpt}\n"
+                v_tier = c.get("validity_tier", "secondary")
+                v_score = c.get("validity_score", 65)
+                tier_labels = {
+                    "authoritative": "Tingkat 1 - Otoritatif Primer (Resmi)",
+                    "verified": "Tingkat 2 - Terverifikasi Internal",
+                    "secondary": "Tingkat 3 - Sekunder Publik",
+                    "unverified": "Tingkat 4 - Pendukung / Mentah"
+                }
+                tier_label = tier_labels.get(v_tier, v_tier)
+
+                chunk_entry = f"[Document {idx}] (Source: {src_name} | Tingkat Validitas: {tier_label} [{v_score}/100] | Match: {score}):\n{chunk_excerpt}\n"
 
                 # Check budget
                 if accumulated_chars + len(chunk_entry) <= MAX_TOTAL_CONTEXT_CHARS:
@@ -350,6 +386,8 @@ class ChatService:
                     "id": c.get("id"),
                     "content": chunk_excerpt[:1500] + ("..." if len(chunk_excerpt) > 1500 else ""),
                     "score": score,
+                    "validity_tier": v_tier,
+                    "validity_score": v_score,
                     "metadata": c.get("metadata", {})
                 })
 
@@ -517,7 +555,15 @@ class ChatService:
         else:
             effective_temperature = 0.0 if strict_mode else 0.3
 
-        # 6. Build LLM Prompt with Configured MCP Personality
+        # 6. Build LLM Prompt with Configured MCP Personality & Matched Flow Memory
+        matched_flow_res = None
+        if db:
+            try:
+                from services.flow_orchestrator import flow_orchestrator
+                matched_flow_res = flow_orchestrator.match_flow_for_prompt(message, db)
+            except Exception as fe_err:
+                logger.warning(f"Notice matching prompt flow in chat: {fe_err}")
+
         system_instruction = personality_service.build_system_instruction(
             db=db,
             is_indonesian=True,
@@ -529,6 +575,22 @@ class ChatService:
             uploaded_document=uploaded_document,
             strict_mode=strict_mode
         )
+
+        # Inject Active Remembered Retrieval Flow if matched
+        if matched_flow_res and matched_flow_res.get("matched") and matched_flow_res.get("flow"):
+            m_flow = matched_flow_res["flow"]
+            steps_list = m_flow.get("steps", [])
+            steps_desc = "\n".join([
+                f"   Langkah {s.get('step_order', i+1)}: {s.get('title', '')} [{s.get('action_type', '')}] - {s.get('description', '')}"
+                for i, s in enumerate(steps_list)
+            ])
+            system_instruction += (
+                f"\n\n🎯 ALUR RETRIEVAL ACUAN AKTIF (REMEMBERED ORCHESTRATION FLOW):\n"
+                f"Pertanyaan pengguna teridentifikasi memiliki alur retrieval baku: '{m_flow.get('name')}' (Kesesuaian: {int(matched_flow_res.get('confidence', 0.8)*100)}%).\n"
+                f"Sistem WAJIB mengikuti tahapan pengumpulan informasi berikut secara terstruktur:\n"
+                f"{steps_desc}\n"
+                f"Aturan Validitas Alur: {m_flow.get('validity_priority_rule', 'PRIORITIZE_HIGHEST_VALIDITY')} (Data dari sumber Otoritatif Tingkat 1 WAJIB dimenangkan dan ditampilkan sebagai kebenaran utama).\n"
+            )
 
         if face_result:
             if face_result.get("matched"):
@@ -710,14 +772,18 @@ Patuhi aturan:
                                 "records": []
                             }, ensure_ascii=False)
                         else:
-                            # Deliver with explicit Ground Truth Priority metadata and Field Definitions
+                            # Deliver with explicit Ground Truth Priority metadata, Validity Tier, and Field Definitions
                             field_defs = (matched_source.config or {}).get("field_definitions", [])
+                            v_tier = (matched_source.config or {}).get("validity_tier", "authoritative")
+                            v_score = (matched_source.config or {}).get("validity_score", 95)
                             tool_output_payload = {
                                 "status": "success",
                                 "source_name": matched_source.name,
                                 "source_type": matched_source.source_type,
                                 "fetch_mode": "LIVE_DIRECT_DATABASE_QUERY",
-                                "data_priority": "PRIORITAS_UTAMA_MUTLAK (Data ini diambil langsung secara real-time dari database/source data resmi. WAJIB ditampilkan sebagai acuan utama kepada pengguna di atas data lainnya).",
+                                "validity_tier": v_tier,
+                                "validity_score": v_score,
+                                "data_priority": f"PRIORITAS_UTAMA_MUTLAK (Tingkat Validitas: {v_tier.upper()} [{v_score}/100] - Data ini diambil langsung secara real-time dari database/source data resmi. WAJIB ditampilkan sebagai acuan utama kepada pengguna di atas data lainnya).",
                                 "field_definitions": field_defs if (isinstance(field_defs, list) and len(field_defs) > 0) else None,
                                 "records": payload_data
                             }
@@ -730,6 +796,8 @@ Patuhi aturan:
                             "source_name": matched_source.name,
                             "source_id": matched_source.id,
                             "source_type": matched_source.source_type,
+                            "validity_tier": (matched_source.config or {}).get("validity_tier", "authoritative"),
+                            "validity_score": (matched_source.config or {}).get("validity_score", 95),
                             "arguments": fn_args,
                             "success": success,
                             "url": target_url,
@@ -1117,6 +1185,7 @@ Patuhi aturan:
             "thinking": thinking_process,
             "strict_mode": strict_mode,
             "temperature": effective_temperature,
+            "matched_flow": matched_flow_res.get("flow") if (matched_flow_res and matched_flow_res.get("matched")) else None,
             "metrics": {
                 "chunks_retrieved": len(retrieved_chunks),
                 "entities_retrieved": len(graph_entities),

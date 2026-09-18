@@ -263,6 +263,60 @@ TOOLS_METADATA = [
                 }
             }
         }
+    },
+    {
+        "name": "get_retrieval_flow_for_prompt",
+        "description": "Dapatkan alur investigasi / perolehan informasi terpadu (Prompt Flow Memory) yang paling relevan untuk suatu pertanyaan/prompt. Mengembalikan tahapan langkah demi langkah sumber data/alat/graf yang harus dipanggil serta aturan prioritas validitas data.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Teks prompt atau pertanyaan investigasi yang akan dicari acuan alurnya."
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "manage_retrieval_flow",
+        "description": "Simpan atau perbarui alur perolehan informasi (Prompt Flow Memory) ke dalam Data Orchestrator agar menjadi acuan otomatis bagi prompt serupa di masa mendatang.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Nama alur (contoh: 'Alur Profiling NIK & Rekening Bank')"
+                },
+                "prompt_pattern": {
+                    "type": "string",
+                    "description": "Pola regex atau frasa pemicu (contoh: r'(\\b\\d{16}\\b|profil.*nik)')"
+                },
+                "trigger_keywords": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Daftar kata kunci pemicu (contoh: ['nik', 'dukcapil', 'ktp', 'profiling'])"
+                },
+                "intent_category": {
+                    "type": "string",
+                    "description": "Kategori intent: 'identity_profiling', 'asset_tracing', 'corporate_network', 'regulatory_compliance', atau 'general'"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Deskripsi alur dan tujuannya"
+                },
+                "steps": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": "Daftar tahapan sekuensial alur perolehan informasi (step_number, action_type, target_name, description, required)"
+                },
+                "validity_priority_rule": {
+                    "type": "string",
+                    "description": "Aturan prioritas validitas (contoh: 'Tingkat 1 Dukcapil > Tingkat 2 BAP Internal > Tingkat 3 Berita')"
+                }
+            },
+            "required": ["name", "prompt_pattern", "steps"]
+        }
     }
 ]
 
@@ -649,6 +703,35 @@ async def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
                 return data
         except Exception as e:
             return {"tool": name, "error": f"Failed to list enrolled faces: {str(e)}"}
+
+    elif name == "get_retrieval_flow_for_prompt":
+        query_val = args.get("query", "")
+        if not query_val:
+            return {"error": "Parameter query wajib diisi"}
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.post(
+                    f"{BACKOFFICE_API_URL}/api/orchestrator/flows/match",
+                    json={"query": query_val}
+                )
+                data = res.json()
+                data["tool"] = name
+                return data
+        except Exception as e:
+            return {"tool": name, "error": f"Gagal mencocokkan alur perolehan informasi: {str(e)}"}
+
+    elif name == "manage_retrieval_flow":
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.post(
+                    f"{BACKOFFICE_API_URL}/api/orchestrator/flows",
+                    json=args
+                )
+                data = res.json()
+                data["tool"] = name
+                return data
+        except Exception as e:
+            return {"tool": name, "error": f"Gagal menyimpan alur perolehan informasi: {str(e)}"}
 
     else:
         # Check dynamic API tools

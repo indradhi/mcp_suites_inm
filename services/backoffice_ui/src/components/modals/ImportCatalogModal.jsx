@@ -16,6 +16,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import api from '../../api/client';
+import { ValidityBadge } from '../common/ValidityTierSelector';
 
 export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existingSources = [] }) {
   const [file, setFile] = useState(null);
@@ -87,13 +88,28 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
         }
 
         // Validate basic structure
-        const validatedSources = sourcesList.map((item, idx) => ({
-          ...item,
-          name: item.name || `Sumber Tanpa Nama #${idx + 1}`,
-          source_type: item.source_type || 'database',
-          config: item.config || {},
-          is_active: item.is_active !== undefined ? item.is_active : true
-        }));
+        const validatedSources = sourcesList.map((item, idx) => {
+          const conf = item.config || {};
+          const isTool = (item.source_type === 'database' || item.source_type === 'api') && (conf.is_tool || conf.parameters);
+          const defaultTier = isTool ? 'authoritative' : 'secondary';
+          const defaultScore = defaultTier === 'authoritative' ? 95 : 65;
+          const tier = item.validity_tier || conf.validity_tier || defaultTier;
+          const score = item.validity_score !== undefined ? item.validity_score : (conf.validity_score !== undefined ? conf.validity_score : defaultScore);
+          return {
+            ...item,
+            name: item.name || `Sumber Tanpa Nama #${idx + 1}`,
+            source_type: item.source_type || 'database',
+            validity_tier: tier,
+            validity_score: score,
+            config: {
+              ...conf,
+              validity_tier: tier,
+              validity_score: score,
+              validity_notes: item.validity_notes || conf.validity_notes || ''
+            },
+            is_active: item.is_active !== undefined ? item.is_active : true
+          };
+        });
 
         setParsedData({
           meta: {
@@ -619,6 +635,11 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                             </div>
 
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                              <ValidityBadge
+                                tier={src.validity_tier || src.config?.validity_tier}
+                                score={src.validity_score !== undefined ? src.validity_score : src.config?.validity_score}
+                                size="small"
+                              />
                               {isTool && (
                                 <span style={{
                                   background: 'rgba(99, 102, 241, 0.15)',

@@ -13,7 +13,9 @@ from models.llm_backend import LLMBackend
 from models.chat_feedback import ChatFeedback
 from security import get_current_user
 
-from routers import auth, users, knowledge, jobs, graph, llm_backends, chat, face, personality
+from routers import auth, users, knowledge, jobs, graph, llm_backends, chat, face, personality, orchestrator
+from models.orchestration_flow import OrchestrationFlow
+from services.flow_orchestrator import flow_orchestrator
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("backoffice_api")
@@ -25,11 +27,14 @@ async def lifespan(app: FastAPI):
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables verified.")
 
-        # Recover any orphaned jobs stuck in 'processing' from a previous server restart
+        # Seed default golden retrieval flows
         from database import SessionLocal
         from datetime import datetime
         db = SessionLocal()
         try:
+            flow_orchestrator.seed_default_flows(db)
+
+            # Recover any orphaned jobs stuck in 'processing' from a previous server restart
             stuck_jobs = db.query(IngestJob).filter(IngestJob.status == "processing").all()
             for sj in stuck_jobs:
                 sj.status = "failed"
@@ -41,7 +46,7 @@ async def lifespan(app: FastAPI):
                 db.commit()
                 logger.info(f"Cleaned up {len(stuck_jobs)} orphaned ingest jobs.")
         except Exception as e_clean:
-            logger.warning(f"Notice during orphaned jobs cleanup: {e_clean}")
+            logger.warning(f"Notice during startup initialization: {e_clean}")
         finally:
             db.close()
 
@@ -75,6 +80,7 @@ app.include_router(llm_backends.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(face.router, prefix="/api")
 app.include_router(personality.router, prefix="/api")
+app.include_router(orchestrator.router, prefix="/api")
 
 @app.get("/health")
 def health():

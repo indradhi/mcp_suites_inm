@@ -1,19 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { X, Globe, Edit2 } from 'lucide-react';
 import api from '../../api/client';
+import ValidityTierSelector from '../common/ValidityTierSelector';
 
 export default function AddWebsiteModal({ isOpen, onClose, onSuccess, initialData = null }) {
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
+  const [validityTier, setValidityTier] = useState('secondary');
+  const [validityScore, setValidityScore] = useState(65);
+  const [validityNotes, setValidityNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (isOpen && initialData) {
       setName(initialData.name || '');
       setUrl(initialData.config?.url || '');
+      const conf = initialData.config || {};
+      setValidityTier(conf.validity_tier || 'secondary');
+      setValidityScore(conf.validity_score !== undefined ? conf.validity_score : 65);
+      setValidityNotes(conf.validity_notes || '');
     } else if (isOpen && !initialData) {
       setName('');
       setUrl('');
+      setValidityTier('secondary');
+      setValidityScore(65);
+      setValidityNotes('');
     }
   }, [isOpen, initialData]);
 
@@ -27,7 +38,12 @@ export default function AddWebsiteModal({ isOpen, onClose, onSuccess, initialDat
         name,
         source_type: 'website',
         description: `Scraped website: ${url}`,
-        config: { url }
+        config: {
+          url,
+          validity_tier: validityTier,
+          validity_score: validityScore,
+          validity_notes: validityNotes
+        }
       };
       if (initialData) {
         await api.put(`/knowledge/sources/${initialData.id}?re_sync=true`, payload);
@@ -45,7 +61,7 @@ export default function AddWebsiteModal({ isOpen, onClose, onSuccess, initialDat
 
   return (
     <div className="modal-overlay">
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ padding: '32px' }}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ padding: '32px', maxWidth: '780px', maxHeight: '90vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {initialData ? <Edit2 size={20} color="var(--accent-emerald)" /> : <Globe size={20} color="var(--accent-emerald)" />}
@@ -93,6 +109,16 @@ export default function AddWebsiteModal({ isOpen, onClose, onSuccess, initialDat
               required
             />
           </div>
+
+          {/* Validity Tier Hierarchy Selector */}
+          <ValidityTierSelector
+            valueTier={validityTier}
+            valueScore={validityScore}
+            valueNotes={validityNotes}
+            onChangeTier={setValidityTier}
+            onChangeScore={setValidityScore}
+            onChangeNotes={setValidityNotes}
+          />
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>
             <button type="button" className="btn-secondary" onClick={onClose}>

@@ -271,16 +271,18 @@ class PersonalityService:
             if custom_ins and custom_ins.strip():
                 prompt += f"\nINSTRUKSI KHUSUS ORGANISASI:\n{custom_ins.strip()}\n"
 
-        # Explicit Data Hierarchy & Ground Truth Rules
+        # Explicit Data Hierarchy & Ground Truth Rules with Validity Tiers
         prompt += (
-            f"\nHIERARKI PRIORITAS DATA & SUMBER KEBENARAN UTAMA (GROUND TRUTH):\n"
-            f"1. PRIORITAS TERTINGGI (SUMBER KEBENARAN MUTLAK / LIVE GROUND TRUTH):\n"
-            f"   - Data yang berhasil diambil secara langsung dari basis data atau API real-time (melalui pemanggilan Tools/Alat) adalah PRIORITAS UTAMA yang WAJIB DITAMPILKAN kepada pengguna.\n"
-            f"   - Seluruh fakta, nama lengkap, NIK, status, tanggal lahir/peristiwa, alamat, nomor sertifikat tanah, atau angka kepemilikan dari hasil query langsung ini adalah acuan primer mutlak.\n"
-            f"   - DILARANG KERAS menimpa, memodifikasi, atau menyembunyikan data hasil query langsung ini demi asumsi umum atau data historis.\n"
-            f"2. PRIORITAS KEDUA (BANK DATA & DOKUMEN HISTORIS PENDUKUNG):\n"
-            f"   - Data dari ChromaDB (Bank Data Vektor), Dokumen RAG, atau Graf Pengetahuan berfungsi sebagai pelengkap latar belakang, data historis, atau cadangan ketika query database langsung tidak membuahkan hasil.\n"
-            f"   - Jika terdapat perbedaan fakta antara data live database langsung dengan data dokumen historis/vektor, DATA LIVE DATABASE LANGSUNG WAJIB MENANG DAN DITAMPILKAN KEPADA PENGGUNA.\n"
+            f"\nHIERARKI TINGKAT VALIDITAS DATA & RESOLUSI KONFLIK (DATA VALIDITY HIERARCHY):\n"
+            f"Setiap sumber pengetahuan dalam katalog memiliki parameter Tingkat Validitas resmi (Skor 0-100):\n"
+            f"- Tingkat 1 (Otoritatif Primer / Sangat Valid [Skor: 90-100]): Sumber data resmi negara / lembaga primer (Dukcapil SIAK, BPN ATR, Korlantas, AHU Kemenkumham, Bank resmi). Merupakan SUMBER KEBENARAN MUTLAK (Ground Truth).\n"
+            f"- Tingkat 2 (Terverifikasi Internal [Skor: 75-89]): Database operasional tervalidasi, BAP resmi, laporan audit forensik internal KPK, data LHKPN terverifikasi.\n"
+            f"- Tingkat 3 (Sekunder Publik [Skor: 55-74]): Portal berita resmi instansi, siaran pers pemerintah, website resmi, kliping media terverifikasi.\n"
+            f"- Tingkat 4 (Pendukung / Mentah [Skor: 30-54]): Catatan observasi, data media sosial, laporan aduan masyarakat belum terkonfirmasi.\n"
+            f"\nATURAN PENAMPILAN & RESOLUSI KONFLIK DATA:\n"
+            f"1. PRIORITAS KEBENARAN MUTLAK: Jika terdapat perbedaan atau kontradiksi data antar-sumber (misal perbedaan ejaan nama, status perkawinan, alamat, luas bidang, atau nomor hak), DATA DARI SUMBER DENGAN TINGKAT VALIDITAS LEBIH TINGGI WAJIB DIMENANGKAN DAN DISAJIKAN SEBAGAI FAKTA ACUAN UTAMA KEPADA PENGGUNA.\n"
+            f"2. TRANSPARANSI ANOMALI: Sampaikan kepada pengguna bahwa data mengacu pada sumber resmi dengan validitas tertinggi, dan jika relevan sebutkan perbedaan pada sumber validitas lebih rendah sebagai catatan pembanding historis atau potensi anomali.\n"
+            f"3. DILARANG KERAS memenangkan data dari sumber sekunder/pendukung jika bertentangan langsung dengan data dari sumber Otoritatif Primer.\n"
         )
 
         # Inject real-time tool directives
