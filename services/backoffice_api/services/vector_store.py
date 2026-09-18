@@ -154,32 +154,76 @@ class VectorStoreService:
         # 1. Hybrid Search: Keyword & Entity Exact Match
         # In tabular/database knowledge bases (e.g. Dukcapil, civil registry),
         # specific citizen names, NIKs, or entity IDs can become diluted when concatenated into multi-record chunks.
-        # Pre-searching ChromaDB with exact document substring matching ensures chunks containing the target entity are retrieved.
+        # Pre-searching ChromaDB with prioritized entity substring matching ensures chunks containing the target entity are retrieved first.
         try:
-            clean_q = re.sub(r"[^\w\s]", " ", query)
-            words = [w.strip() for w in clean_q.split() if len(w.strip()) >= 3]
             stopwords = {
                 "siapa", "siapakah", "apa", "apakah", "dimana", "kapan", "bagaimana",
                 "mengapa", "kenapa", "dari", "pada", "yang", "untuk", "dengan", "adalah",
                 "yaitu", "profil", "profile", "data", "cari", "temukan", "lihat", "tolong",
                 "cek", "info", "informasi", "tentang", "orang", "nama", "nik", "nohp",
-                "alamat", "nomor", "semua", "bisa", "mohon"
+                "alamat", "nomor", "semua", "bisa", "mohon", "atau", "dan", "serta",
+                "ke", "di", "ini", "itu", "terkait", "mengenai", "milik", "punya", "atas",
+                "dokumen", "berkas", "hasil", "pencarian", "daftar", "seperti"
             }
-            significant_words = [w for w in words if w.lower() not in stopwords]
 
             kw_candidates = []
-            if len(significant_words) >= 2:
-                kw_candidates.append(" ".join(significant_words).upper())
-            for w in significant_words:
-                kw_candidates.append(w.upper())
-                if w.isdigit():
+
+            # A. Extract person names preceded by indicators ('nama', 'bernama', 'atas nama', 'orang')
+            name_patterns = [
+                r"(?:atas\s+nama|dengan\s+nama|bernama|nama|subjek|orang)\s+([a-zA-Z\s]{4,})",
+            ]
+            for pat in name_patterns:
+                m = re.search(pat, query, re.IGNORECASE)
+                if m:
+                    extracted = m.group(1).strip()
+                    e_words = [w for w in extracted.split() if w.lower() not in stopwords and len(w) >= 2]
+                    if len(e_words) >= 2:
+                        kw_candidates.append(" ".join(e_words).upper())
+                        for i in range(len(e_words) - 1):
+                            kw_candidates.append(f"{e_words[i]} {e_words[i+1]}".upper())
+                    for w in e_words:
+                        if len(w) >= 3:
+                            kw_candidates.append(w.upper())
+
+            # B. General non-stopword tokens
+            clean_q = re.sub(r"[^\w\s]", " ", query)
+            words = [w.strip() for w in clean_q.split() if len(w.strip()) >= 3]
+            sig_words = [w for w in words if w.lower() not in stopwords]
+
+            if len(sig_words) >= 2:
+                full_sig = " ".join(sig_words).upper()
+                if full_sig not in kw_candidates:
+                    kw_candidates.append(full_sig)
+
+            for w in sig_words:
+                w_up = w.upper()
+                if w_up not in kw_candidates:
+                    kw_candidates.append(w_up)
+                if w.isdigit() and w not in kw_candidates:
                     kw_candidates.append(w)
 
+            # Deduplicate preserving high priority order
+            ordered_kws = []
+            seen_kw = set()
+            for kw in kw_candidates:
+                if kw not in seen_kw:
+                    seen_kw.add(kw)
+                    ordered_kws.append(kw)
+
             exact_matched_chunks = []
-            for kw in kw_candidates[:4]:
+            has_multiword_hit = False
+
+            for kw in ordered_kws:
+                # If we already have strong multi-word entity hits, don't pollute with short generic single words
+                if has_multiword_hit and (" " not in kw and len(kw) < 6):
+                    continue
+
+                is_multiword = " " in kw
+                limit = 5 if is_multiword else 2
+
                 kw_kwargs = {
                     "where_document": {"$contains": kw},
-                    "limit": 3
+                    "limit": limit
                 }
                 if filter_meta:
                     kw_kwargs["where"] = filter_meta
@@ -190,10 +234,29 @@ class VectorStoreService:
                         for cid, doc, meta in zip(kw_res["ids"], kw_res["documents"], kw_res.get("metadatas", [])):
                             if cid not in seen_ids:
                                 seen_ids.add(cid)
-                                # Boost score for chunks where the keyword appears as a primary entity attribute
-                                is_primary = (f"NAMA_LGKP: {kw}" in doc or f"NAMA: {kw}" in doc or 
-                                              f"NIK: {kw}" in doc or f": {kw}" in doc)
-                                score = 0.98 if is_primary else 0.92
+                                # Scoring hierarchy:
+                                # 1.0 : Full person name or explicit attribute match
+                                # 0.95: Multi-word entity phrase match
+                                # 0.90: Single word attribute match (NAMA: X, NIK: X)
+                                # 0.80: Single word substring match
+                                is_full_name_match = (
+                                    f"NAMA_LGKP: {kw}" in doc or 
+                                    f"NAMA: {kw}" in doc or
+                                    (is_multiword and kw in doc and ("NAMA_LGKP:" in doc or "NAMA:" in doc))
+                                )
+                                is_attr_match = f"NIK: {kw}" in doc or f": {kw}" in doc
+                                
+                                if is_full_name_match:
+                                    score = 1.0
+                                    has_multiword_hit = True
+                                elif is_multiword:
+                                    score = 0.95
+                                    has_multiword_hit = True
+                                elif is_attr_match:
+                                    score = 0.90
+                                else:
+                                    score = 0.80
+
                                 exact_matched_chunks.append({
                                     "id": cid,
                                     "content": doc,
@@ -202,6 +265,9 @@ class VectorStoreService:
                                 })
                 except Exception as kw_err:
                     logger.debug(f"Keyword lookup for '{kw}' skipped or failed: {kw_err}")
+
+                if len(exact_matched_chunks) >= n_results and has_multiword_hit:
+                    break
 
             exact_matched_chunks.sort(key=lambda x: x["score"], reverse=True)
             output.extend(exact_matched_chunks[:n_results])

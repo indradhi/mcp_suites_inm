@@ -312,52 +312,76 @@ class ChatService:
         if retrieved_chunks:
             context_parts.append("=== RETRIEVED KNOWLEDGE BASE DOCUMENTS ===")
 
+            stopwords = {
+                "siapa", "siapakah", "apa", "apakah", "dimana", "kapan", "bagaimana",
+                "mengapa", "kenapa", "dari", "pada", "yang", "untuk", "dengan", "adalah",
+                "yaitu", "profil", "profile", "data", "cari", "temukan", "lihat", "tolong",
+                "cek", "info", "informasi", "tentang", "orang", "nama", "nik", "nohp",
+                "alamat", "nomor", "semua", "bisa", "mohon", "atau", "dan", "serta"
+            }
             clean_msg = re.sub(r"[^\w\s]", " ", message)
-            msg_words = [w.strip() for w in clean_msg.split() if len(w.strip()) >= 3]
+            all_tokens = [w.strip() for w in clean_msg.split() if len(w.strip()) >= 3]
+            sig_tokens = [w for w in all_tokens if w.lower() not in stopwords]
+
+            centering_targets = []
+            # Prioritize extracted entity name
+            name_m = re.search(r"(?:atas\s+nama|dengan\s+nama|bernama|nama|subjek|orang)\s+([a-zA-Z\s]{4,})", message, re.IGNORECASE)
+            if name_m:
+                extracted_name = " ".join([w for w in name_m.group(1).split() if w.lower() not in stopwords])
+                if len(extracted_name) >= 3:
+                    centering_targets.append(extracted_name.upper())
+
+            # Prioritize significant words sorted by length (e.g. 'INDRADHI', 'MULYANTO' before 'TANAH')
+            sig_tokens_sorted = sorted(sig_tokens, key=lambda x: len(x), reverse=True)
+            for st in sig_tokens_sorted:
+                if st.upper() not in centering_targets:
+                    centering_targets.append(st.upper())
+            for at in all_tokens:
+                if at.upper() not in centering_targets:
+                    centering_targets.append(at.upper())
 
             for idx, c in enumerate(retrieved_chunks, start=1):
                 src_name = c.get("metadata", {}).get("source_name", "Knowledge Base")
                 score = c.get("score", 0.0)
                 raw_content = c.get("content", "").strip()
 
-                # Clean truncated snippet for LLM context with smart keyword centering
+                # Clean snippet for LLM context and preview with smart entity keyword centering
                 chunk_excerpt = raw_content
-                if len(raw_content) > MAX_CHUNK_CHARS:
-                    kw_pos = -1
-                    for w in msg_words:
-                        p = raw_content.upper().find(w.upper())
-                        if p != -1:
-                            kw_pos = p
-                            break
+                kw_pos = -1
+                for w in centering_targets:
+                    p = raw_content.upper().find(w.upper())
+                    if p != -1:
+                        kw_pos = p
+                        break
 
-                    if kw_pos != -1:
-                        # Center window around the keyword occurrence, snapping to line/record boundary
-                        start_pos = max(0, kw_pos - 300)
-                        rec_break = raw_content.rfind("\n", max(0, start_pos - 200), start_pos + 1)
-                        if rec_break != -1:
-                            start_pos = rec_break + 1
-                        end_pos = min(len(raw_content), start_pos + MAX_CHUNK_CHARS)
+                if kw_pos != -1 and (len(raw_content) > MAX_CHUNK_CHARS or kw_pos > 800):
+                    # Center window around the entity/keyword occurrence, snapping to line/record boundary
+                    start_pos = max(0, kw_pos - 150)
+                    rec_break = raw_content.rfind("\n", max(0, start_pos - 200), start_pos + 1)
+                    if rec_break != -1:
+                        start_pos = rec_break + 1
+                    end_pos = min(len(raw_content), start_pos + MAX_CHUNK_CHARS)
 
-                        # Protect photo boundaries: if end_pos cuts into a base64 photo, extend to next field separator ' | ' or newline
-                        photo_marker = raw_content.rfind("FOTO:", start_pos, end_pos)
-                        if photo_marker != -1:
-                            next_sep = raw_content.find(" | ", photo_marker)
-                            if next_sep != -1 and next_sep > end_pos:
-                                end_pos = next_sep
+                    # Protect photo boundaries: if end_pos cuts into a base64 photo, extend to next field separator ' | ' or newline
+                    photo_marker = raw_content.rfind("FOTO:", start_pos, end_pos)
+                    if photo_marker != -1:
+                        next_sep = raw_content.find(" | ", photo_marker)
+                        if next_sep != -1 and next_sep > end_pos:
+                            end_pos = next_sep
 
-                        chunk_excerpt = ("... " if start_pos > 0 else "") + raw_content[start_pos:end_pos]
-                        if end_pos < len(raw_content):
-                            chunk_excerpt += "... [truncated for length]"
-                    else:
-                        end_pos = min(len(raw_content), MAX_CHUNK_CHARS)
-                        photo_marker = raw_content.rfind("FOTO:", 0, end_pos)
-                        if photo_marker != -1:
-                            next_sep = raw_content.find(" | ", photo_marker)
-                            if next_sep != -1 and next_sep > end_pos:
-                                end_pos = next_sep
-                        chunk_excerpt = raw_content[:end_pos]
-                        if end_pos < len(raw_content):
-                            chunk_excerpt += "... [truncated for length]"
+                    chunk_excerpt = ("... " if start_pos > 0 else "") + raw_content[start_pos:end_pos]
+                    if end_pos < len(raw_content):
+                        chunk_excerpt += "... [truncated for length]"
+                elif len(raw_content) > MAX_CHUNK_CHARS:
+                    end_pos = min(len(raw_content), MAX_CHUNK_CHARS)
+                    photo_marker = raw_content.rfind("FOTO:", 0, end_pos)
+                    if photo_marker != -1:
+                        next_sep = raw_content.find(" | ", photo_marker)
+                        if next_sep != -1 and next_sep > end_pos:
+                            end_pos = next_sep
+                    chunk_excerpt = raw_content[:end_pos]
+                    if end_pos < len(raw_content):
+                        chunk_excerpt += "... [truncated for length]"
 
                 v_tier = c.get("validity_tier", "secondary")
                 v_score = c.get("validity_score", 65)
