@@ -138,6 +138,10 @@ def run_ingest_source_task(self, source_id: int):
             ids_to_index.append(chunk_id)
 
         if texts_to_index:
+            try:
+                vector_store.delete_by_source(source.id)
+            except Exception as del_err:
+                logger.warning(f"Error deleting old chunks for source {source.id}: {del_err}")
             vector_store.add_chunks(texts_to_index, metas_to_index, ids_to_index)
             job.chunks_created = len(texts_to_index)
             db.commit()

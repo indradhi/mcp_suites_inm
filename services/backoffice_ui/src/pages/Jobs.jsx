@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Activity, CheckCircle, Clock, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Activity, CheckCircle, Clock, AlertTriangle, RefreshCw, Eye } from 'lucide-react';
 import api from '../api/client';
 import { formatDateTimeWIB, parseToDate } from '../utils/dateUtils';
+import JobDetailModal from '../components/modals/JobDetailModal';
 
 export default function Jobs() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedJob, setSelectedJob] = useState(null);
 
   useEffect(() => {
     fetchJobs();
@@ -79,7 +81,18 @@ export default function Jobs() {
                 const duration = startTime && endTime ? `${Math.max(0, Math.round((endTime - startTime) / 1000))}s` : startTime ? 'In progress' : '-';
 
                 return (
-                  <tr key={job.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: '13px' }}>
+                  <tr
+                    key={job.id}
+                    onClick={() => setSelectedJob(job)}
+                    style={{
+                      borderBottom: '1px solid rgba(255,255,255,0.04)',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      transition: 'background 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
                     <td style={{ padding: '14px 12px', color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>
                       #{job.id}
                     </td>
@@ -114,24 +127,50 @@ export default function Jobs() {
                       {duration}
                     </td>
                     <td style={{ padding: '14px 12px' }}>
-                      {job.status === 'processing' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <button
                           type="button"
-                          onClick={() => handleCancelJob(job.id)}
+                          className="btn-secondary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedJob(job);
+                          }}
+                          title="Lihat detail entitas, relasi, dan chunk data"
                           style={{
                             padding: '4px 10px',
-                            borderRadius: '6px',
                             fontSize: '11px',
-                            fontWeight: '600',
-                            background: 'rgba(239, 68, 68, 0.15)',
-                            border: '1px solid rgba(239, 68, 68, 0.3)',
-                            color: '#ef4444',
-                            cursor: 'pointer'
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            cursor: 'pointer',
+                            borderRadius: '6px'
                           }}
                         >
-                          Cancel
+                          <Eye size={12} color="var(--accent-cyan)" />
+                          <span>Detail</span>
                         </button>
-                      )}
+                        {job.status === 'processing' && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCancelJob(job.id);
+                            }}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              fontWeight: '600',
+                              background: 'rgba(239, 68, 68, 0.15)',
+                              border: '1px solid rgba(239, 68, 68, 0.3)',
+                              color: '#ef4444',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -140,6 +179,14 @@ export default function Jobs() {
           </tbody>
         </table>
       </div>
+
+      {/* Detail Modal for Entities, Relations, Chunks */}
+      <JobDetailModal
+        isOpen={!!selectedJob}
+        job={selectedJob}
+        onClose={() => setSelectedJob(null)}
+      />
     </div>
   );
 }
+

@@ -2570,7 +2570,7 @@ export default function Chat() {
           <button
             type="button"
             onClick={toggleHeaderOptions}
-            title="Ciutkan Opsi Chat (Perbesar Layar Respon)"
+            title="Sembunyikan Opsi Chat (Perbesar Layar Respon)"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -2595,7 +2595,7 @@ export default function Chat() {
             }}
           >
             <ChevronUp size={15} />
-            <span>Ciutkan</span>
+            <span>Sembunyikan</span>
           </button>
         </div>
 

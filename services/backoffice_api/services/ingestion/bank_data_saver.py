@@ -9,10 +9,70 @@ from models.knowledge_source import KnowledgeSource, KnowledgeDocument
 
 logger = logging.getLogger(__name__)
 
+def normalize_tool_data(raw_data: Any) -> List[Dict[str, Any]]:
+    """
+    Normalizes any API or database response into a flat list of dict records.
+    Handles:
+    - List of dicts: [ {...}, {...} ]
+    - Dict with 'combinedResults': BPN API style [{'pemilik': [...], 'result': [...]}]
+    - Dict with 'data', 'results', 'items', 'rows', 'records'
+    - Single dict: {...}
+    """
+    if not raw_data:
+        return []
+    if isinstance(raw_data, list):
+        return [r for r in raw_data if isinstance(r, dict)]
+    if not isinstance(raw_data, dict):
+        return []
+
+    # 1. BPN-style combinedResults (Land certificates with owner info)
+    if 'combinedResults' in raw_data and isinstance(raw_data['combinedResults'], list):
+        records = []
+        for cr in raw_data['combinedResults']:
+            owners = cr.get('pemilik', [])
+            owner_info = owners[0] if (owners and isinstance(owners, list) and isinstance(owners[0], dict)) else {}
+            results = cr.get('result', [])
+            if results and isinstance(results, list):
+                for res in results:
+                    if isinstance(res, dict):
+                        rec = {}
+                        if owner_info:
+                            for ok, ov in owner_info.items():
+                                if ov is not None and str(ov).strip() and str(ov).strip() != '-':
+                                    rec[f"pemilik_{ok}"] = ov
+                        for rk, rv in res.items():
+                            if rk == 'Polygon':
+                                continue
+                            if rk == 'catatan' and isinstance(rv, list):
+                                cat_strs = []
+                                for c in rv:
+                                    if isinstance(c, dict):
+                                        prosedur = c.get('prosedur') or ''
+                                        tgl = c.get('tanggal') or ''
+                                        pemegang = c.get('pemeganghak') or ''
+                                        cat_strs.append(f"{prosedur} ({tgl}) - {pemegang}")
+                                rec['riwayat_catatan'] = '; '.join(cat_strs)
+                            else:
+                                rec[rk] = rv
+                        records.append(rec)
+            elif owner_info:
+                records.append(owner_info)
+        if records:
+            return records
+
+    # 2. Common list-holding container keys
+    for key in ['data', 'results', 'items', 'rows', 'records']:
+        if key in raw_data and isinstance(raw_data[key], list):
+            return [r for r in raw_data[key] if isinstance(r, dict)]
+
+    # 3. Single record dictionary
+    return [raw_data]
+
+
 def save_tool_records_to_bank_data(
     source: KnowledgeSource,
     query_args: Dict[str, Any],
-    records: List[Dict[str, Any]],
+    records: Any,
     db = None
 ) -> int:
     """
@@ -20,14 +80,15 @@ def save_tool_records_to_bank_data(
     and registers them into KnowledgeDocument as cumulative 'Bank Data'.
     Idempotent: Prevents duplication via content-based hashing.
     """
-    if not records or not isinstance(records, list):
+    norm_records = normalize_tool_data(records)
+    if not norm_records:
         return 0
 
     texts_to_index = []
     metas_to_index = []
     ids_to_index = []
 
-    for r_idx, record in enumerate(records[:100]):
+    for r_idx, record in enumerate(norm_records[:100]):
         if not isinstance(record, dict):
             continue
 

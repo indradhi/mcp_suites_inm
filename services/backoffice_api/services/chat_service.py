@@ -978,6 +978,7 @@ Patuhi aturan:
                         self.name = name.strip() if name and isinstance(name, str) else None
                         self.nik = str(nik).strip() if nik else None
                         self.source = source
+                        self.is_truncated = "..." in photo or "[truncated" in photo or len(clean_p) < 1000
 
                 extracted_entities: List[EntityPhoto] = []
 
@@ -1036,7 +1037,10 @@ Patuhi aturan:
                         if not photo_val or len(photo_val) < 80:
                             continue
 
-                        nik_match = re.search(r'(?:NIK|NO_KTP|ID|NO_IDENTITAS)[\s:=]+(["\']?)([0-9]{6,20})\1', blk, flags=re.IGNORECASE)
+                        # Prioritize NIK over generic ID numbers (like Mongo _id)
+                        nik_match = re.search(r'\b(?:NIK|NO_KTP|NO_IDENTITAS)[\s:=]+(["\']?)([0-9]{10,20})\1', blk, flags=re.IGNORECASE)
+                        if not nik_match:
+                            nik_match = re.search(r'\bID[\s:=]+(["\']?)([0-9]{6,20})\1', blk, flags=re.IGNORECASE)
                         nik_val = nik_match.group(2).strip() if nik_match else None
 
                         name_match = re.search(
@@ -1059,7 +1063,8 @@ Patuhi aturan:
                 for c in retrieved_chunks:
                     _extract_from_text(c.get("content"), source_name=f"chunk:{c.get('id', 'chunk')}")
 
-                # Deduplicate entities: keep the longest photo string per entity (NIK or Name or Photo prefix)
+                # Deduplicate entities: STRICTLY by NIK or distinct Full Name.
+                # NEVER deduplicate by photo[:40] prefix because standard JPEG headers are identical!
                 unique_entities: List[EntityPhoto] = []
                 for ep in extracted_entities:
                     if len(ep.photo) < 80:
@@ -1072,13 +1077,12 @@ Patuhi aturan:
                         if ep.name and u.name and ep.name.lower() == u.name.lower() and len(ep.name) >= 4:
                             existing = u
                             break
-                        if ep.photo[:40] == u.photo[:40]:
-                            existing = u
-                            break
                     if existing:
-                        if len(ep.photo) > len(existing.photo):
+                        # Prefer non-truncated, complete photo
+                        if (existing.is_truncated and not ep.is_truncated) or (not ep.is_truncated and len(ep.photo) > len(existing.photo)):
                             existing.photo = ep.photo
                             existing.raw_photo = ep.raw_photo
+                            existing.is_truncated = False
                         if not existing.name and ep.name:
                             existing.name = ep.name
                         if not existing.nik and ep.nik:
@@ -1086,57 +1090,81 @@ Patuhi aturan:
                     else:
                         unique_entities.append(ep)
 
-                # Step 1: Auto-heal any truncated or broken markdown images that the LLM already attempted to render
-                for ep in unique_entities:
-                    prefix_30 = ep.photo[:30]
-                    full_uri = _normalize_data_uri(ep.photo)
-                    trunc_md_pattern = re.compile(
-                        r'!\[([^\]]*)\]\((?:data:image\/[a-zA-Z0-9+.-]+;base64,)?' + re.escape(prefix_30) + r'[^)\n\r]*(?:\)|$)',
-                        re.MULTILINE
-                    )
-                    if trunc_md_pattern.search(clean_answer):
-                        clean_answer = trunc_md_pattern.sub(f'![\\1]({full_uri})', clean_answer)
-                    elif prefix_30 in clean_answer:
-                        raw_pattern = re.compile(
-                            r'(?:data:image\/[a-zA-Z0-9+.-]+;base64,)?' + re.escape(prefix_30) + r'[A-Za-z0-9+/=]*(?:\.\.\.|\s*\[truncated[^\]]*\])?'
-                        )
-                        label = f"Foto - {ep.name}" if ep.name else "Foto Profil"
-                        clean_answer = raw_pattern.sub(f'![{label}]({full_uri})', clean_answer)
+                generic_names = {"admin", "user", "kpk", "indonesia", "pemerintah", "null", "none", "unknown", "foto", "profil", "subjek", "data"}
+
+                def _matches_subject(ep: EntityPhoto, text: str) -> bool:
+                    if not text or not ep:
+                        return False
+                    t_lower = text.lower()
+                    if ep.nik and len(ep.nik) >= 8 and ep.nik in text:
+                        return True
+                    if ep.name and len(ep.name) >= 4 and ep.name.lower() not in generic_names:
+                        if ep.name.lower() in t_lower:
+                            return True
+                        words = [w.lower() for w in re.split(r'[\s.,]+', ep.name) if len(w) > 2 and w.lower() not in generic_names]
+                        if len(words) >= 2 and all(w in t_lower for w in words):
+                            return True
+                    return False
+
+                # Pre-clean: Filter out any raw, loose base64 lines dumped into plain text outside markdown
+                cleaned_lines = []
+                for line in clean_answer.splitlines():
+                    s = line.strip()
+                    if s.startswith("![") and s.endswith(")"):
+                        cleaned_lines.append(line)
+                    elif len(s) > 60 and re.match(r'^[A-Za-z0-9+/=]{60,}$', s):
+                        continue
+                    else:
+                        cleaned_lines.append(line)
+                clean_answer = "\n".join(cleaned_lines).strip()
+
+                # Step 1: Auto-heal markdown images rendered by the LLM
+                # Match each image to the specific entity named in its label or surrounding text.
+                md_img_pattern = re.compile(r'!\[([^\]]*)\]\(([^)]+)\)', flags=re.DOTALL)
+                def _heal_image_match(match):
+                    label = match.group(1).strip()
+                    url = match.group(2).strip()
+
+                    matched_ep = None
+                    # A. Check if label explicitly specifies entity name or NIK
+                    for ep in unique_entities:
+                        if _matches_subject(ep, label):
+                            matched_ep = ep
+                            break
+
+                    # B. If label is generic (e.g. "Foto", "Foto Profil"), check if exactly one entity matches answer or query
+                    if not matched_ep:
+                        matching_subjs = [ep for ep in unique_entities if not ep.is_truncated and (_matches_subject(ep, clean_answer) or _matches_subject(ep, message))]
+                        if len(matching_subjs) == 1:
+                            matched_ep = matching_subjs[0]
+
+                    if matched_ep and not matched_ep.is_truncated:
+                        healed_uri = _normalize_data_uri(matched_ep.photo)
+                        clean_label = label if label and "foto" in label.lower() else f"Foto - {matched_ep.name or 'Profil'}"
+                        return f"![{clean_label}]({healed_uri})"
+
+                    return match.group(0)
+
+                clean_answer = md_img_pattern.sub(_heal_image_match, clean_answer)
 
                 # Step 2: Strict Entity-Grounded Injection (ONLY if no markdown image exists and EXACTLY ONE entity unambiguously matches)
                 if not re.search(r'!\[.*?\]\([^\)]+\)', clean_answer):
-                    ans_lower = clean_answer.lower()
-                    msg_lower = (message or "").lower()
-                    generic_names = {"admin", "user", "kpk", "indonesia", "pemerintah", "null", "none", "unknown"}
+                    matching_in_query = [ep for ep in unique_entities if not ep.is_truncated and _matches_subject(ep, message)]
+                    matching_in_ans = [ep for ep in unique_entities if not ep.is_truncated and _matches_subject(ep, clean_answer)]
 
-                    matching_photos: List[EntityPhoto] = []
-                    for ep in unique_entities:
-                        is_match = False
-                        # NIK Match (very high confidence)
-                        if ep.nik and len(ep.nik) >= 8:
-                            if ep.nik in clean_answer or ep.nik in (message or ""):
-                                is_match = True
-                        # Name Match (high confidence if name is distinct and appears in answer)
-                        if not is_match and ep.name and len(ep.name) >= 4 and ep.name.lower() not in generic_names:
-                            if ep.name.lower() in ans_lower:
-                                is_match = True
-                            elif len(ep.name.split()) >= 2 and all(w.lower() in ans_lower for w in ep.name.split() if len(w) > 2):
-                                is_match = True
+                    target = None
+                    if len(matching_in_query) == 1:
+                        target = matching_in_query[0]
+                    elif not matching_in_query and len(matching_in_ans) == 1:
+                        target = matching_in_ans[0]
 
-                        if is_match and ep not in matching_photos:
-                            matching_photos.append(ep)
-
-                    # INJECT ONLY IF EXACTLY ONE ENTITY MATCHES!
-                    # If 0 matches: query or answer is general or unrelated -> DO NOT inject any photo!
-                    # If >1 matches: multiple people discussed (e.g. list/table) -> DO NOT pick an arbitrary one!
-                    if len(matching_photos) == 1:
-                        target = matching_photos[0]
+                    if target:
                         target_uri = _normalize_data_uri(target.photo)
                         label = f"Foto Profil - {target.name}" if target.name else "Foto Profil Terverifikasi"
                         clean_answer = f"![{label}]({target_uri})\n\n" + clean_answer
                         logger.info(f"Entity-aware photo injected for '{target.name or target.nik}'")
-                    elif len(matching_photos) > 1:
-                        logger.info(f"Multiple entities matched ({len(matching_photos)}), omitting top photo injection to prevent confusion.")
+                    elif len(matching_in_query) > 1 or len(matching_in_ans) > 1:
+                        logger.info(f"Multiple entities matched (query: {len(matching_in_query)}, ans: {len(matching_in_ans)}), omitting top photo injection to prevent confusion.")
 
             except Exception as heal_err:
                 logger.warning(f"Error during base64 image auto-healing: {heal_err}")

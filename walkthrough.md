@@ -1,3 +1,41 @@
+# Perbaikan Bug Foto Profil Tertukar di Chat & Validasi Ingest
+
+## 1. Perbaikan Bug Foto Profil Tertukar di Chat
+
+### Masalah Utama
+Saat mencari profil seseorang di chat (contoh: *"cari data orang dengan nama tiktik dewi sartika"*), sistem selalu menampilkan foto orang lain (**Surya Farid Sathotho**).
+
+### Akar Masalah (Root Causes)
+1. **Header JPEG Base64 Identik (Tabrakan Header Dukcapil)**:
+   - Pada [chat_service.py](file:///d:/sourcecode/MCP_SERVER_IN_CEC/services/backoffice_api/services/chat_service.py), terdapat logika deduplikasi foto entitas:
+     ```python
+     if ep.photo[:40] == u.photo[:40]: existing = u; break
+     ```
+   - Semua foto kamera/scanner KTP Dukcapil memiliki **851 karakter awal Base64 yang persis sama**:
+     `/9j/4AAQSkZJRgABAgAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsL...`
+   - Akibatnya, semua orang yang diekstrak dari database (termasuk Tiktik Dewi Sartika) dianggap entitas yang sama dengan orang pertama di list (**Surya Farid Sathotho**) dan fotonya ditimpa oleh foto Surya.
+2. **Auto-Healing Regex Terlalu Luas**:
+   - Auto-healing markdown image mencocokkan tag gambar ke entitas tunggal yang tersisa di daftar (Surya) sehingga tag foto Tiktik dioverwrite oleh foto Surya.
+3. **Chunk Duplikat/Basi di ChromaDB**:
+   - ChromaDB menyimpan 1.494 chunk Source 7 dari run-run sebelumnya yang terpotong (`...`).
+
+### Tindakan Perbaikan
+1. **Deduplikasi Berbasis NIK & Nama Lengkap**:
+   - Menghapus pembandingan `photo[:40]`. Entitas sekarang dideduplikasi **secara ketat berdasarkan NIK atau Nama Lengkap resmi**.
+2. **Query-Subject Priority & Anti-Ambiguity**:
+   - Sistem memprioritaskan entitas yang secara spesifik disebut di query pengguna (`matching_in_query`).
+   - Foto hanya disematkan jika tepat 1 orang yang menjadi subjek query atau jawaban, mencegah penyematan foto acak saat menampilkan daftar banyak orang.
+3. **Pembersihan ChromaDB & Proteksi Ingest**:
+   - Menghapus 1.244 chunk lama di ChromaDB untuk Source 7 sehingga tersisa 250 chunk bersih (5.000 data kependudukan lengkap dengan foto utuh).
+   - Memperbarui [ingest_tasks.py](file:///d:/sourcecode/MCP_SERVER_IN_CEC/services/backoffice_api/tasks/ingest_tasks.py) agar otomatis memanggil `delete_by_source` sebelum memasukkan data baru.
+
+### Hasil Verifikasi Pengujian
+- **TIKTIK DEWI SARTIKA**: Mengembalikan foto profil asli Tiktik (`NIK: 3603286112790002`, len 6747) -> **100% Akurat**.
+- **INDRADHI NUGRAHA MULYANTO**: Mengembalikan foto profil asli Indradhi (`NIK: 3603280910810007`, len 7879) -> **100% Akurat**.
+- **SURYA FARID SATHOTHO**: Mengembalikan foto profil asli Surya (`NIK: 3308202502720001`, len 7927) -> **100% Akurat**.
+
+---
+
 # Fitur Database On-Demand Querying, Auto Bank Data & Hierarki Prioritas Data
 
 ---
@@ -104,7 +142,7 @@ Telah ditambahkan sistem penyesuaian (adjustment) pada Chat Backoffice dan API L
    - **Kartu Active AI Tools**: Menampilkan daftar alat aktif (API/Database), deskripsi fungsi, parameter yang didukung, dan badge status.
    - **Kartu Chat Suggestions**: Daftar pertanyaan rekomendasi yang siap diklik untuk langsung dikirim ke AI tanpa mengetik manual.
 5. **Collapsible Top Chat Options (Layar Respon Lebih Besar) (`Chat.jsx`)**:
-   - **Tombol Ciutkan / Buka Opsi**: Tombol `Ciutkan` (`ChevronUp`) pada toolbar atas untuk menyusutkan panel filter yang tinggi menjadi bar ringkas setinggi ~44px.
+   - **Tombol Sembunyikan / Buka Opsi**: Tombol `Sembunyikan` (`ChevronUp`) pada toolbar atas untuk menyusutkan panel filter yang tinggi menjadi bar ringkas setinggi ~44px.
    - **Layar Respon Lebih Luas**: Memberikan tambahan ruang vertikal sebesar 100px-140px langsung ke jendela pesan chat.
    - **Quick Badges di Mode Collapsed**: Di mode ciut, tetap menampilkan ringkasan status sumber data terpilih, status mode Anti-Halu, dan jumlah tools aktif yang bisa diklik.
    - **Persistensi Pilihan**: Status buka/tutup opsi chat disimpan di `localStorage` (`chat_options_open`) sehingga preferensi pengguna tetap terjaga saat navigasi atau refresh.

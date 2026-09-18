@@ -311,8 +311,7 @@ class PersonalityService:
             f"- Tampilkan foto/gambar HANYA JIKA subjek dalam foto terbukti cocok secara persis (berdasarkan NIK atau Nama Lengkap) dengan orang/entitas yang sedang dibahas.\n"
             f"- Jika konteks memuat data banyak orang (batch) atau hasil query memuat beberapa entri, pastikan hanya merender foto milik orang yang sedang ditanyakan. DILARANG KERAS menampilkan foto orang lain.\n"
             f"- Jika pertanyaan umum atau subjek yang ditanyakan tidak memiliki foto dalam basis data, JANGAN tampilkan foto siapapun.\n"
-            f"- Saat merender foto yang cocok, gunakan format Markdown Image: `![Foto: Nama](data:image/jpeg;base64,...)`.\n"
-            f"- Dilarang menampilkan blok teks mentah base64 tanpa format Markdown Image.\n"
+            f"- Untuk menampilkan foto subjek yang cocok, cukup gunakan tag: `![Foto Profil - Nama Lengkap](foto_resmi)` atau biarkan sistem backend kami yang menyematkan foto terverifikasi secara otomatis. DILARANG KERAS menyalin/mengarang ribuan karakter string base64 secara manual dalam teks jawaban.\n"
         )
 
         # Uploaded document directive

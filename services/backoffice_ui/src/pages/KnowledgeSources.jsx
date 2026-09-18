@@ -29,6 +29,7 @@ import AddWebsiteModal from '../components/modals/AddWebsiteModal';
 import AddWebSearchModal from '../components/modals/AddWebSearchModal';
 import AddGoogleDriveModal from '../components/modals/AddGoogleDriveModal';
 import ImportCatalogModal from '../components/modals/ImportCatalogModal';
+import BankDataViewerModal from '../components/modals/BankDataViewerModal';
 import { ValidityBadge, VALIDITY_TIERS } from '../components/common/ValidityTierSelector';
 
 export default function KnowledgeSources() {
@@ -46,6 +47,7 @@ export default function KnowledgeSources() {
   // Modals state
   const [activeModal, setActiveModal] = useState(null); // 'database', 'api', 'file', 'website', 'websearch', 'google_drive'
   const [editingSource, setEditingSource] = useState(null);
+  const [bankDataModalSource, setBankDataModalSource] = useState(null);
 
   useEffect(() => {
     fetchSources();
@@ -553,21 +555,38 @@ export default function KnowledgeSources() {
           const isActive = source.is_active !== false;
 
           return (
-            <div key={source.id} className="glass-panel" style={{ 
-              padding: '22px', 
-              display: 'flex', 
-              flexDirection: 'column', 
-              justifyContent: 'space-between',
-              border: !isActive 
-                ? '1px dashed rgba(255, 255, 255, 0.15)' 
-                : (isTool ? `1px solid ${accentBorder}` : '1px solid var(--border-color)'),
-              background: !isActive
-                ? 'rgba(15, 23, 42, 0.35)'
-                : (isTool ? (isDbTool ? 'rgba(99, 102, 241, 0.03)' : 'rgba(6, 182, 212, 0.03)') : undefined),
-              opacity: !isActive ? 0.72 : 1,
-              transition: 'all 0.2s ease',
-              position: 'relative'
-            }}>
+            <div 
+              key={source.id} 
+              className="glass-panel" 
+              onClick={() => setBankDataModalSource(source)}
+              title="Klik card untuk melihat rekaman Data Bank yang tersimpan"
+              style={{ 
+                padding: '22px', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                justifyContent: 'space-between',
+                cursor: 'pointer',
+                border: !isActive 
+                  ? '1px dashed rgba(255, 255, 255, 0.15)' 
+                  : (isTool ? `1px solid ${accentBorder}` : '1px solid var(--border-color)'),
+                background: !isActive
+                  ? 'rgba(15, 23, 42, 0.35)'
+                  : (isTool ? (isDbTool ? 'rgba(99, 102, 241, 0.03)' : 'rgba(6, 182, 212, 0.03)') : undefined),
+                opacity: !isActive ? 0.72 : 1,
+                transition: 'all 0.2s ease',
+                position: 'relative'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.borderColor = isTool ? accentColor : 'var(--accent-cyan)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.borderColor = !isActive 
+                  ? 'rgba(255, 255, 255, 0.15)' 
+                  : (isTool ? accentBorder : 'var(--border-color)');
+              }}
+            >
               <div>
                 {/* Header of Card */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
@@ -767,17 +786,57 @@ export default function KnowledgeSources() {
                   color: 'var(--text-muted)',
                   marginBottom: '16px',
                   display: 'flex',
-                  justifyContent: 'space-between'
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
                 }}>
                   <span title={isTool ? "On-Demand Tool: Query langsung ke database/API secara real-time, dan setiap data otomatis disimpan ke ChromaDB sebagai Bank Data" : ""}>
                     {isTool ? (isDbTool ? '⚡ On-Demand (Auto Bank Data)' : '⚡ Live API (Auto Bank Data)') : `Last sync: ${source.last_synced_at ? formatDateTimeWIB(source.last_synced_at) : 'Never'}`}
                   </span>
-                  <span style={{ color: !isActive ? 'var(--text-muted)' : (isTool ? accentColor : 'var(--text-secondary)') }}>
+                  <span 
+                    style={{ 
+                      color: !isActive ? 'var(--text-muted)' : (isTool ? accentColor : 'var(--text-secondary)'),
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-color)',
+                      cursor: 'pointer',
+                      fontWeight: '600',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setBankDataModalSource(source);
+                    }}
+                    title="Klik untuk membuka Data Bank"
+                  >
                     {isTool ? (source.document_count > 0 ? `📦 ${source.document_count} bank data tersimpan` : '⚡ MCP & Chat Ready') : `${source.document_count} chunks`}
                   </span>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    id={`btn-bank-data-${source.id}`}
+                    style={{
+                      padding: '6px 11px',
+                      fontSize: '12px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      color: 'var(--accent-cyan)',
+                      borderColor: 'rgba(6, 182, 212, 0.35)',
+                      background: 'rgba(6, 182, 212, 0.08)'
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setBankDataModalSource(source);
+                    }}
+                    title="Buka dan jelajahi data bank / rekaman vektor tersimpan"
+                  >
+                    <Database size={13} />
+                    <span>Data Bank</span>
+                  </button>
                   {!isTool && (
                     <button
                       className="btn-secondary"
@@ -787,7 +846,10 @@ export default function KnowledgeSources() {
                         opacity: !isActive ? 0.45 : 1,
                         cursor: !isActive ? 'not-allowed' : 'pointer'
                       }}
-                      onClick={() => handleSync(source)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSync(source);
+                      }}
                       disabled={!isActive}
                       title={!isActive ? "Aktifkan sumber terlebih dahulu untuk sinkronisasi" : "Trigger Resync"}
                     >
@@ -803,7 +865,10 @@ export default function KnowledgeSources() {
                         color: !isActive ? 'var(--text-muted)' : accentColor, 
                         borderColor: !isActive ? 'var(--border-color)' : accentBorder 
                       }}
-                      onClick={() => handleEdit(source)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEdit(source);
+                      }}
                       title="Configure Parameters & Test"
                     >
                       <Zap size={14} /> Test / Edit
@@ -823,7 +888,10 @@ export default function KnowledgeSources() {
                       borderColor: 'rgba(167, 139, 250, 0.35)',
                       background: 'rgba(167, 139, 250, 0.08)'
                     }}
-                    onClick={() => handleDuplicate(source)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDuplicate(source);
+                    }}
                     disabled={duplicatingId === source.id}
                     title="Duplikat koneksi ini (buat salinan konfigurasi)"
                   >
@@ -833,7 +901,10 @@ export default function KnowledgeSources() {
                   <button
                     className="btn-secondary"
                     style={{ padding: '6px 10px' }}
-                    onClick={() => handleEdit(source)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEdit(source);
+                    }}
                     title="Edit Source"
                   >
                     <Edit2 size={14} />
@@ -841,7 +912,10 @@ export default function KnowledgeSources() {
                   <button
                     className="btn-danger"
                     style={{ padding: '6px 10px' }}
-                    onClick={() => handleDelete(source.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(source.id);
+                    }}
                     title="Delete Source"
                   >
                     <Trash2 size={14} />
@@ -902,6 +976,14 @@ export default function KnowledgeSources() {
           setTimeout(() => setNotification(null), 5000);
         }}
         existingSources={sources}
+      />
+      <BankDataViewerModal
+        isOpen={!!bankDataModalSource}
+        source={bankDataModalSource}
+        onClose={() => {
+          setBankDataModalSource(null);
+          fetchSources();
+        }}
       />
     </div>
   );

@@ -1,5 +1,6 @@
 import os
 import re
+import math
 import shutil
 import logging
 import json
@@ -40,12 +41,30 @@ class TestConnectionRequest(BaseModel):
 def list_sources(db: Session = Depends(get_db), user = Depends(get_current_user)):
     sources = db.query(KnowledgeSource).order_by(KnowledgeSource.created_at.desc()).all()
     results = []
+    
+    coll = None
+    try:
+        coll = vector_store.get_collection()
+    except Exception:
+        pass
+
     for s in sources:
-        doc_count = db.query(KnowledgeDocument).filter(KnowledgeDocument.source_id == s.id).count()
+        doc_count = 0
+        # Check actual vector chunks in ChromaDB first
+        if coll:
+            try:
+                chroma_res = coll.get(where={"source_id": s.id}, include=[])
+                if chroma_res and "ids" in chroma_res:
+                    doc_count = len(chroma_res["ids"])
+            except Exception:
+                pass
+
         if doc_count == 0:
-            latest_job = db.query(IngestJob).filter(IngestJob.source_id == s.id, IngestJob.status == "completed").order_by(IngestJob.id.desc()).first()
-            if latest_job and latest_job.chunks_created:
-                doc_count = latest_job.chunks_created
+            doc_count = db.query(KnowledgeDocument).filter(KnowledgeDocument.source_id == s.id).count()
+            if doc_count == 0:
+                latest_job = db.query(IngestJob).filter(IngestJob.source_id == s.id, IngestJob.status == "completed").order_by(IngestJob.id.desc()).first()
+                if latest_job and latest_job.chunks_created:
+                    doc_count = latest_job.chunks_created
 
         conf = s.config or {}
         validity_tier = conf.get("validity_tier") or ("authoritative" if s.source_type in ["database", "api"] and (conf.get("is_tool") or conf.get("parameters")) else "secondary")
@@ -205,7 +224,7 @@ async def execute_api_tool(
         # Automatically cache query-by-parameter result into ChromaDB Bank Data
         try:
             records = result.get("data")
-            if records and isinstance(records, list) and len(records) > 0:
+            if records:
                 from services.ingestion.bank_data_saver import save_tool_records_to_bank_data
                 save_tool_records_to_bank_data(source, payload.arguments, records, db)
         except Exception as cache_err:
@@ -517,6 +536,152 @@ def duplicate_knowledge_source(
         "created_at": (new_source.created_at.isoformat() + "Z") if new_source.created_at else None,
         "message": f"Koneksi '{original.name}' berhasil diduplikat sebagai '{new_source.name}'"
     }
+
+
+# ── Bank Data & Vector Chunks Endpoints ──────────────────────────────
+
+@router.get("/sources/{source_id}/bank-data")
+def get_source_bank_data(
+    source_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """
+    Mengambil daftar data bank / chunk vektor yang tersimpan dalam ChromaDB untuk sumber pengetahuan tertentu.
+    Mendukung paginasi, pencarian teks (case-insensitive), dan ekstraksi metadata parameter.
+    """
+    source = db.query(KnowledgeSource).filter(KnowledgeSource.id == source_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Knowledge source tidak ditemukan")
+
+    try:
+        coll = vector_store.get_collection()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal menghubungkan ke ChromaDB: {str(e)}")
+
+    where_clause = {"source_id": int(source_id)}
+    items = []
+    total_items = 0
+
+    clean_search = (search or "").strip()
+
+    if clean_search:
+        # Search using case-insensitive variants
+        variants = list(dict.fromkeys([
+            clean_search,
+            clean_search.upper(),
+            clean_search.lower(),
+            clean_search.title()
+        ]))
+        matched_ids = set()
+        matched_records = []
+
+        for var in variants:
+            try:
+                res = coll.get(
+                    where=where_clause,
+                    where_document={"$contains": var},
+                    include=["documents", "metadatas"]
+                )
+                if res and res.get("ids"):
+                    for cid, doc, meta in zip(res["ids"], res.get("documents", []), res.get("metadatas", [])):
+                        if cid not in matched_ids:
+                            matched_ids.add(cid)
+                            matched_records.append((cid, doc, meta or {}))
+            except Exception as search_err:
+                logging.getLogger(__name__).warning(f"ChromaDB search variant error: {search_err}")
+
+        total_items = len(matched_records)
+        offset = (page - 1) * page_size
+        paged_records = matched_records[offset:offset + page_size]
+
+        for cid, doc, meta in paged_records:
+            items.append({
+                "id": cid,
+                "document": doc,
+                "metadata": meta,
+                "is_bank_data": bool(meta.get("is_bank_data")),
+                "queried_at": meta.get("queried_at") or meta.get("created_at"),
+                "query_params": meta.get("query_params") or meta.get("parameters"),
+                "source_type": meta.get("source_type") or source.source_type,
+                "source_name": meta.get("source_name") or source.name,
+                "char_count": len(doc) if doc else 0
+            })
+    else:
+        # Get total count quickly without loading full document payloads
+        try:
+            count_res = coll.get(where=where_clause, include=[])
+            total_items = len(count_res.get("ids", [])) if count_res else 0
+        except Exception:
+            total_items = 0
+
+        offset = (page - 1) * page_size
+        try:
+            paged_res = coll.get(
+                where=where_clause,
+                limit=page_size,
+                offset=offset,
+                include=["documents", "metadatas"]
+            )
+            if paged_res and paged_res.get("ids"):
+                for cid, doc, meta in zip(paged_res["ids"], paged_res.get("documents", []), paged_res.get("metadatas", [])):
+                    meta = meta or {}
+                    items.append({
+                        "id": cid,
+                        "document": doc,
+                        "metadata": meta,
+                        "is_bank_data": bool(meta.get("is_bank_data")),
+                        "queried_at": meta.get("queried_at") or meta.get("created_at"),
+                        "query_params": meta.get("query_params") or meta.get("parameters"),
+                        "source_type": meta.get("source_type") or source.source_type,
+                        "source_name": meta.get("source_name") or source.name,
+                        "char_count": len(doc) if doc else 0
+                    })
+        except Exception as page_err:
+            logging.getLogger(__name__).error(f"Error fetching paged chunks: {page_err}")
+
+    total_pages = math.ceil(total_items / page_size) if total_items > 0 else 1
+
+    return {
+        "success": True,
+        "source_id": source.id,
+        "source_name": source.name,
+        "source_type": source.source_type,
+        "total_items": total_items,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages,
+        "items": items
+    }
+
+
+@router.delete("/sources/{source_id}/bank-data/{chunk_id}")
+def delete_source_bank_data_chunk(
+    source_id: int,
+    chunk_id: str,
+    db: Session = Depends(get_db),
+    user = Depends(require_role(["admin", "editor"]))
+):
+    """
+    Menghapus satu rekaman chunk data bank dari ChromaDB.
+    """
+    source = db.query(KnowledgeSource).filter(KnowledgeSource.id == source_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Knowledge source tidak ditemukan")
+
+    try:
+        coll = vector_store.get_collection()
+        coll.delete(ids=[chunk_id], where={"source_id": int(source_id)})
+        return {
+            "success": True,
+            "message": f"Data bank '{chunk_id}' berhasil dihapus.",
+            "chunk_id": chunk_id
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal menghapus chunk: {str(e)}")
 
 
 # ── Export & Import Knowledge Catalog Endpoints ─────────────────────

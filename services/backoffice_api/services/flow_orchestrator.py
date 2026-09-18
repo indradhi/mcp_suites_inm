@@ -374,21 +374,47 @@ class FlowOrchestrator:
 
                     if matched_s:
                         cfg = matched_s.config or {}
-                        # Extract simple arguments from query
+                        # Extract smart arguments from query
                         args = {}
                         for p in cfg.get("parameters", []):
                             pname = p.get("name", "")
-                            if pname:
+                            if not pname:
+                                continue
+                            p_lower = pname.lower()
+                            if p_lower in ["nama", "name", "person_name", "nama_orang"]:
+                                m = re.search(r'(?:atas\s+nama|dengan\s+nama|orang\s+bernama|bernama|nama\s*[:=]?)\s+([a-zA-Z\s\.\,\'\-]+)', q_clean, re.IGNORECASE)
+                                if m:
+                                    clean_val = m.group(1).strip()
+                                    clean_val = re.sub(r'[\?\.\,]+$', '', clean_val).strip()
+                                    args[pname] = clean_val
+                                else:
+                                    filler = {'cari', 'data', 'profil', 'tanah', 'sertifikat', 'cek', 'lihat', 'tolong', 'atau', 'dari', 'orang', 'tentang'}
+                                    tokens = [w for w in q_clean.split() if w.lower() not in filler]
+                                    args[pname] = ' '.join(tokens) if tokens else q_clean
+                            elif p_lower in ["nik", "no_ktp", "ktp"]:
+                                m = re.search(r'\b(\d{16})\b', q_clean)
+                                args[pname] = m.group(1) if m else q_clean
+                            else:
                                 args[pname] = q_clean
 
                         if matched_s.source_type == "database":
                             res = database_ingester.execute_tool_call_sync(cfg, args)
                         else:
                             res = api_ingester.execute_tool_call_sync(cfg, args)
+
+                        # Automatically cache query result into ChromaDB Bank Data
+                        if res.get("success") and res.get("data"):
+                            try:
+                                from services.ingestion.bank_data_saver import save_tool_records_to_bank_data
+                                save_tool_records_to_bank_data(matched_s, args, res.get("data"), db)
+                            except Exception as save_err:
+                                logger.warning(f"Notice auto-saving tool bank data in flow: {save_err}")
+
                         result_entry["details"] = {
                             "source_name": matched_s.name,
                             "validity_tier": cfg.get("validity_tier", "authoritative"),
                             "validity_score": cfg.get("validity_score", 95),
+                            "arguments_used": args,
                             "success": res.get("success", False),
                             "row_count": len(res.get("data", [])) if isinstance(res.get("data"), list) else (1 if res.get("data") else 0),
                             "data_preview": res.get("data")[:3] if isinstance(res.get("data"), list) else res.get("data")
