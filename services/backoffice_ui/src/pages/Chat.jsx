@@ -27,6 +27,7 @@ import {
   UserCheck,
   UserX,
   MapPin,
+  Compass,
   Network,
   Lightbulb,
   ShieldCheck,
@@ -48,6 +49,8 @@ import api from '../api/client';
 import { formatTimeWIB } from '../utils/dateUtils';
 import CytoscapeGraph from '../components/graph/CytoscapeGraph';
 import { ValidityBadge } from '../components/common/ValidityTierSelector';
+import GeoJsonMapViewer, { extractPolygonsFromData } from '../components/common/GeoJsonMapViewer';
+import GeoJsonMapModal from '../components/modals/GeoJsonMapModal';
 
 /**
  * Normalizes any image source string into a valid browser image src.
@@ -186,6 +189,7 @@ export default function Chat() {
   const [modelSearchQuery, setModelSearchQuery] = useState('');
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [lightboxImage, setLightboxImage] = useState(null);
+  const [geoJsonModalData, setGeoJsonModalData] = useState(null); // { features, activeIndex }
   const [copiedImage, setCopiedImage] = useState(false);
   const [copiedResponseId, setCopiedResponseId] = useState(null);
   const [feedbackState, setFeedbackState] = useState({}); // msgId -> 'like' | 'dislike' | null
@@ -202,6 +206,7 @@ export default function Chat() {
     const handleKeyDownGlobal = (e) => {
       if (e.key === 'Escape') {
         setLightboxImage(null);
+        setGeoJsonModalData(null);
         setIsSourceDropdownOpen(false);
       }
     };
@@ -1016,7 +1021,20 @@ export default function Chat() {
         } else if (lang === 'map' || lang === 'geojson') {
           try {
             const parsed = JSON.parse(rawCode);
-            blocks.push({ type: 'inline-map', data: parsed });
+            const isPoly = parsed && (
+              parsed.type === 'Polygon' || 
+              parsed.type === 'MultiPolygon' || 
+              parsed.type === 'Feature' || 
+              parsed.type === 'FeatureCollection' || 
+              parsed.coordinates || 
+              parsed.geometry || 
+              parsed.Polygon
+            );
+            if (isPoly) {
+              blocks.push({ type: 'geojson-map', data: parsed });
+            } else {
+              blocks.push({ type: 'inline-map', data: parsed });
+            }
           } catch {
             const latMatch = rawCode.match(/lat(?:itude)?[:\s=]+(-?\d{1,2}\.\d+)/i);
             const lngMatch = rawCode.match(/(?:long?|lng)(?:itude)?[:\s=]+(-?\d{1,3}\.\d+)/i);
@@ -1033,6 +1051,17 @@ export default function Chat() {
             } else {
               blocks.push({ type: 'code', lang, code: rawCode });
             }
+          }
+        } else if (lang === 'json') {
+          try {
+            const parsed = JSON.parse(rawCode);
+            if (parsed && (parsed.type === 'Polygon' || parsed.type === 'MultiPolygon' || (parsed.type === 'Feature' && (parsed.geometry?.type === 'Polygon' || parsed.geometry?.type === 'MultiPolygon')) || parsed.Polygon)) {
+              blocks.push({ type: 'geojson-map', data: parsed });
+            } else {
+              blocks.push({ type: 'code', lang, code: rawCode });
+            }
+          } catch {
+            blocks.push({ type: 'code', lang, code: rawCode });
           }
         } else {
           blocks.push({ type: 'code', lang, code: rawCode });
@@ -1534,7 +1563,31 @@ export default function Chat() {
             </div>
           );
 
+        case 'geojson-map':
+          return (
+            <GeoJsonMapViewer
+              key={idx}
+              data={block.data}
+              onExpand={(modalData) => setGeoJsonModalData(modalData)}
+            />
+          );
+
         case 'inline-map':
+          if (block.data && (
+            block.data.type === 'Polygon' || 
+            block.data.type === 'MultiPolygon' || 
+            block.data.coordinates || 
+            block.data.geometry || 
+            block.data.Polygon
+          )) {
+            return (
+              <GeoJsonMapViewer
+                key={idx}
+                data={block.data}
+                onExpand={(modalData) => setGeoJsonModalData(modalData)}
+              />
+            );
+          }
           return (
             <div key={idx} style={{
               margin: '12px 0',
@@ -3309,11 +3362,16 @@ export default function Chat() {
                     </div>
                   )}
 
-                  {/* Interactive Location Map Card (Assistant only) */}
+                  {/* Interactive Location / Spatial GeoJSON Polygon Map Card (Assistant only) */}
                   {isAssistant && (() => {
-                    const loc = detectLocation(msg.content);
-                    if (!loc) return null;
-                    const isMapOpen = Boolean(expandedMap[msg.id]); // collapsed by default
+                    const messagePolygons = (msg.tools_executed || []).flatMap(t => extractPolygonsFromData(t.data));
+                    const hasPolygons = messagePolygons.length > 0;
+                    const loc = !hasPolygons ? detectLocation(msg.content) : null;
+                    if (!hasPolygons && !loc) return null;
+
+                    const isMapOpen = expandedMap[msg.id] !== undefined 
+                      ? Boolean(expandedMap[msg.id]) 
+                      : hasPolygons; // Polygons expanded by default
 
                     return (
                       <div style={{ marginTop: '14px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '12px' }}>
@@ -3328,54 +3386,89 @@ export default function Chat() {
                               alignItems: 'center',
                               gap: '6px',
                               fontSize: '12px',
-                              fontWeight: '600',
+                              fontWeight: '700',
                               cursor: 'pointer',
                               padding: 0
                             }}
                           >
                             {isMapOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                            <MapPin size={15} color="var(--accent-cyan)" />
-                            <span>Interactive Location Map: {loc.name}</span>
+                            <Compass size={15} color="var(--accent-cyan)" />
+                            <span>
+                              {hasPolygons 
+                                ? `Peta Spasial Bidang Tanah (GeoJSON Polygon) • ${messagePolygons.length} Bidang`
+                                : `Interactive Location Map: ${loc.name}`}
+                            </span>
                           </button>
 
-                          <a
-                            href={`https://www.google.com/maps?q=${loc.lat},${loc.lng}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              color: '#94a3b8',
-                              fontSize: '11px',
-                              textDecoration: 'none'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.color = '#38bdf8'}
-                            onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
-                          >
-                            <span>Google Maps</span>
-                            <ExternalLink size={11} />
-                          </a>
+                          {hasPolygons ? (
+                            <button
+                              type="button"
+                              onClick={() => setGeoJsonModalData({ features: messagePolygons, activeIndex: 0 })}
+                              style={{
+                                background: 'rgba(6, 182, 212, 0.15)',
+                                border: '1px solid rgba(6, 182, 212, 0.35)',
+                                color: '#38bdf8',
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Maximize2 size={11} />
+                              <span>Inspektur Bidang</span>
+                            </button>
+                          ) : (
+                            <a
+                              href={`https://www.google.com/maps?q=${loc.lat},${loc.lng}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                color: '#94a3b8',
+                                fontSize: '11px',
+                                textDecoration: 'none'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.color = '#38bdf8'}
+                              onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
+                            >
+                              <span>Google Maps</span>
+                              <ExternalLink size={11} />
+                            </a>
+                          )}
                         </div>
 
                         {isMapOpen && (
-                          <div style={{
-                            borderRadius: '10px',
-                            overflow: 'hidden',
-                            border: '1px solid rgba(6, 182, 212, 0.3)',
-                            background: 'rgba(5, 7, 15, 0.85)',
-                            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)'
-                          }}>
-                            <iframe
-                              title={`Map-${loc.name}`}
-                              width="100%"
-                              height="260"
-                              frameBorder="0"
-                              scrolling="no"
-                              src={`https://www.openstreetmap.org/export/embed.html?bbox=${loc.lng - 0.05}%2C${loc.lat - 0.04}%2C${loc.lng + 0.05}%2C${loc.lat + 0.04}&layer=mapnik&marker=${loc.lat}%2C${loc.lng}`}
-                              style={{ border: 0, display: 'block' }}
+                          hasPolygons ? (
+                            <GeoJsonMapViewer
+                              data={messagePolygons}
+                              height="280px"
+                              onExpand={(modalData) => setGeoJsonModalData(modalData)}
                             />
-                          </div>
+                          ) : (
+                            <div style={{
+                              borderRadius: '10px',
+                              overflow: 'hidden',
+                              border: '1px solid rgba(6, 182, 212, 0.3)',
+                              background: 'rgba(5, 7, 15, 0.85)',
+                              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)'
+                            }}>
+                              <iframe
+                                title={`Map-${loc.name}`}
+                                width="100%"
+                                height="260"
+                                frameBorder="0"
+                                scrolling="no"
+                                src={`https://www.openstreetmap.org/export/embed.html?bbox=${loc.lng - 0.05}%2C${loc.lat - 0.04}%2C${loc.lng + 0.05}%2C${loc.lat + 0.04}&layer=mapnik&marker=${loc.lat}%2C${loc.lng}`}
+                                style={{ border: 0, display: 'block' }}
+                              />
+                            </div>
+                          )
                         )}
                       </div>
                     );
@@ -3625,6 +3718,47 @@ export default function Chat() {
                                         </div>
                                       ))}
                                     </div>
+                                  </div>
+                                );
+                              })()}
+
+                              {/* Extracted GeoJSON Polygons from tool payload */}
+                              {tool.data && (() => {
+                                const extractedPolys = extractPolygonsFromData(tool.data, 6);
+                                if (extractedPolys.length === 0) return null;
+
+                                return (
+                                  <div style={{ marginTop: '10px', borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '8px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                      <div style={{ fontSize: '11px', color: 'var(--accent-cyan)', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        <Compass size={12} /> Peta Bidang Tanah Spasial ({extractedPolys.length} Polygon GeoJSON):
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => setGeoJsonModalData({ features: extractedPolys, activeIndex: 0 })}
+                                        style={{
+                                          background: 'rgba(6, 182, 212, 0.15)',
+                                          border: '1px solid rgba(6, 182, 212, 0.35)',
+                                          color: '#38bdf8',
+                                          borderRadius: '4px',
+                                          padding: '2px 8px',
+                                          fontSize: '10px',
+                                          fontWeight: '600',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '4px',
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        <Maximize2 size={10} />
+                                        <span>Perbesar Peta</span>
+                                      </button>
+                                    </div>
+                                    <GeoJsonMapViewer
+                                      data={extractedPolys}
+                                      height="200px"
+                                      onExpand={(modalData) => setGeoJsonModalData(modalData)}
+                                    />
                                   </div>
                                 );
                               })()}
@@ -4680,6 +4814,13 @@ export default function Chat() {
           </div>
         </div>
       )}
+
+      {/* GeoJSON Polygon Map Inspection Modal */}
+      <GeoJsonMapModal
+        isOpen={Boolean(geoJsonModalData)}
+        onClose={() => setGeoJsonModalData(null)}
+        modalData={geoJsonModalData}
+      />
     </div>
   );
 }

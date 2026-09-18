@@ -41,6 +41,10 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
   const [parameters, setParameters] = useState([]);
   const [testArgs, setTestArgs] = useState({});
 
+  // Cache States
+  const [cacheEnabled, setCacheEnabled] = useState(false);
+  const [cacheTtlMinutes, setCacheTtlMinutes] = useState(60);
+
   // Field Definitions (Kamus Data Kolom)
   const [fieldDefinitions, setFieldDefinitions] = useState([]);
 
@@ -75,6 +79,11 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
       setParameters(conf.parameters || []);
       setFieldDefinitions(conf.field_definitions || []);
 
+      // Cache settings — read from top-level cache_ttl_minutes
+      const ttl = initialData.cache_ttl_minutes;
+      setCacheEnabled(!!ttl && ttl > 0);
+      setCacheTtlMinutes(ttl && ttl > 0 ? ttl : 60);
+
       setValidityTier(conf.validity_tier || (isToolMode ? 'authoritative' : 'secondary'));
       setValidityScore(conf.validity_score !== undefined ? conf.validity_score : (isToolMode ? 95 : 65));
       setValidityNotes(conf.validity_notes || '');
@@ -101,6 +110,8 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
       setToolDescription('');
       setParameters([]);
       setFieldDefinitions([]);
+      setCacheEnabled(false);
+      setCacheTtlMinutes(60);
       setValidityTier('authoritative');
       setValidityScore(95);
       setValidityNotes('');
@@ -345,6 +356,7 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
         description: isTool && toolDescription
           ? `[AI Tool] ${toolDescription}`
           : (description || `Connected to ${dbType.toUpperCase()} database (${database})`),
+        cache_ttl_minutes: isTool && cacheEnabled ? cacheTtlMinutes : null,
         config: {
           db_type: dbType,
           host,
@@ -390,6 +402,7 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
       const payload = {
         name: copyName,
         source_type: 'database',
+        cache_ttl_minutes: isTool && cacheEnabled ? cacheTtlMinutes : null,
         description: isTool && toolDescription
           ? `[AI Tool] ${toolDescription}`
           : (description || `Connected to ${dbType.toUpperCase()} database (${database})`),
@@ -897,6 +910,79 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                     </div>
                   </div>
                 )}
+
+                {/* Cache Settings */}
+                <div style={{
+                  marginTop: '4px',
+                  padding: '14px 16px',
+                  borderRadius: '8px',
+                  background: cacheEnabled ? 'rgba(234, 179, 8, 0.08)' : 'rgba(0,0,0,0.2)',
+                  border: cacheEnabled ? '1px solid rgba(234, 179, 8, 0.35)' : '1px solid rgba(255,255,255,0.07)',
+                  transition: 'all 0.2s'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <Clock size={16} color={cacheEnabled ? '#fbbf24' : 'var(--text-muted)'} />
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: cacheEnabled ? '#fde68a' : '#ffffff' }}>
+                          Cache Hasil Query Tool
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          Parameter yang sama akan mengembalikan data tersimpan tanpa query ulang ke database
+                        </div>
+                      </div>
+                    </div>
+                    <label style={{ position: 'relative', display: 'inline-block', width: '44px', height: '24px', cursor: 'pointer', flexShrink: 0 }}>
+                      <input
+                        type="checkbox"
+                        checked={cacheEnabled}
+                        onChange={(e) => setCacheEnabled(e.target.checked)}
+                        style={{ opacity: 0, width: 0, height: 0 }}
+                      />
+                      <span style={{
+                        position: 'absolute',
+                        cursor: 'pointer',
+                        top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: cacheEnabled ? '#d97706' : 'rgba(255,255,255,0.2)',
+                        borderRadius: '34px',
+                        transition: '0.3s'
+                      }}>
+                        <span style={{
+                          position: 'absolute',
+                          height: '18px',
+                          width: '18px',
+                          left: cacheEnabled ? '23px' : '3px',
+                          bottom: '3px',
+                          backgroundColor: '#ffffff',
+                          borderRadius: '50%',
+                          transition: '0.3s'
+                        }} />
+                      </span>
+                    </label>
+                  </div>
+
+                  {cacheEnabled && (
+                    <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#fde68a', whiteSpace: 'nowrap' }}>
+                        Masa Berlaku Cache
+                      </label>
+                      <input
+                        type="number"
+                        className="input-field"
+                        min="1"
+                        max="10080"
+                        value={cacheTtlMinutes}
+                        onChange={(e) => setCacheTtlMinutes(Math.max(1, parseInt(e.target.value) || 60))}
+                        style={{ width: '90px', textAlign: 'center', fontSize: '13px' }}
+                      />
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>menit</span>
+                      <span style={{ fontSize: '11px', color: 'rgba(253, 230, 138, 0.7)', marginLeft: '4px' }}>
+                        ({cacheTtlMinutes >= 60 ? `${(cacheTtlMinutes/60).toFixed(1)} jam` : `${cacheTtlMinutes} mnt`})
+                      </span>
+                    </div>
+                  )}
+                </div>
+
               </div>
             )}
           </div>

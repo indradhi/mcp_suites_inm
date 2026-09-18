@@ -13,6 +13,7 @@ class KnowledgeSource(Base):
     config = Column(JSON, nullable=False) # connection strings, endpoints, auth, urls, file paths
     schedule_cron = Column(String(100), nullable=True)
     is_active = Column(Boolean, default=True)
+    cache_ttl_minutes = Column(Integer, nullable=True)  # None = no cache; N = cache TTL for tool call results
     last_synced_at = Column(DateTime, nullable=True)
     sync_status = Column(String(50), default="idle") # idle, running, failed, completed
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)

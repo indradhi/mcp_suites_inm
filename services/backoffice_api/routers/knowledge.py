@@ -32,6 +32,7 @@ class SourceCreate(BaseModel):
     config: Dict[str, Any]
     schedule_cron: Optional[str] = None
     is_active: Optional[bool] = None
+    cache_ttl_minutes: Optional[int] = None  # None = caching disabled; N = TTL in minutes
 
 class TestConnectionRequest(BaseModel):
     source_type: str
@@ -79,6 +80,7 @@ def list_sources(db: Session = Depends(get_db), user = Depends(get_current_user)
             "description": s.description,
             "config": s.config,
             "is_active": s.is_active,
+            "cache_ttl_minutes": s.cache_ttl_minutes,
             "sync_status": s.sync_status,
             "last_synced_at": (s.last_synced_at.isoformat() + "Z") if s.last_synced_at else None,
             "document_count": doc_count,
@@ -260,6 +262,7 @@ def create_knowledge_source(
         config=payload.config,
         schedule_cron=payload.schedule_cron,
         is_active=payload.is_active if payload.is_active is not None else True,
+        cache_ttl_minutes=payload.cache_ttl_minutes,
         sync_status="active (tool)" if is_tool_mode else "idle",
         created_by=user.id
     )
@@ -404,6 +407,7 @@ def update_source(
     source.description = payload.description
     source.config = payload.config
     source.schedule_cron = payload.schedule_cron
+    source.cache_ttl_minutes = payload.cache_ttl_minutes
     if payload.source_type:
         source.source_type = payload.source_type.lower()
     if payload.is_active is not None:

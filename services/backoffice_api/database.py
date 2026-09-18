@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 from config import settings
 
@@ -20,3 +20,17 @@ def get_db():
         yield db
     finally:
         db.close()
+
+def run_migrations():
+    """Idempotent schema migrations — add new columns safely."""
+    migrations = [
+        "ALTER TABLE knowledge_sources ADD COLUMN cache_ttl_minutes INTEGER"
+    ]
+    with engine.connect() as conn:
+        for stmt in migrations:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                # Column already exists or other benign error — safe to ignore
+                conn.rollback()

@@ -662,6 +662,31 @@ export default function KnowledgeSources() {
                       </span>
                     )}
 
+                    {/* Cache Badge */}
+                    {isTool && source.cache_ttl_minutes && source.cache_ttl_minutes > 0 && (
+                      <span
+                        title={`Tool call results are cached for ${source.cache_ttl_minutes} minutes`}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          background: !isActive ? 'rgba(255,255,255,0.04)' : 'rgba(234, 179, 8, 0.12)',
+                          color: !isActive ? 'var(--text-muted)' : '#fbbf24',
+                          padding: '3px 9px',
+                          borderRadius: '12px',
+                          fontSize: '10px',
+                          fontWeight: '700',
+                          border: `1px solid ${!isActive ? 'var(--border-color)' : 'rgba(234, 179, 8, 0.35)'}`,
+                          letterSpacing: '0.02em'
+                        }}
+                      >
+                        <Clock size={10} />
+                        {source.cache_ttl_minutes >= 60
+                          ? `Cache ${(source.cache_ttl_minutes / 60).toFixed(source.cache_ttl_minutes % 60 === 0 ? 0 : 1)}j`
+                          : `Cache ${source.cache_ttl_minutes}m`}
+                      </span>
+                    )}
+
                     {/* Modern Toggle Switch */}
                     <button
                       type="button"

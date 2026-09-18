@@ -53,7 +53,8 @@ CURATED_PRESETS: List[Dict[str, Any]] = [
             "STRICT GROUNDING: Jawab murni berdasarkan fakta dan dokumen yang tersedia. Jika data tidak ditemukan, katakan secara jujur bahwa data tidak ditemukan dalam basis data yang terhubung. DILARANG KERAS mengarang (halusinasi) nama, nomor sertifikat, NIK, atau aset fiktif.",
             "Sajikan kutipan sumber, nomor dokumen, dan konteks data pendukung secara transparan dan jelas.",
             "Gunakan format Markdown terstruktur: tabel untuk data tabular/inventaris, bullet points untuk rincian fakta, dan teks tebal untuk entitas penting.",
-            "Jika hasil query atau alat memuat foto resmi, sertakan tag Markdown: `![Foto Profil - NAMA_LENGKAP](foto_resmi)` HANYA JIKA identitas orang dalam foto cocok secara persis (berdasarkan NIK atau Nama Lengkap). Sistem backend kami akan otomatis mengganti tag ini dengan foto resmi beresolusi tinggi. DILARANG KERAS menyalin atau menuliskan kode base64 mentah dalam teks jawaban."
+            "Jika hasil query atau alat memuat foto resmi, sertakan tag Markdown: `![Foto Profil - NAMA_LENGKAP](foto_resmi)` HANYA JIKA identitas orang dalam foto cocok secara persis (berdasarkan NIK atau Nama Lengkap). Sistem backend kami akan otomatis mengganti tag ini dengan foto resmi beresolusi tinggi. DILARANG KERAS menyalin atau menuliskan kode base64 mentah dalam teks jawaban.",
+            "Jika hasil pencarian atau alat menyertakan data spasial koordinat Polygon bidang tanah (seperti sertifikat tanah BPN), antarmuka chat kami secara otomatis merender Peta Satelit Interaktif (GeoJSON Polygon). Anda dapat menyertakan ringkasan nomor hak, luas bidang, dan lokasi administrasinya secara terstruktur."
         ]
     },
     {

@@ -397,16 +397,49 @@ class FlowOrchestrator:
                             else:
                                 args[pname] = q_clean
 
-                        if matched_s.source_type == "database":
-                            res = database_ingester.execute_tool_call_sync(cfg, args)
-                        else:
-                            res = api_ingester.execute_tool_call_sync(cfg, args)
+                        ttl_minutes = matched_s.cache_ttl_minutes  # None = no cache
 
-                        # Automatically cache query result into ChromaDB Bank Data
-                        if res.get("success") and res.get("data"):
+                        # ── Cache lookup ─────────────────────────────────────
+                        cache_hit = False
+                        res = None
+                        if ttl_minutes and ttl_minutes > 0:
+                            from services.ingestion.bank_data_saver import (
+                                get_cached_tool_result, save_tool_cache_entry, refresh_cache_async
+                            )
+                            cached_data, is_stale = get_cached_tool_result(matched_s.id, args, ttl_minutes)
+                            if cached_data is not None:
+                                cache_hit = True
+                                res = {"success": True, "data": cached_data, "from_cache": True, "cache_stale": is_stale}
+                                if is_stale:
+                                    if matched_s.source_type == "database":
+                                        refresh_cache_async(
+                                            matched_s, args,
+                                            lambda: database_ingester.execute_tool_call_sync(cfg, args),
+                                            db
+                                        )
+                                    else:
+                                        refresh_cache_async(
+                                            matched_s, args,
+                                            lambda: api_ingester.execute_tool_call_sync(cfg, args),
+                                            db
+                                        )
+
+                        # ── Live call ─────────────────────────────────────────
+                        if not cache_hit:
+                            if matched_s.source_type == "database":
+                                res = database_ingester.execute_tool_call_sync(cfg, args)
+                            else:
+                                res = api_ingester.execute_tool_call_sync(cfg, args)
+
+                        # ── Persist result (bank data + cache entry) ──────────
+                        if res.get("success") and res.get("data") and not cache_hit:
                             try:
-                                from services.ingestion.bank_data_saver import save_tool_records_to_bank_data
+                                from services.ingestion.bank_data_saver import (
+                                    save_tool_records_to_bank_data, save_tool_cache_entry
+                                )
                                 save_tool_records_to_bank_data(matched_s, args, res.get("data"), db)
+                                if ttl_minutes and ttl_minutes > 0:
+                                    save_tool_cache_entry(matched_s, args, res.get("data"), db)
                             except Exception as save_err:
                                 logger.warning(f"Notice auto-saving tool bank data in flow: {save_err}")
 

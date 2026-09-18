@@ -780,26 +780,76 @@ Patuhi aturan:
                     matched_source = tool_dispatch_map.get(fn_name)
                     if matched_source:
                         source_cfg = matched_source.config or {}
-                        if matched_source.source_type == "database":
-                            from services.ingestion.database_ingester import database_ingester
-                            exec_res = database_ingester.execute_tool_call_sync(source_cfg, fn_args)
-                            target_url = f"{source_cfg.get('db_type', 'db').upper()}://{source_cfg.get('database', '')}"
-                        else:
-                            exec_res = api_ingester.execute_tool_call_sync(source_cfg, fn_args)
-                            target_url = exec_res.get("endpoint") or exec_res.get("url")
+                        ttl_minutes = matched_source.cache_ttl_minutes  # None = no cache
+
+                        # ── Cache lookup ────────────────────────────────────
+                        cache_hit = False
+                        exec_res = None
+                        if ttl_minutes and ttl_minutes > 0:
+                            from services.ingestion.bank_data_saver import (
+                                get_cached_tool_result, save_tool_cache_entry, refresh_cache_async
+                            )
+                            cached_data, is_stale = get_cached_tool_result(
+                                matched_source.id, fn_args, ttl_minutes
+                            )
+                            if cached_data is not None:
+                                cache_hit = True
+                                exec_res = {
+                                    "success": True,
+                                    "data": cached_data,
+                                    "text": json.dumps(cached_data, ensure_ascii=False)[:10000],
+                                    "latency_ms": 0,
+                                    "from_cache": True,
+                                    "cache_stale": is_stale
+                                }
+                                if is_stale:
+                                    # Serve stale data now; refresh in background
+                                    if matched_source.source_type == "database":
+                                        from services.ingestion.database_ingester import database_ingester
+                                        refresh_cache_async(
+                                            matched_source, fn_args,
+                                            lambda: database_ingester.execute_tool_call_sync(source_cfg, fn_args),
+                                            db
+                                        )
+                                    else:
+                                        refresh_cache_async(
+                                            matched_source, fn_args,
+                                            lambda: api_ingester.execute_tool_call_sync(source_cfg, fn_args),
+                                            db
+                                        )
+
+                        # ── Live call (cache miss or caching disabled) ──────
+                        if not cache_hit:
+                            if matched_source.source_type == "database":
+                                from services.ingestion.database_ingester import database_ingester
+                                exec_res = database_ingester.execute_tool_call_sync(source_cfg, fn_args)
+                                target_url = f"{source_cfg.get('db_type', 'db').upper()}://{source_cfg.get('database', '')}"
+                            else:
+                                exec_res = api_ingester.execute_tool_call_sync(source_cfg, fn_args)
+                                target_url = exec_res.get("endpoint") or exec_res.get("url")
+
+                        if cache_hit:
+                            target_url = f"[CACHE] {matched_source.name}"
 
                         success = exec_res.get("success", False)
                         payload_data = exec_res.get("data") if exec_res.get("data") is not None else exec_res.get("text", exec_res)
 
-                        # Automatically cache query-by-parameter result into ChromaDB Bank Data
-                        if success:
+                        # ── Persist result (bank data + cache entry) ────────
+                        if success and not cache_hit:
                             try:
                                 rec_data = exec_res.get("data")
-                                if rec_data and isinstance(rec_data, list) and len(rec_data) > 0:
-                                    from services.ingestion.bank_data_saver import save_tool_records_to_bank_data
-                                    save_tool_records_to_bank_data(matched_source, fn_args, rec_data, db)
+                                if rec_data:
+                                    from services.ingestion.bank_data_saver import (
+                                        save_tool_records_to_bank_data, save_tool_cache_entry
+                                    )
+                                    if rec_data and (isinstance(rec_data, list) or isinstance(rec_data, dict)):
+                                        save_tool_records_to_bank_data(matched_source, fn_args, rec_data, db)
+                                    # Save cache entry regardless of list/dict
+                                    if ttl_minutes and ttl_minutes > 0:
+                                        save_tool_cache_entry(matched_source, fn_args, rec_data, db)
                             except Exception as cache_err:
                                 logger.warning(f"Notice saving tool bank data in chat: {cache_err}")
+
                         
                         # Explicit empty result notification to prevent the LLM from inventing data
                         if isinstance(payload_data, list) and len(payload_data) == 0:

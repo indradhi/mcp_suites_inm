@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from config import settings
-from database import engine, Base, get_db
+from database import engine, Base, get_db, run_migrations
 from models.user import User
 from models.knowledge_source import KnowledgeSource
 from models.ingest_job import IngestJob
@@ -25,6 +25,7 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing Backoffice API services...")
     try:
         Base.metadata.create_all(bind=engine)
+        run_migrations()
         logger.info("Database tables verified.")
 
         # Seed default golden retrieval flows
