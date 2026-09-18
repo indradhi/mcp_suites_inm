@@ -305,4 +305,67 @@ class VectorStoreService:
 
         return output[:n_results]
 
+    def extract_snippet(self, text: str, query: str, max_chars: int = 1800) -> str:
+        """
+        Extracts a clean snippet centered around target entity/keywords from query.
+        Prevents displaying irrelevant top-of-chunk lines when the matching record
+        is located deeper inside a multi-record or tabular chunk.
+        """
+        if not text:
+            return ""
+
+        stopwords = {
+            "siapa", "siapakah", "apa", "apakah", "dimana", "kapan", "bagaimana",
+            "mengapa", "kenapa", "dari", "pada", "yang", "untuk", "dengan", "adalah",
+            "yaitu", "profil", "profile", "data", "cari", "temukan", "lihat", "tolong",
+            "cek", "info", "informasi", "tentang", "orang", "nama", "nik", "nohp",
+            "alamat", "nomor", "semua", "bisa", "mohon", "atau", "dan", "serta"
+        }
+        clean_q = re.sub(r"[^\w\s]", " ", query)
+        all_tokens = [w.strip() for w in clean_q.split() if len(w.strip()) >= 3]
+        sig_tokens = [w for w in all_tokens if w.lower() not in stopwords]
+
+        targets = []
+        name_m = re.search(r"(?:atas\s+nama|dengan\s+nama|bernama|nama|subjek|orang)\s+([a-zA-Z\s]{4,})", query, re.IGNORECASE)
+        if name_m:
+            extracted = " ".join([w for w in name_m.group(1).split() if w.lower() not in stopwords])
+            if len(extracted) >= 3:
+                targets.append(extracted.upper())
+
+        sig_sorted = sorted(sig_tokens, key=lambda x: len(x), reverse=True)
+        for st in sig_sorted:
+            if st.upper() not in targets:
+                targets.append(st.upper())
+        for at in all_tokens:
+            if at.upper() not in targets:
+                targets.append(at.upper())
+
+        kw_pos = -1
+        for t in targets:
+            p = text.upper().find(t)
+            if p != -1:
+                kw_pos = p
+                break
+
+        if kw_pos != -1 and (len(text) > max_chars or kw_pos > 250):
+            start_pos = max(0, kw_pos - 100)
+            rec_break = text.rfind("\n", max(0, start_pos - 200), start_pos + 1)
+            if rec_break != -1:
+                start_pos = rec_break + 1
+            end_pos = min(len(text), start_pos + max_chars)
+
+            # Protect base64 photo boundaries if present
+            photo_marker = text.rfind("FOTO:", start_pos, end_pos)
+            if photo_marker != -1:
+                next_sep = text.find(" | ", photo_marker)
+                if next_sep != -1 and next_sep > end_pos:
+                    end_pos = next_sep
+
+            snippet = ("... " if start_pos > 0 else "") + text[start_pos:end_pos]
+            if end_pos < len(text):
+                snippet += "... [truncated]"
+            return snippet
+        else:
+            return text[:max_chars]
+
 vector_store = VectorStoreService()

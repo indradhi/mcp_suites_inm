@@ -1092,7 +1092,7 @@ async def orchestrate_search(
                     "validity_tier": v_tier,
                     "validity_score": v_score,
                     "hybrid_score": hybrid_score,
-                    "content": h.get("content", "")[:1800]
+                    "content": vector_store.extract_snippet(h.get("content", ""), query, max_chars=1800)
                 })
             
             # Rerank by hybrid score

@@ -428,7 +428,7 @@ class FlowOrchestrator:
                                 "id": h.get("id"),
                                 "source": h.get("metadata", {}).get("source_name", "KB"),
                                 "score": round(float(h.get("score", 0)), 4),
-                                "preview": h.get("content", "")[:250]
+                                "preview": vector_store.extract_snippet(h.get("content", ""), q_clean, max_chars=400)
                             }
                             for h in hits[:3]
                         ]

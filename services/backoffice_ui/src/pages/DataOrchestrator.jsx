@@ -1523,7 +1523,7 @@ export default function DataOrchestrator() {
                           <ValidityBadge tier={doc.validity_tier} score={doc.validity_score} />
                         </div>
                         <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-emerald)', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '700' }}>
-                          Hybrid Score: {doc.score}
+                          Hybrid Score: {doc.hybrid_score !== undefined ? doc.hybrid_score : doc.score}
                         </span>
                       </div>
                       {doc.validity_notes && (
@@ -1531,7 +1531,7 @@ export default function DataOrchestrator() {
                           ℹ️ {doc.validity_notes}
                         </div>
                       )}
-                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace', whiteSpace: 'pre-wrap', maxHeight: '160px', overflowY: 'auto' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace', whiteSpace: 'pre-wrap', maxHeight: '220px', overflowY: 'auto', lineHeight: '1.5', background: 'rgba(0, 0, 0, 0.25)', padding: '10px 12px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.04)' }}>
                         {doc.content}
                       </div>
                     </div>
