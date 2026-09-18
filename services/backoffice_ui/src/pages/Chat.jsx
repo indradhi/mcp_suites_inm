@@ -183,6 +183,8 @@ export default function Chat() {
   const [activeBackends, setActiveBackends] = useState([]);
   const [selectedBackendId, setSelectedBackendId] = useState(null);
   const [selectedModelName, setSelectedModelName] = useState('');
+  const [modelSearchQuery, setModelSearchQuery] = useState('');
+  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [lightboxImage, setLightboxImage] = useState(null);
   const [copiedImage, setCopiedImage] = useState(false);
   const [copiedResponseId, setCopiedResponseId] = useState(null);
@@ -2358,47 +2360,175 @@ export default function Chat() {
             )}
           </div>
 
-          {/* Model LLM Selector (Cloud & Local) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {/* Model LLM Selector (Cloud & Local) — filterable custom dropdown */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', position: 'relative' }}>
             <Cpu size={14} color="var(--accent-primary)" />
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Model LLM:</span>
-            <select
-              value={selectedBackendId && selectedModelName ? `${selectedBackendId}:${selectedModelName}` : ''}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (!val) {
-                  setSelectedBackendId(null);
-                  setSelectedModelName('');
-                } else {
-                  const parts = val.split(':');
-                  setSelectedBackendId(parseInt(parts[0]));
-                  setSelectedModelName(parts.slice(1).join(':'));
-                }
-              }}
+
+            {/* Trigger button */}
+            <button
+              onClick={() => { setModelDropdownOpen(v => !v); setModelSearchQuery(''); }}
+              title="Pilih model LLM untuk sesi chat ini (Cloud / Local)"
               style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
                 background: selectedModelName ? 'rgba(30, 41, 59, 0.95)' : 'rgba(15, 23, 42, 0.8)',
                 border: `1px solid ${selectedModelName ? 'var(--accent-primary)' : 'var(--border-color)'}`,
                 color: '#ffffff',
-                padding: '8px 12px',
+                padding: '7px 10px',
                 borderRadius: '8px',
                 fontSize: '13px',
-                outline: 'none',
                 cursor: 'pointer',
-                maxWidth: '260px'
+                maxWidth: '260px',
+                minWidth: '180px',
+                textAlign: 'left',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
               }}
-              title="Pilih model LLM untuk sesi chat ini (Cloud / Local)"
             >
-              <option value="">⚙️ Default (Sesuai Assignment)</option>
-              {activeBackends.map(b => (
-                <optgroup key={b.backend_id} label={`${b.backend_name} (${b.backend_type.toUpperCase()})`}>
-                  {(b.models || []).map((m, mIdx) => (
-                    <option key={`${b.backend_id}:${m}`} value={`${b.backend_id}:${m}`}>
-                      {m} {b.is_default && m === b.default_model ? '★' : ''}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {selectedModelName ? selectedModelName : '⚙️ Default (Sesuai Assignment)'}
+              </span>
+              <span style={{ fontSize: '10px', opacity: 0.6 }}>{modelDropdownOpen ? '▲' : '▼'}</span>
+            </button>
+
+            {/* Dropdown panel */}
+            {modelDropdownOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  zIndex: 9999,
+                  background: 'rgba(15, 23, 42, 0.98)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '10px',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                  minWidth: '300px',
+                  maxWidth: '420px',
+                  marginTop: '4px',
+                  overflow: 'hidden'
+                }}
+              >
+                {/* Search input */}
+                <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-color)' }}>
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="🔍 Cari model..."
+                    value={modelSearchQuery}
+                    onChange={e => setModelSearchQuery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      background: 'rgba(255,255,255,0.07)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '6px',
+                      color: '#fff',
+                      padding: '6px 10px',
+                      fontSize: '13px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                {/* Options list */}
+                <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
+                  {/* Default option */}
+                  {!modelSearchQuery && (
+                    <div
+                      onClick={() => { setSelectedBackendId(null); setSelectedModelName(''); setModelDropdownOpen(false); }}
+                      style={{
+                        padding: '8px 14px',
+                        cursor: 'pointer',
+                        fontSize: '13px',
+                        color: !selectedModelName ? 'var(--accent-primary)' : '#e2e8f0',
+                        background: !selectedModelName ? 'rgba(99,102,241,0.1)' : 'transparent',
+                        borderBottom: '1px solid rgba(255,255,255,0.05)'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.15)'}
+                      onMouseLeave={e => e.currentTarget.style.background = !selectedModelName ? 'rgba(99,102,241,0.1)' : 'transparent'}
+                    >
+                      ⚙️ Default (Sesuai Assignment)
+                    </div>
+                  )}
+
+                  {/* Filtered backend groups */}
+                  {activeBackends.map(b => {
+                    const q = modelSearchQuery.toLowerCase();
+                    const filteredModels = (b.models || []).filter(m =>
+                      !q || m.toLowerCase().includes(q) || b.backend_name.toLowerCase().includes(q)
+                    );
+                    if (filteredModels.length === 0) return null;
+                    return (
+                      <div key={b.backend_id}>
+                        <div style={{
+                          padding: '5px 14px',
+                          fontSize: '11px',
+                          color: 'var(--text-muted)',
+                          fontWeight: 600,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.06em',
+                          background: 'rgba(255,255,255,0.03)',
+                          borderTop: '1px solid rgba(255,255,255,0.06)'
+                        }}>
+                          {b.backend_name} ({b.backend_type.toUpperCase()})
+                        </div>
+                        {filteredModels.map(m => {
+                          const val = `${b.backend_id}:${m}`;
+                          const isSelected = selectedBackendId === b.backend_id && selectedModelName === m;
+                          return (
+                            <div
+                              key={val}
+                              onClick={() => {
+                                setSelectedBackendId(b.backend_id);
+                                setSelectedModelName(m);
+                                setModelDropdownOpen(false);
+                                setModelSearchQuery('');
+                              }}
+                              style={{
+                                padding: '7px 14px 7px 22px',
+                                cursor: 'pointer',
+                                fontSize: '13px',
+                                color: isSelected ? 'var(--accent-primary)' : '#e2e8f0',
+                                background: isSelected ? 'rgba(99,102,241,0.12)' : 'transparent',
+                                display: 'flex', alignItems: 'center', gap: '6px'
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.15)'}
+                              onMouseLeave={e => e.currentTarget.style.background = isSelected ? 'rgba(99,102,241,0.12)' : 'transparent'}
+                            >
+                              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m}</span>
+                              {b.is_default && m === b.default_model && <span style={{ fontSize: '11px', color: '#fbbf24' }}>★</span>}
+                              {isSelected && <span style={{ fontSize: '11px' }}>✓</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+
+                  {/* No results */}
+                  {modelSearchQuery && activeBackends.every(b =>
+                    (b.models || []).filter(m =>
+                      m.toLowerCase().includes(modelSearchQuery.toLowerCase()) ||
+                      b.backend_name.toLowerCase().includes(modelSearchQuery.toLowerCase())
+                    ).length === 0
+                  ) && (
+                    <div style={{ padding: '16px 14px', color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center' }}>
+                      Tidak ada model yang cocok
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Backdrop to close dropdown */}
+            {modelDropdownOpen && (
+              <div
+                style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
+                onClick={() => setModelDropdownOpen(false)}
+              />
+            )}
           </div>
 
           {/* Top-K Selector */}

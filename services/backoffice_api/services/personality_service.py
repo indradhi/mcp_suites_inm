@@ -25,7 +25,7 @@ DEFAULT_PERSONALITY: Dict[str, Any] = {
         "Prioritaskan penggunaan alat/tool database resmi (seperti verifikasi profil penduduk, sertifikat tanah BPN, atau database internal) jika pertanyaan menanyakan subjek orang atau aset fisik.",
         "STRICT GROUNDING: Jawab murni berdasarkan fakta dan dokumen yang tersedia. Jika data tidak ditemukan, katakan secara jujur bahwa data tidak ditemukan dalam basis data yang terhubung. DILARANG KERAS mengarang (halusinasi) nama, nomor sertifikat, NIK, atau aset fiktif.",
         "Sajikan kutipan sumber, nomor dokumen, dan konteks data pendukung secara transparan dan jelas.",
-        "Jika hasil query atau alat memuat foto, tampilkan foto dalam format Markdown Image `![Foto](data:image/jpeg;base64,...)` HANYA JIKA identitas orang dalam foto cocok secara persis (berdasarkan NIK atau Nama) dengan orang yang sedang dibahas. DILARANG KERAS menampilkan foto orang lain atau foto acak jika tidak relevan dengan subjek yang ditanyakan."
+        "Jika hasil query atau alat memuat foto resmi, sertakan tag Markdown: `![Foto Profil - NAMA_LENGKAP](foto_resmi)` HANYA JIKA identitas orang dalam foto cocok secara persis (berdasarkan NIK atau Nama Lengkap). Sistem backend kami akan otomatis mengganti tag ini dengan foto resmi beresolusi tinggi. DILARANG KERAS menyalin atau menuliskan kode base64 mentah dalam teks jawaban."
     ],
     "custom_instructions": "",
     "anti_hallucination_level": "strict",
@@ -53,7 +53,7 @@ CURATED_PRESETS: List[Dict[str, Any]] = [
             "STRICT GROUNDING: Jawab murni berdasarkan fakta dan dokumen yang tersedia. Jika data tidak ditemukan, katakan secara jujur bahwa data tidak ditemukan dalam basis data yang terhubung. DILARANG KERAS mengarang (halusinasi) nama, nomor sertifikat, NIK, atau aset fiktif.",
             "Sajikan kutipan sumber, nomor dokumen, dan konteks data pendukung secara transparan dan jelas.",
             "Gunakan format Markdown terstruktur: tabel untuk data tabular/inventaris, bullet points untuk rincian fakta, dan teks tebal untuk entitas penting.",
-            "Jika hasil query atau alat memuat foto, tampilkan foto dalam format Markdown Image `![Foto](data:image/jpeg;base64,...)` HANYA JIKA identitas orang dalam foto cocok secara persis (berdasarkan NIK atau Nama) dengan orang yang sedang dibahas. DILARANG KERAS menampilkan foto orang lain atau foto acak jika tidak relevan dengan subjek yang ditanyakan."
+            "Jika hasil query atau alat memuat foto resmi, sertakan tag Markdown: `![Foto Profil - NAMA_LENGKAP](foto_resmi)` HANYA JIKA identitas orang dalam foto cocok secara persis (berdasarkan NIK atau Nama Lengkap). Sistem backend kami akan otomatis mengganti tag ini dengan foto resmi beresolusi tinggi. DILARANG KERAS menyalin atau menuliskan kode base64 mentah dalam teks jawaban."
         ]
     },
     {
@@ -323,6 +323,13 @@ class PersonalityService:
                 f"Pengguna telah melampirkan file '{doc_fname}'. Prioritaskan membaca, menganalisis, dan menjawab pertanyaan "
                 f"berdasarkan dokumen terlampir tersebut dengan menyajikan fakta secara terstruktur dan terverifikasi.\n"
             )
+
+        # Directive for Family Card (Kartu Keluarga / KK) multi-member completeness
+        prompt += (
+            f"\nPENCARIAN KARTU KELUARGA (KK):\n"
+            f"- Jika pertanyaan menyangkut Kartu Keluarga (KK) atau Nomor KK, Anda WAJIB menampilkan SELURUH anggota keluarga yang terdaftar dalam KK tersebut (Kepala Keluarga, Istri/Pasangan, dan Anak/Famili Lain) secara lengkap berurutan (1, 2, 3, dst.).\n"
+            f"- DILARANG BERHENTI setelah hanya menampilkan Kepala Keluarga jika dokumen atau konteks memuat anggota keluarga lainnya (seperti Istri, Anak, atau Famili Lain).\n"
+        )
 
         return prompt.strip()
 

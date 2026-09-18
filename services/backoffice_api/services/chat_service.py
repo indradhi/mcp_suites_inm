@@ -156,10 +156,14 @@ class ChatService:
                 except Exception as e:
                     logger.warning(f"Error filtering active sources for vector retrieval: {e}")
 
+            # If query looks like a KK (family search) or explicit multi-record request, expand retrieval budget
+            is_family_or_kk_query = bool(re.search(r'\b(?:kk|kartu\s+keluarga|no_kk)\b', message, re.IGNORECASE) or re.search(r'\b\d{16}\b', message))
+            effective_top_k = max(top_k or 5, 8) if is_family_or_kk_query else (top_k or 5)
+
             try:
                 retrieved_chunks = vector_store.query_similarity(
                     query=message,
-                    n_results=top_k,
+                    n_results=effective_top_k,
                     filter_meta=filter_meta
                 )
                 if retrieved_chunks and db:
@@ -324,6 +328,12 @@ class ChatService:
             sig_tokens = [w for w in all_tokens if w.lower() not in stopwords]
 
             centering_targets = []
+            # Prioritize explicit numeric identifiers (KK or NIK)
+            id_tokens = re.findall(r'\b\d{6,20}\b', message)
+            for it in id_tokens:
+                if it not in centering_targets:
+                    centering_targets.append(it)
+
             # Prioritize extracted entity name
             name_m = re.search(r"(?:atas\s+nama|dengan\s+nama|bernama|nama|subjek|orang)\s+([a-zA-Z\s]{4,})", message, re.IGNORECASE)
             if name_m:
@@ -345,42 +355,43 @@ class ChatService:
                 score = c.get("score", 0.0)
                 raw_content = c.get("content", "").strip()
 
+                # Mask giant base64 image strings in excerpt to preserve LLM context and prevent token budget exhaustion
+                masked_content = re.sub(
+                    r'(?:FOTO|photo|image|avatar|gambar)[\s:=]+(["\']?)(?:/9j/|data:image/[a-zA-Z0-9+.-]+;base64,)[A-Za-z0-9+/=]{60,}\1',
+                    'FOTO: [TERSEDIA_TERVERIFIKASI]',
+                    raw_content,
+                    flags=re.IGNORECASE
+                )
+                masked_content = re.sub(
+                    r'(/9j/[A-Za-z0-9+/=]{80,}|data:image/[a-zA-Z0-9+.-]+;base64,[A-Za-z0-9+/=]{80,})',
+                    '[FOTO_BASE64_TERVERIFIKASI]',
+                    masked_content
+                )
+
                 # Clean snippet for LLM context and preview with smart entity keyword centering
-                chunk_excerpt = raw_content
+                chunk_excerpt = masked_content
                 kw_pos = -1
                 for w in centering_targets:
-                    p = raw_content.upper().find(w.upper())
+                    p = masked_content.upper().find(w.upper())
                     if p != -1:
                         kw_pos = p
                         break
 
-                if kw_pos != -1 and (len(raw_content) > MAX_CHUNK_CHARS or kw_pos > 800):
+                if kw_pos != -1 and (len(masked_content) > MAX_CHUNK_CHARS or kw_pos > 800):
                     # Center window around the entity/keyword occurrence, snapping to line/record boundary
                     start_pos = max(0, kw_pos - 150)
-                    rec_break = raw_content.rfind("\n", max(0, start_pos - 200), start_pos + 1)
+                    rec_break = masked_content.rfind("\n", max(0, start_pos - 200), start_pos + 1)
                     if rec_break != -1:
                         start_pos = rec_break + 1
-                    end_pos = min(len(raw_content), start_pos + MAX_CHUNK_CHARS)
+                    end_pos = min(len(masked_content), start_pos + MAX_CHUNK_CHARS)
 
-                    # Protect photo boundaries: if end_pos cuts into a base64 photo, extend to next field separator ' | ' or newline
-                    photo_marker = raw_content.rfind("FOTO:", start_pos, end_pos)
-                    if photo_marker != -1:
-                        next_sep = raw_content.find(" | ", photo_marker)
-                        if next_sep != -1 and next_sep > end_pos:
-                            end_pos = next_sep
-
-                    chunk_excerpt = ("... " if start_pos > 0 else "") + raw_content[start_pos:end_pos]
-                    if end_pos < len(raw_content):
+                    chunk_excerpt = ("... " if start_pos > 0 else "") + masked_content[start_pos:end_pos]
+                    if end_pos < len(masked_content):
                         chunk_excerpt += "... [truncated for length]"
-                elif len(raw_content) > MAX_CHUNK_CHARS:
-                    end_pos = min(len(raw_content), MAX_CHUNK_CHARS)
-                    photo_marker = raw_content.rfind("FOTO:", 0, end_pos)
-                    if photo_marker != -1:
-                        next_sep = raw_content.find(" | ", photo_marker)
-                        if next_sep != -1 and next_sep > end_pos:
-                            end_pos = next_sep
-                    chunk_excerpt = raw_content[:end_pos]
-                    if end_pos < len(raw_content):
+                elif len(masked_content) > MAX_CHUNK_CHARS:
+                    end_pos = min(len(masked_content), MAX_CHUNK_CHARS)
+                    chunk_excerpt = masked_content[:end_pos]
+                    if end_pos < len(masked_content):
                         chunk_excerpt += "... [truncated for length]"
 
                 v_tier = c.get("validity_tier", "secondary")
@@ -651,7 +662,7 @@ Instructions:
 - If the question can be answered or queried using one of the available tools, call the tool first.
 - Only formulate a direct answer from the context above if none of the tools are applicable.
 - STRICT ANTI-HALLUCINATION: If neither the tools nor the context contain the requested data, state clearly: "Data tidak ditemukan dalam basis data atau dokumen yang tersedia." DO NOT invent, fabricate, or guess any details.
-- When tool results or context contain photos, render the photo in Markdown image `![Foto](data:image/jpeg;base64,...)` ONLY IF the photo strictly belongs to the specific person or entity being profiled (matching NIK or Full Name). NEVER display another person's photo or an unverified photo."""
+- When tool results or context contain photos, render the photo in Markdown image tag `![Foto Profil - NAMA_LENGKAP](foto_resmi)` ONLY IF the photo strictly belongs to the specific person or entity being profiled (matching NIK or Full Name). The system backend will automatically replace (foto_resmi) with the verified image. NEVER output raw base64 strings manually in the answer."""
         else:
             if not has_real_context and strict_mode:
                 prompt_content = f"""Context Information from Knowledge Base:
@@ -678,7 +689,9 @@ Berikan jawaban terstruktur, akurat, dan jelas murni berdasarkan konteks di atas
 Patuhi aturan:
 1. Hanya sampaikan informasi yang tertulis di dalam konteks di atas.
 2. Jangan pernah menebak, mengasumsikan, atau menambahkan rincian yang tidak ada dalam konteks.
-3. Sebutkan sumber dokumen pendukung jika relevan."""
+3. Sebutkan sumber dokumen pendukung jika relevan.
+4. PENCARIAN KARTU KELUARGA (KK): Jika pertanyaan menyangkut Kartu Keluarga (KK) atau Nomor KK, Anda WAJIB menampilkan SELURUH anggota keluarga yang terdaftar dalam KK tersebut (Kepala Keluarga, Istri/Pasangan, dan Anak/Famili Lain) secara berurutan dan lengkap (1, 2, 3, dst.). DILARANG BERHENTI setelah hanya menampilkan Kepala Keluarga jika konteks memuat anggota keluarga lainnya.
+5. FOTO PROFIL: Untuk setiap orang/anggota keluarga yang memiliki foto dalam basis data, sertakan tag Markdown: `![Foto Profil - NAMA_LENGKAP](foto_resmi)`. DILARANG KERAS menyalin atau menuliskan kode base64 mentah dalam teks jawaban."""
 
         # Prepare messages
         messages = [{"role": "system", "content": system_instruction}]
@@ -1147,7 +1160,7 @@ Patuhi aturan:
 
                 clean_answer = md_img_pattern.sub(_heal_image_match, clean_answer)
 
-                # Step 2: Strict Entity-Grounded Injection (ONLY if no markdown image exists and EXACTLY ONE entity unambiguously matches)
+                # Step 2: Strict Entity-Grounded Injection (if no markdown images were rendered by LLM)
                 if not re.search(r'!\[.*?\]\([^\)]+\)', clean_answer):
                     matching_in_query = [ep for ep in unique_entities if not ep.is_truncated and _matches_subject(ep, message)]
                     matching_in_ans = [ep for ep in unique_entities if not ep.is_truncated and _matches_subject(ep, clean_answer)]
@@ -1162,9 +1175,35 @@ Patuhi aturan:
                         target_uri = _normalize_data_uri(target.photo)
                         label = f"Foto Profil - {target.name}" if target.name else "Foto Profil Terverifikasi"
                         clean_answer = f"![{label}]({target_uri})\n\n" + clean_answer
-                        logger.info(f"Entity-aware photo injected for '{target.name or target.nik}'")
-                    elif len(matching_in_query) > 1 or len(matching_in_ans) > 1:
-                        logger.info(f"Multiple entities matched (query: {len(matching_in_query)}, ans: {len(matching_in_ans)}), omitting top photo injection to prevent confusion.")
+                        logger.info(f"Entity-aware photo injected for single subject '{target.name or target.nik}'")
+                    elif len(matching_in_ans) > 1:
+                        # Multi-entity injection: inject each person's verified photo right below their section / table
+                        entity_positions = []
+                        for ep in matching_in_ans:
+                            pos = -1
+                            if ep.nik and ep.nik in clean_answer:
+                                pos = clean_answer.find(ep.nik)
+                            elif ep.name and ep.name in clean_answer:
+                                pos = clean_answer.find(ep.name)
+                            elif ep.name and ep.name.lower() in clean_answer.lower():
+                                pos = clean_answer.lower().find(ep.name.lower())
+                            if pos != -1:
+                                entity_positions.append((pos, ep))
+
+                        # Sort descending by position so insertions don't invalidate subsequent offsets
+                        entity_positions.sort(key=lambda x: x[0], reverse=True)
+                        for pos, ep in entity_positions:
+                            offset = pos + 20
+                            m_sec = re.search(r'(?:\n\s*---\s*\n|\n\s*###\s+|\n\s*[1-9]\d*\.\s+|\n\s*(?:Catatan|Sumber|Note)[\s*:]+)', clean_answer[offset:], re.IGNORECASE)
+                            if m_sec:
+                                insert_pos = offset + m_sec.start()
+                            else:
+                                insert_pos = len(clean_answer)
+
+                            ep_uri = _normalize_data_uri(ep.photo)
+                            photo_tag = f"\n\n![Foto Profil - {ep.name}]({ep_uri})\n"
+                            clean_answer = clean_answer[:insert_pos] + photo_tag + clean_answer[insert_pos:]
+                        logger.info(f"Multi-entity photos injected for {len(entity_positions)} subjects in family/batch response.")
 
             except Exception as heal_err:
                 logger.warning(f"Error during base64 image auto-healing: {heal_err}")

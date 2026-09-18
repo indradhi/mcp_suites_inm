@@ -168,6 +168,12 @@ class VectorStoreService:
 
             kw_candidates = []
 
+            # A0. Extract explicit numeric identifiers (NIK, NO_KK, Certificate Numbers, etc.)
+            id_matches = re.findall(r'\b\d{6,20}\b', query)
+            for im in id_matches:
+                if im not in kw_candidates:
+                    kw_candidates.append(im)
+
             # A. Extract person names preceded by indicators ('nama', 'bernama', 'atas nama', 'orang')
             name_patterns = [
                 r"(?:atas\s+nama|dengan\s+nama|bernama|nama|subjek|orang)\s+([a-zA-Z\s]{4,})",
@@ -211,15 +217,16 @@ class VectorStoreService:
                     ordered_kws.append(kw)
 
             exact_matched_chunks = []
-            has_multiword_hit = False
+            has_strong_hit = False
 
             for kw in ordered_kws:
-                # If we already have strong multi-word entity hits, don't pollute with short generic single words
-                if has_multiword_hit and (" " not in kw and len(kw) < 6):
+                # If we already have strong entity/ID hits, don't pollute with short generic single words
+                if has_strong_hit and (" " not in kw and len(kw) < 6 and not kw.isdigit()):
                     continue
 
+                is_id_code = kw.isdigit() and len(kw) >= 6
                 is_multiword = " " in kw
-                limit = 5 if is_multiword else 2
+                limit = max(15, n_results * 2) if (is_multiword or is_id_code) else 3
 
                 kw_kwargs = {
                     "where_document": {"$contains": kw},
@@ -235,38 +242,48 @@ class VectorStoreService:
                             if cid not in seen_ids:
                                 seen_ids.add(cid)
                                 # Scoring hierarchy:
-                                # 1.0 : Full person name or explicit attribute match
+                                # 1.0 : Full person name, exact NIK, or exact NO_KK match
                                 # 0.95: Multi-word entity phrase match
                                 # 0.90: Single word attribute match (NAMA: X, NIK: X)
                                 # 0.80: Single word substring match
+                                is_id_match = is_id_code and (
+                                    f"NO_KK: {kw}" in doc or f"NIK: {kw}" in doc or f": {kw}" in doc or kw in doc
+                                )
                                 is_full_name_match = (
                                     f"NAMA_LGKP: {kw}" in doc or 
                                     f"NAMA: {kw}" in doc or
                                     (is_multiword and kw in doc and ("NAMA_LGKP:" in doc or "NAMA:" in doc))
                                 )
-                                is_attr_match = f"NIK: {kw}" in doc or f": {kw}" in doc
+                                is_attr_match = f"NIK: {kw}" in doc or f"NO_KK: {kw}" in doc or f": {kw}" in doc
                                 
-                                if is_full_name_match:
+                                if is_id_match or is_full_name_match:
                                     score = 1.0
-                                    has_multiword_hit = True
+                                    has_strong_hit = True
                                 elif is_multiword:
                                     score = 0.95
-                                    has_multiword_hit = True
+                                    has_strong_hit = True
                                 elif is_attr_match:
                                     score = 0.90
                                 else:
                                     score = 0.80
 
+                                # Avoid duplicate bank snapshots of the exact same person crowding out other family members
+                                nik_match = re.search(r'\bNIK[\s:=]+([0-9]{10,20})', doc)
+                                nik_val = nik_match.group(1) if nik_match else None
+                                if nik_val and cid.startswith("bank_") and any(ec.get("nik") == nik_val and ec.get("id", "").startswith("bank_") for ec in exact_matched_chunks):
+                                    continue
+
                                 exact_matched_chunks.append({
                                     "id": cid,
                                     "content": doc,
                                     "score": score,
+                                    "nik": nik_val,
                                     "metadata": meta
                                 })
                 except Exception as kw_err:
                     logger.debug(f"Keyword lookup for '{kw}' skipped or failed: {kw_err}")
 
-                if len(exact_matched_chunks) >= n_results and has_multiword_hit:
+                if len(exact_matched_chunks) >= n_results and has_strong_hit:
                     break
 
             exact_matched_chunks.sort(key=lambda x: x["score"], reverse=True)
