@@ -87,6 +87,22 @@ class ChatService:
         start_time = time.time()
         history = history or []
 
+        # Dynamic Personality Activation via Greeting (e.g. "Hello Jarvis")
+        active_personality_override = None
+        if not history and db:
+            greeting_match = re.match(r'^(?:hello|halo|hai|hey|hi|panggil)\s+([a-zA-Z0-9_\s]+?)[!.,\?]*\s*(.*)$', message, re.IGNORECASE)
+            if greeting_match:
+                target_name = greeting_match.group(1).strip().lower()
+                all_pers = personality_service.get_all_available_personalities(db)
+                for p in all_pers:
+                    p_name = (p.get("name") or "").lower()
+                    if target_name in p_name or target_name == str(p.get("preset_id")).lower():
+                        active_personality_override = p
+                        # Optionally strip the greeting from the message, or leave it so the AI sees it
+                        # message = greeting_match.group(2).strip() or message
+                        logger.info(f"Dynamically activated personality '{p.get('name')}' via greeting trigger.")
+                        break
+
         # Consolidate source_ids
         active_source_ids = []
         if source_ids:
@@ -608,7 +624,8 @@ class ChatService:
             single_selected_tool_name=single_selected_tool_name,
             selected_tool_names=selected_tool_names,
             uploaded_document=uploaded_document,
-            strict_mode=strict_mode
+            strict_mode=strict_mode,
+            active_personality_override=active_personality_override
         )
 
         # Inject Active Remembered Retrieval Flow if matched

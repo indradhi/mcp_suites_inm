@@ -40,7 +40,7 @@ def get_personality_settings(
     """
     try:
         active = personality_service.get_personality(db)
-        presets = personality_service.get_presets()
+        presets = personality_service.get_all_available_personalities(db)
         preview = personality_service.build_system_instruction(db=db)
         return {
             "status": "success",
@@ -114,3 +114,91 @@ def reset_personality_settings(
     except Exception as e:
         logger.error(f"Error resetting personality settings: {e}")
         raise HTTPException(status_code=500, detail=f"Gagal mereset kepribadian: {str(e)}")
+
+
+@router.get("/custom")
+def get_custom_personalities(db: Session = Depends(get_db)):
+    """
+    Returns list of custom personalities.
+    """
+    try:
+        results = personality_service.get_custom_personalities(db)
+        return {
+            "status": "success",
+            "success": True,
+            "data": results
+        }
+    except Exception as e:
+        logger.error(f"Error fetching custom personalities: {e}")
+        raise HTTPException(status_code=500, detail=f"Gagal memuat kepribadian kustom: {str(e)}")
+
+
+@router.post("/custom")
+def add_custom_personality(
+    payload: PersonalityPayload,
+    db: Session = Depends(get_db)
+):
+    """
+    Creates a new custom personality.
+    """
+    try:
+        raw_data = payload.dict(exclude_unset=True)
+        created = personality_service.add_custom_personality(db, raw_data)
+        return {
+            "status": "success",
+            "success": True,
+            "message": "Kepribadian kustom berhasil ditambahkan.",
+            "data": created
+        }
+    except Exception as e:
+        logger.error(f"Error adding custom personality: {e}")
+        raise HTTPException(status_code=500, detail=f"Gagal menambah kepribadian: {str(e)}")
+
+
+@router.put("/custom/{preset_id}")
+def update_custom_personality(
+    preset_id: str,
+    payload: PersonalityPayload,
+    db: Session = Depends(get_db)
+):
+    """
+    Updates an existing custom personality.
+    """
+    try:
+        raw_data = payload.dict(exclude_unset=True)
+        updated = personality_service.update_custom_personality(db, preset_id, raw_data)
+        return {
+            "status": "success",
+            "success": True,
+            "message": "Kepribadian kustom berhasil diperbarui.",
+            "data": updated
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error updating custom personality: {e}")
+        raise HTTPException(status_code=500, detail=f"Gagal memperbarui kepribadian: {str(e)}")
+
+
+@router.delete("/custom/{preset_id}")
+def delete_custom_personality(
+    preset_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Deletes a custom personality.
+    """
+    try:
+        success = personality_service.delete_custom_personality(db, preset_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Kepribadian tidak ditemukan.")
+        return {
+            "status": "success",
+            "success": True,
+            "message": "Kepribadian kustom berhasil dihapus."
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting custom personality: {e}")
+        raise HTTPException(status_code=500, detail=f"Gagal menghapus kepribadian: {str(e)}")

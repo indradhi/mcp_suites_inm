@@ -16,7 +16,8 @@ import {
   Eye, 
   Cpu, 
   FileText,
-  Info
+  Info,
+  Trash2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
@@ -177,6 +178,43 @@ export default function MCPPersonality() {
     } catch (err) {
       console.error('Failed to save personality:', err);
       setErrorMessage(err.response?.data?.detail || 'Gagal menyimpan kepribadian MCP.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveCustom = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setErrorMessage(null);
+    setSaveSuccess(false);
+    try {
+      const res = await api.post('/settings/personality/custom', personality);
+      if (res.data && res.data.data) {
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 4000);
+        fetchPersonality();
+      }
+    } catch (err) {
+      console.error('Failed to save custom personality:', err);
+      setErrorMessage(err.response?.data?.detail || 'Gagal menyimpan kepribadian kustom.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteCustom = async (e, presetId) => {
+    e.stopPropagation();
+    if (!window.confirm('Yakin ingin menghapus kepribadian kustom ini?')) {
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.delete(`/settings/personality/custom/${presetId}`);
+      fetchPersonality();
+    } catch (err) {
+      console.error('Failed to delete custom personality:', err);
+      setErrorMessage(err.response?.data?.detail || 'Gagal menghapus kepribadian kustom.');
     } finally {
       setSaving(false);
     }
@@ -397,7 +435,7 @@ export default function MCPPersonality() {
                   <div style={{
                     position: 'absolute',
                     top: '12px',
-                    right: '12px',
+                    right: presetItem.id.startsWith('custom_') ? '40px' : '12px',
                     width: '20px',
                     height: '20px',
                     borderRadius: '50%',
@@ -407,6 +445,27 @@ export default function MCPPersonality() {
                     justifyContent: 'center'
                   }}>
                     <Check size={13} color="#ffffff" strokeWidth={3} />
+                  </div>
+                )}
+                {presetItem.id.startsWith('custom_') && (
+                  <div 
+                    onClick={(e) => handleDeleteCustom(e, presetItem.id)}
+                    style={{
+                      position: 'absolute',
+                      top: '12px',
+                      right: '12px',
+                      width: '20px',
+                      height: '20px',
+                      borderRadius: '4px',
+                      background: 'rgba(239, 68, 68, 0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer'
+                    }}
+                    title="Hapus Kustom"
+                  >
+                    <Trash2 size={12} color="#ef4444" />
                   </div>
                 )}
 
@@ -592,6 +651,22 @@ export default function MCPPersonality() {
               borderTop: '1px solid var(--border-color)'
             }}>
               <button
+                type="button"
+                onClick={handleSaveCustom}
+                disabled={saving || loading}
+                className="btn-secondary"
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px', 
+                  padding: '10px 24px', 
+                  fontSize: '14px'
+                }}
+              >
+                {saving ? <RotateCcw size={16} className="animate-spin" /> : <Save size={16} />}
+                Simpan Baru (Kustom)
+              </button>
+              <button
                 type="submit"
                 disabled={saving || loading}
                 className="btn-primary"
@@ -606,8 +681,8 @@ export default function MCPPersonality() {
                   boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)'
                 }}
               >
-                {saving ? <RotateCcw size={16} className="animate-spin" /> : <Save size={16} />}
-                {saving ? 'Menyimpan Perubahan...' : 'Terapkan Kepribadian'}
+                {saving ? <RotateCcw size={16} className="animate-spin" /> : <Check size={16} />}
+                {saving ? 'Menyimpan...' : 'Terapkan (Default)'}
               </button>
             </div>
           </form>

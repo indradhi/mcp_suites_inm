@@ -6,6 +6,7 @@ from models.system_setting import SystemSetting
 logger = logging.getLogger(__name__)
 
 SETTING_KEY_MCP_PERSONALITY = "mcp_personality"
+SETTING_KEY_MCP_CUSTOM_PERSONALITIES = "mcp_custom_personalities"
 
 DEFAULT_PERSONALITY: Dict[str, Any] = {
     "name": "Analis Intelijen & Penyelidikan KPK",
@@ -222,6 +223,101 @@ class PersonalityService:
             results.append(cp)
         return results
 
+    def get_custom_personalities(self, db: Session) -> List[Dict[str, Any]]:
+        """
+        Returns custom personalities stored in database.
+        """
+        try:
+            record = db.query(SystemSetting).filter(SystemSetting.key == SETTING_KEY_MCP_CUSTOM_PERSONALITIES).first()
+            if record and isinstance(record.value, list):
+                return record.value
+        except Exception as e:
+            logger.warning(f"Error reading custom personalities from database: {e}")
+        return []
+
+    def save_custom_personalities(self, db: Session, personalities: List[Dict[str, Any]]):
+        try:
+            record = db.query(SystemSetting).filter(SystemSetting.key == SETTING_KEY_MCP_CUSTOM_PERSONALITIES).first()
+            if not record:
+                record = SystemSetting(
+                    key=SETTING_KEY_MCP_CUSTOM_PERSONALITIES,
+                    value=personalities,
+                    description="List of custom AI personalities"
+                )
+                db.add(record)
+            else:
+                record.value = personalities
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to save custom personalities: {e}")
+            raise e
+
+    def add_custom_personality(self, db: Session, payload: Dict[str, Any]) -> Dict[str, Any]:
+        import uuid
+        personalities = self.get_custom_personalities(db)
+        
+        # Build clean data
+        preset_id = f"custom_{str(uuid.uuid4())[:8]}"
+        clean_data = {
+            "id": preset_id,
+            "preset_id": preset_id,
+            "name": str(payload.get("name") or "New Custom Persona").strip(),
+            "role_title": str(payload.get("role_title") or payload.get("role") or "").strip(),
+            "tone": str(payload.get("tone") or "custom"),
+            "tone_label": str(payload.get("tone_label") or payload.get("tone_of_voice") or "").strip(),
+            "language_style": str(payload.get("language_style") or "id"),
+            "core_mission": str(payload.get("core_mission") or "").strip(),
+            "guidelines": payload.get("guidelines") if isinstance(payload.get("guidelines"), list) else [],
+            "custom_instructions": str(payload.get("custom_instructions") or "").strip(),
+            "anti_hallucination_level": str(payload.get("anti_hallucination_level") or "strict"),
+            "category": "custom_user",
+            "badge_color": "#f59e0b",
+            "description": str(payload.get("description") or "Karakter buatan pengguna")
+        }
+        
+        personalities.append(clean_data)
+        self.save_custom_personalities(db, personalities)
+        return clean_data
+
+    def update_custom_personality(self, db: Session, preset_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        personalities = self.get_custom_personalities(db)
+        target = None
+        for p in personalities:
+            if p.get("preset_id") == preset_id or p.get("id") == preset_id:
+                target = p
+                break
+                
+        if not target:
+            raise ValueError("Custom personality not found")
+            
+        target["name"] = str(payload.get("name") or target.get("name")).strip()
+        target["role_title"] = str(payload.get("role_title") or payload.get("role") or target.get("role_title")).strip()
+        target["tone_label"] = str(payload.get("tone_label") or payload.get("tone_of_voice") or target.get("tone_label")).strip()
+        target["core_mission"] = str(payload.get("core_mission") or target.get("core_mission")).strip()
+        target["custom_instructions"] = str(payload.get("custom_instructions") or target.get("custom_instructions")).strip()
+        if "guidelines" in payload and isinstance(payload.get("guidelines"), list):
+            target["guidelines"] = payload.get("guidelines")
+            
+        self.save_custom_personalities(db, personalities)
+        return target
+
+    def delete_custom_personality(self, db: Session, preset_id: str) -> bool:
+        personalities = self.get_custom_personalities(db)
+        new_list = [p for p in personalities if p.get("preset_id") != preset_id and p.get("id") != preset_id]
+        if len(new_list) != len(personalities):
+            self.save_custom_personalities(db, new_list)
+            return True
+        return False
+
+    def get_all_available_personalities(self, db: Session) -> List[Dict[str, Any]]:
+        """
+        Returns combination of curated presets, default, and user custom personalities.
+        """
+        all_p = self.get_presets()
+        all_p.extend(self.get_custom_personalities(db))
+        return all_p
+
     def build_system_instruction(
         self,
         db: Optional[Session] = None,
@@ -232,7 +328,8 @@ class PersonalityService:
         single_selected_tool_name: Optional[str] = None,
         selected_tool_names: Optional[List[str]] = None,
         uploaded_document: Optional[Dict[str, Any]] = None,
-        strict_mode: bool = True
+        strict_mode: bool = True,
+        active_personality_override: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         Dynamically constructs the comprehensive system prompt by blending:
@@ -246,6 +343,9 @@ class PersonalityService:
         pers = self.get_personality(db) if db else dict(DEFAULT_PERSONALITY)
 
         # If full override prompt is specified, use it as the base
+        if active_personality_override:
+            pers = active_personality_override
+            
         if pers.get("system_prompt_override"):
             base_prompt = pers["system_prompt_override"].strip()
             prompt = f"{base_prompt}\n\n"
