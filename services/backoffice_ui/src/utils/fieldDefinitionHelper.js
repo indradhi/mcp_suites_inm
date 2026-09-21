@@ -511,8 +511,7 @@ export function generateWhereClause(dbType = 'mysql', currentQuery = '', paramet
     if (validParams.length === 0) {
       return '{\n  \n}';
     }
-    const filterObj = {};
-    validParams.forEach(p => {
+    const orConditions = validParams.map(p => {
       const pName = p.name.trim();
       const pType = (p.type || 'string').toLowerCase();
       const isText = (pType === 'string' || !pType) && matchMode !== 'exact';
@@ -520,12 +519,15 @@ export function generateWhereClause(dbType = 'mysql', currentQuery = '', paramet
       const isExactField = ['id', 'nik', 'no_ktp', 'no_kk', 'status', 'kd_status', 'npwp', 'role', '_id'].includes(cleanKey);
 
       if (isText && !isExactField) {
-        filterObj[pName] = { "$regex": `:${pName}`, "$options": "i" };
+        return { [pName]: { "$regex": `:${pName}`, "$options": "i" } };
       } else {
-        filterObj[pName] = `:${pName}`;
+        return { [pName]: `:${pName}` };
       }
     });
-    return JSON.stringify(filterObj, null, 2);
+    if (orConditions.length === 1) {
+      return JSON.stringify(orConditions[0], null, 2);
+    }
+    return JSON.stringify({ "$or": orConditions }, null, 2);
   }
 
   // SQL Databases
@@ -581,7 +583,7 @@ export function generateWhereClause(dbType = 'mysql', currentQuery = '', paramet
     return baseCond;
   });
 
-  const whereBody = conditions.join('\n  AND ');
+  const whereBody = conditions.join('\n  OR ');
 
   if (lowerDb === 'mssql') {
     return `SELECT TOP 50 ${selectFields} FROM ${tableName}\nWHERE ${whereBody}`;
