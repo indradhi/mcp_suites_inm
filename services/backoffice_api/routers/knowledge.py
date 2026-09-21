@@ -166,6 +166,78 @@ async def test_source_connection(payload: TestConnectionRequest, user = Depends(
     except Exception as e:
         return {"success": False, "message": str(e)}
 
+@router.post("/inspect-database-columns")
+async def inspect_database_columns(payload: TestConnectionRequest, user = Depends(get_current_user)):
+    """
+    Performs a fast schema probe on a database connection to discover available columns
+    and sample record. Used for auto-generating parameters, field definitions, and WHERE queries.
+    """
+    config = payload.config or {}
+    db_type = config.get("db_type", "mysql").lower()
+
+    try:
+        probe_config = config.copy()
+        probe_config["limit"] = 1
+        query_str = str(probe_config.get("query") or "").strip()
+        table_name = None
+
+        if db_type == "mongodb":
+            collection = probe_config.get("collection")
+            if not collection:
+                raise ValueError("Collection MongoDB harus diisi untuk menginspeksi field.")
+            table_name = collection
+            probe_config["query"] = "{}"
+        else:
+            import re
+            m = re.search(r'\bFROM\s+([`"\'\[]?[\w.]+[`"\'\]]?)', query_str, re.IGNORECASE)
+            if m:
+                table_name = m.group(1).strip('`"\'[]')
+                if ":" in query_str or "{" in query_str:
+                    probe_config["query"] = f"SELECT * FROM {m.group(1)}"
+            elif not query_str:
+                adapter = database_ingester.get_adapter(db_type)
+                if hasattr(adapter, "inspect_tables"):
+                    tables = adapter.inspect_tables(probe_config)
+                    if tables:
+                        table_name = tables[0]
+                        probe_config["query"] = f"SELECT * FROM {table_name}"
+                if not probe_config.get("query"):
+                    raise ValueError("Query atau nama tabel harus diisi untuk menginspeksi kolom.")
+
+        res = await database_ingester.execute_tool_call(probe_config, {})
+        if not res.get("success"):
+            return {
+                "success": False,
+                "message": res.get("error") or "Gagal menginspeksi kolom database",
+                "columns": [],
+                "sample": None,
+                "table_name": table_name
+            }
+
+        columns = res.get("columns", [])
+        data = res.get("data", [])
+        sample = data[0] if data and isinstance(data[0], dict) else {}
+
+        if not columns and sample:
+            columns = list(sample.keys())
+
+        return {
+            "success": True,
+            "message": f"Berhasil mendeteksi {len(columns)} kolom dari database.",
+            "columns": columns,
+            "sample": sample,
+            "table_name": table_name,
+            "db_type": db_type,
+            "row_count": len(data)
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e),
+            "columns": [],
+            "sample": None
+        }
+
 @router.get("/api-tools")
 @router.get("/tools")
 def list_api_tools(db: Session = Depends(get_db)):

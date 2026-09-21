@@ -268,7 +268,7 @@ const KNOWN_FIELD_DICTIONARY = {
  * Normalizes a field key name into a friendly title
  * e.g. "nama_lengkap_ibu" -> "Nama Lengkap Ibu"
  */
-function toReadableTitle(name) {
+export function toReadableTitle(name) {
   if (!name) return '';
   return name
     .replace(/[_-]+/g, ' ')
@@ -425,4 +425,169 @@ export function inferFieldDataType(key, val) {
   }
 
   return 'string';
+}
+
+/**
+ * Infers an appropriate parameter description for AI tool calling
+ * e.g. "nik" -> "Filter pencarian spesifik berdasarkan NIK (Nomor Induk Kependudukan 16 digit)"
+ *      "nama" -> "Filter pencarian nama lengkap atau sebagian nama individu"
+ */
+export function inferParameterDescription(fieldName, inferredType = 'string', sampleValue = null) {
+  if (!fieldName || typeof fieldName !== 'string') return '';
+  const cleanKey = fieldName.toLowerCase().trim();
+  const title = toReadableTitle(cleanKey);
+
+  // Common identity & key filters
+  if (cleanKey === 'nik' || cleanKey === 'no_ktp') {
+    return 'Filter pencarian spesifik berdasarkan NIK (Nomor Induk Kependudukan 16 digit)';
+  }
+  if (cleanKey === 'no_kk' || cleanKey === 'nomor_kk') {
+    return 'Filter pencarian berdasarkan Nomor Kartu Keluarga (KK 16 digit)';
+  }
+  if (cleanKey.includes('nama') || cleanKey.includes('name')) {
+    return `Filter pencarian ${title} (bisa sebagian nama atau nama lengkap)`;
+  }
+  if (cleanKey === 'npwp' || cleanKey === 'nomor_npwp') {
+    return 'Filter pencarian berdasarkan NPWP resmi';
+  }
+  if (cleanKey === 'nopol' || cleanKey === 'no_polisi' || cleanKey === 'plat_nomor') {
+    return 'Filter pencarian berdasarkan nomor polisi kendaraan bermotor (contoh: B 1234 ABC)';
+  }
+  if (cleanKey === 'no_rangka' || cleanKey === 'vin') {
+    return 'Filter pencarian nomor rangka kendaraan bermotor (VIN)';
+  }
+  if (cleanKey === 'no_mesin') {
+    return 'Filter pencarian nomor mesin kendaraan bermotor';
+  }
+  if (cleanKey === 'no_rekening' || cleanKey === 'norek') {
+    return 'Filter pencarian berdasarkan nomor rekening perbankan nasabah';
+  }
+  if (cleanKey === 'no_hp' || cleanKey === 'phone' || cleanKey === 'telepon' || cleanKey === 'nohp') {
+    return 'Filter pencarian berdasarkan nomor telepon seluler / kontak';
+  }
+  if (cleanKey === 'email' || cleanKey === 'surel') {
+    return 'Filter pencarian berdasarkan alamat surel / email resmi';
+  }
+  if (cleanKey.startsWith('tgl_') || cleanKey.startsWith('tanggal_') || inferredType === 'date') {
+    return `Filter pencarian berdasarkan ${title} (format YYYY-MM-DD)`;
+  }
+  if (cleanKey.includes('alamat') || cleanKey.includes('kota') || cleanKey.includes('kecamatan') || cleanKey.includes('provinsi')) {
+    return `Filter pencarian wilayah/lokasi ${title}`;
+  }
+  if (cleanKey.includes('status')) {
+    return `Filter kondisi atau kode status operasional ${title}`;
+  }
+  if (cleanKey === 'id' || cleanKey.endsWith('_id') || cleanKey.startsWith('id_')) {
+    return `Filter pengenal unik ID untuk ${title}`;
+  }
+  if (inferredType === 'integer' || inferredType === 'number') {
+    return `Filter nilai angka / numerik ${title}`;
+  }
+  if (inferredType === 'boolean') {
+    return `Filter status penanda boolean (1/0 atau true/false) untuk ${title}`;
+  }
+
+  // Fallback
+  return `Filter pencarian data berdasarkan ${title}`;
+}
+
+/**
+ * Automatically generates a WHERE query or MongoDB filter from a list of parameters
+ *
+ * @param {string} dbType - 'mysql' | 'postgres' | 'mssql' | 'oracle' | 'mongodb' | 'sqlite'
+ * @param {string} currentQuery - Existing query text in editor (used to extract table name/columns)
+ * @param {Array} parameters - List of parameter objects [{ name, type, ... }]
+ * @param {Object} options - { matchMode: 'smart' | 'exact', optionalFilter: boolean, tableName: string }
+ * @returns {string} Generated SQL query or MongoDB JSON string
+ */
+export function generateWhereClause(dbType = 'mysql', currentQuery = '', parameters = [], options = {}) {
+  const validParams = (parameters || []).filter(p => p && p.name && p.name.trim() !== '');
+  const lowerDb = (dbType || 'mysql').toLowerCase();
+  const isMongo = lowerDb === 'mongodb';
+  const matchMode = options.matchMode || 'smart'; // 'smart' | 'exact'
+  const optionalFilter = Boolean(options.optionalFilter);
+
+  if (isMongo) {
+    if (validParams.length === 0) {
+      return '{\n  \n}';
+    }
+    const filterObj = {};
+    validParams.forEach(p => {
+      const pName = p.name.trim();
+      const pType = (p.type || 'string').toLowerCase();
+      const isText = (pType === 'string' || !pType) && matchMode !== 'exact';
+      const cleanKey = pName.toLowerCase();
+      const isExactField = ['id', 'nik', 'no_ktp', 'no_kk', 'status', 'kd_status', 'npwp', 'role', '_id'].includes(cleanKey);
+
+      if (isText && !isExactField) {
+        filterObj[pName] = { "$regex": `:${pName}`, "$options": "i" };
+      } else {
+        filterObj[pName] = `:${pName}`;
+      }
+    });
+    return JSON.stringify(filterObj, null, 2);
+  }
+
+  // SQL Databases
+  let tableName = 'users';
+  let selectFields = '*';
+
+  // Try extracting table name from currentQuery
+  if (currentQuery && typeof currentQuery === 'string') {
+    const fromMatch = currentQuery.match(/\bFROM\s+([`"']?[\w.]+[`"']?)/i);
+    if (fromMatch && fromMatch[1]) {
+      tableName = fromMatch[1].trim();
+    }
+    const selectMatch = currentQuery.match(/^\s*SELECT\s+(DISTINCT\s+)?(.*?)\s+FROM\b/i);
+    if (selectMatch && selectMatch[2] && !selectMatch[2].includes('*')) {
+      selectFields = selectMatch[2].trim();
+    }
+  }
+
+  if (options.tableName) {
+    tableName = options.tableName;
+  }
+
+  if (validParams.length === 0) {
+    if (lowerDb === 'mssql') return `SELECT TOP 50 ${selectFields} FROM ${tableName}`;
+    if (lowerDb === 'oracle') return `SELECT ${selectFields} FROM ${tableName} WHERE ROWNUM <= 50`;
+    return `SELECT ${selectFields} FROM ${tableName} LIMIT 50`;
+  }
+
+  const conditions = validParams.map(p => {
+    const pName = p.name.trim();
+    const pType = (p.type || 'string').toLowerCase();
+    const cleanKey = pName.toLowerCase();
+    const isExactField = ['id', 'nik', 'no_ktp', 'no_kk', 'status', 'kd_status', 'npwp', 'role', 'jenis_kelamin', 'jk', 'is_active', 'aktif'].includes(cleanKey) ||
+      cleanKey.startsWith('id_') || cleanKey.endsWith('_id') || cleanKey.startsWith('kd_') || cleanKey.startsWith('kode_');
+    const isTextSearch = (pType === 'string' || !pType) && matchMode !== 'exact' && !isExactField;
+
+    let baseCond = '';
+    if (isTextSearch) {
+      if (lowerDb === 'oracle') {
+        baseCond = `${pName} LIKE '%' || :${pName} || '%'`;
+      } else if (lowerDb === 'mssql') {
+        baseCond = `${pName} LIKE '%' + :${pName} + '%'`;
+      } else {
+        baseCond = `${pName} LIKE CONCAT('%', :${pName}, '%')`;
+      }
+    } else {
+      baseCond = `${pName} = :${pName}`;
+    }
+
+    if (optionalFilter) {
+      return `(:${pName} IS NULL OR :${pName} = '' OR ${baseCond})`;
+    }
+    return baseCond;
+  });
+
+  const whereBody = conditions.join('\n  AND ');
+
+  if (lowerDb === 'mssql') {
+    return `SELECT TOP 50 ${selectFields} FROM ${tableName}\nWHERE ${whereBody}`;
+  } else if (lowerDb === 'oracle') {
+    return `SELECT ${selectFields} FROM ${tableName}\nWHERE ${whereBody}\n  AND ROWNUM <= 50`;
+  } else {
+    return `SELECT ${selectFields} FROM ${tableName}\nWHERE ${whereBody}\nLIMIT 50`;
+  }
 }

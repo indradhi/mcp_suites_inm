@@ -15,10 +15,22 @@ import {
   Layers,
   Copy,
   BookOpen,
-  Sparkles
+  Sparkles,
+  Wand2,
+  Search,
+  CheckSquare,
+  Square,
+  Filter,
+  Check
 } from 'lucide-react';
 import api from '../../api/client';
-import { inferFieldDescription, inferFieldDataType } from '../../utils/fieldDefinitionHelper';
+import { 
+  inferFieldDescription, 
+  inferFieldDataType, 
+  inferParameterDescription, 
+  generateWhereClause, 
+  toReadableTitle 
+} from '../../utils/fieldDefinitionHelper';
 import ValidityTierSelector from '../common/ValidityTierSelector';
 
 export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialData = null }) {
@@ -41,12 +53,27 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
   const [parameters, setParameters] = useState([]);
   const [testArgs, setTestArgs] = useState({});
 
-  // Cache States
-  const [cacheEnabled, setCacheEnabled] = useState(false);
-  const [cacheTtlMinutes, setCacheTtlMinutes] = useState(60);
+  // Column Picker & Auto-generate Parameter States
+  const [showParamPickerModal, setShowParamPickerModal] = useState(false);
+  const [detectedDbColumns, setDetectedDbColumns] = useState([]);
+  const [selectedParamColumns, setSelectedParamColumns] = useState([]);
+  const [paramSearchQuery, setParamSearchQuery] = useState('');
+  const [inspectingForParams, setInspectingForParams] = useState(false);
+  const [replaceExistingParams, setReplaceExistingParams] = useState(true);
+  const [autoGenWhereOnApply, setAutoGenWhereOnApply] = useState(true);
 
   // Field Definitions (Kamus Data Kolom)
   const [fieldDefinitions, setFieldDefinitions] = useState([]);
+  const [inspectingFieldDefs, setInspectingFieldDefs] = useState(false);
+
+  // Auto-Generate WHERE query states
+  const [whereMatchMode, setWhereMatchMode] = useState('smart'); // 'smart' | 'exact'
+  const [whereOptionalFilter, setWhereOptionalFilter] = useState(false);
+  const [whereFeedback, setWhereFeedback] = useState('');
+
+  // Cache States
+  const [cacheEnabled, setCacheEnabled] = useState(false);
+  const [cacheTtlMinutes, setCacheTtlMinutes] = useState(60);
 
   // Validity Hierarchy States
   const [validityTier, setValidityTier] = useState('authoritative');
@@ -117,6 +144,13 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
       setValidityNotes('');
       setTestArgs({});
       setTestResult(null);
+      setShowParamPickerModal(false);
+      setDetectedDbColumns([]);
+      setSelectedParamColumns([]);
+      setParamSearchQuery('');
+      setInspectingForParams(false);
+      setInspectingFieldDefs(false);
+      setWhereFeedback('');
     }
   }, [isOpen, initialData]);
 
@@ -221,34 +255,63 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
     setFieldDefinitions(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleAutoDetectFieldDefinitions = () => {
-    const rawData = testResult?.result?.data || testResult?.result?.records || testResult?.data || testResult?.records;
-    const columns = testResult?.result?.columns || testResult?.columns || [];
+  const handleAutoDetectFieldDefinitions = async () => {
+    let rawData = testResult?.result?.data || testResult?.result?.records || testResult?.data || testResult?.records;
+    let columns = testResult?.result?.columns || testResult?.columns || [];
+    let sampleItem = null;
 
     if (!rawData && (!columns || columns.length === 0)) {
-      alert('Belum ada data hasil query/test untuk dideteksi. Silakan jalankan Test Query / Test Connection terlebih dahulu.');
-      return;
-    }
-
-    let parsedRaw = rawData;
-    if (typeof parsedRaw === 'string') {
+      setInspectingFieldDefs(true);
       try {
-        parsedRaw = JSON.parse(parsedRaw);
-      } catch (e) {
-        // keep as is
-      }
-    }
+        const configPayload = {
+          db_type: dbType,
+          host,
+          port,
+          database,
+          username,
+          password,
+          collection,
+          query,
+          limit: 1
+        };
+        const res = await api.post('/knowledge/inspect-database-columns', {
+          source_type: 'database',
+          config: configPayload
+        });
 
-    let sampleItem = null;
-    if (Array.isArray(parsedRaw) && parsedRaw.length > 0) {
-      sampleItem = parsedRaw[0];
-    } else if (typeof parsedRaw === 'object' && parsedRaw !== null) {
-      if (Array.isArray(parsedRaw.data) && parsedRaw.data.length > 0) {
-        sampleItem = parsedRaw.data[0];
-      } else if (Array.isArray(parsedRaw.records) && parsedRaw.records.length > 0) {
-        sampleItem = parsedRaw.records[0];
-      } else {
-        sampleItem = parsedRaw;
+        if (res.data?.success && Array.isArray(res.data.columns) && res.data.columns.length > 0) {
+          columns = res.data.columns;
+          sampleItem = res.data.sample || {};
+        } else {
+          alert(`Gagal menginspeksi kolom database: ${res.data?.message || 'Pastikan konfigurasi host, database, dan query valid.'}`);
+          return;
+        }
+      } catch (err) {
+        alert(`Gagal menghubungi server untuk inspeksi kolom: ${err.response?.data?.detail || err.message}`);
+        return;
+      } finally {
+        setInspectingFieldDefs(false);
+      }
+    } else {
+      let parsedRaw = rawData;
+      if (typeof parsedRaw === 'string') {
+        try {
+          parsedRaw = JSON.parse(parsedRaw);
+        } catch (e) {
+          // keep as is
+        }
+      }
+
+      if (Array.isArray(parsedRaw) && parsedRaw.length > 0) {
+        sampleItem = parsedRaw[0];
+      } else if (typeof parsedRaw === 'object' && parsedRaw !== null) {
+        if (Array.isArray(parsedRaw.data) && parsedRaw.data.length > 0) {
+          sampleItem = parsedRaw.data[0];
+        } else if (Array.isArray(parsedRaw.records) && parsedRaw.records.length > 0) {
+          sampleItem = parsedRaw.records[0];
+        } else {
+          sampleItem = parsedRaw;
+        }
       }
     }
 
@@ -263,7 +326,9 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
     });
 
     const detected = [];
-    const keys = (sampleItem && typeof sampleItem === 'object') ? Object.keys(sampleItem) : columns;
+    const keys = (sampleItem && typeof sampleItem === 'object' && Object.keys(sampleItem).length > 0)
+      ? Object.keys(sampleItem)
+      : columns;
 
     keys.forEach(key => {
       const val = sampleItem ? sampleItem[key] : null;
@@ -292,6 +357,180 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
         ? fd.description
         : inferFieldDescription(fd.name, fd.type, fd.sample)
     })));
+  };
+
+  // Helper to preselect sensible default columns for parameters
+  const preselectDefaultColumns = (cols) => {
+    if (cols.length <= 6) {
+      setSelectedParamColumns(cols.map(c => c.name));
+      return;
+    }
+    const popularKeys = new Set([
+      'nik', 'nama', 'nama_lengkap', 'nama_lgkp', 'name', 'full_name',
+      'no_kk', 'nomor_kk', 'nopol', 'no_polisi', 'plat_nomor',
+      'npwp', 'no_rekening', 'norek', 'no_hp', 'phone', 'telepon', 'email',
+      'status', 'kd_status', 'id'
+    ]);
+    const matched = cols.filter(c => {
+      const k = c.name.toLowerCase();
+      return popularKeys.has(k) || k.includes('nama') || k === 'nik' || k === 'no_kk';
+    }).map(c => c.name);
+
+    if (matched.length > 0) {
+      setSelectedParamColumns(matched);
+    } else {
+      setSelectedParamColumns(cols.slice(0, 4).map(c => c.name));
+    }
+  };
+
+  // Auto-Generate Parameter: Inspect Database Columns & Open Picker
+  const handleInspectAndOpenParamPicker = async () => {
+    const rawData = testResult?.result?.data || testResult?.result?.records || testResult?.data || testResult?.records;
+    const existingCols = testResult?.result?.columns || testResult?.columns || [];
+    let sampleItem = null;
+    if (Array.isArray(rawData) && rawData.length > 0) sampleItem = rawData[0];
+    else if (testResult?.result?.sample) sampleItem = testResult.result.sample;
+
+    if (existingCols.length > 0 || (sampleItem && typeof sampleItem === 'object' && Object.keys(sampleItem).length > 0)) {
+      const cols = existingCols.length > 0 ? existingCols : Object.keys(sampleItem);
+      const enriched = cols.map(c => {
+        const sampleVal = sampleItem ? sampleItem[c] : null;
+        const type = inferFieldDataType(c, sampleVal);
+        const desc = inferParameterDescription(c, type, sampleVal);
+        return { name: c, type, sample: sampleVal, description: desc };
+      });
+      setDetectedDbColumns(enriched);
+      preselectDefaultColumns(enriched);
+      setParamSearchQuery('');
+      setShowParamPickerModal(true);
+      return;
+    }
+
+    setInspectingForParams(true);
+    try {
+      const configPayload = {
+        db_type: dbType,
+        host,
+        port,
+        database,
+        username,
+        password,
+        collection,
+        query,
+        limit: 1
+      };
+      const res = await api.post('/knowledge/inspect-database-columns', {
+        source_type: 'database',
+        config: configPayload
+      });
+
+      if (res.data?.success && Array.isArray(res.data.columns) && res.data.columns.length > 0) {
+        const sampleObj = res.data.sample || {};
+        const enriched = res.data.columns.map(c => {
+          const sampleVal = sampleObj[c] !== undefined ? sampleObj[c] : null;
+          const type = inferFieldDataType(c, sampleVal);
+          const desc = inferParameterDescription(c, type, sampleVal);
+          return { name: c, type, sample: sampleVal, description: desc, tableName: res.data.table_name };
+        });
+        setDetectedDbColumns(enriched);
+        preselectDefaultColumns(enriched);
+        setParamSearchQuery('');
+        setShowParamPickerModal(true);
+      } else {
+        alert(`Tidak dapat menginspeksi kolom database: ${res.data?.message || 'Pastikan host, database, dan query/tabel valid.'}`);
+      }
+    } catch (err) {
+      alert(`Gagal memeriksa kolom database: ${err.response?.data?.detail || err.message}`);
+    } finally {
+      setInspectingForParams(false);
+    }
+  };
+
+  const handleToggleSelectColumn = (colName) => {
+    setSelectedParamColumns(prev => {
+      if (prev.includes(colName)) {
+        return prev.filter(c => c !== colName);
+      } else {
+        return [...prev, colName];
+      }
+    });
+  };
+
+  const handleSelectAllColumns = () => {
+    setSelectedParamColumns(detectedDbColumns.map(c => c.name));
+  };
+
+  const handleDeselectAllColumns = () => {
+    setSelectedParamColumns([]);
+  };
+
+  const handleSelectPopularColumns = () => {
+    preselectDefaultColumns(detectedDbColumns);
+  };
+
+  const handleApplySelectedParameters = () => {
+    const selectedItems = detectedDbColumns.filter(c => selectedParamColumns.includes(c.name));
+    if (selectedItems.length === 0) {
+      alert('Pilih minimal satu kolom untuk dijadikan parameter.');
+      return;
+    }
+
+    const newParams = selectedItems.map(c => ({
+      name: c.name,
+      type: c.type || 'string',
+      description: c.description || inferParameterDescription(c.name, c.type, c.sample),
+      required: false,
+      default: ''
+    }));
+
+    let updatedParams = [];
+    if (replaceExistingParams || parameters.length === 0 || (parameters.length === 1 && parameters[0].name === 'query_param')) {
+      updatedParams = newParams;
+    } else {
+      const existingNames = new Set(parameters.map(p => p.name.toLowerCase()));
+      const filteredNew = newParams.filter(p => !existingNames.has(p.name.toLowerCase()));
+      updatedParams = [...parameters, ...filteredNew];
+    }
+
+    setParameters(updatedParams);
+
+    const newTestArgs = { ...testArgs };
+    updatedParams.forEach(p => {
+      if (newTestArgs[p.name] === undefined) {
+        newTestArgs[p.name] = '';
+      }
+    });
+    setTestArgs(newTestArgs);
+
+    if (autoGenWhereOnApply) {
+      const generated = generateWhereClause(dbType, query, updatedParams, {
+        matchMode: whereMatchMode,
+        optionalFilter: whereOptionalFilter,
+        tableName: detectedDbColumns[0]?.tableName
+      });
+      setQuery(generated);
+      setWhereFeedback('Query WHERE & parameter berhasil di-generate!');
+      setTimeout(() => setWhereFeedback(''), 4000);
+    }
+
+    setShowParamPickerModal(false);
+  };
+
+  // Auto-Generate WHERE query from parameters to database query box
+  const handleGenerateWhereQuery = () => {
+    const validParams = parameters.filter(p => p.name && p.name.trim() !== '');
+    if (validParams.length === 0) {
+      alert('Belum ada parameter yang didefinisikan. Silakan buat parameter atau gunakan tombol "Auto-Generate dari Field DB" terlebih dahulu.');
+      return;
+    }
+
+    const generated = generateWhereClause(dbType, query, validParams, {
+      matchMode: whereMatchMode,
+      optionalFilter: whereOptionalFilter
+    });
+    setQuery(generated);
+    setWhereFeedback('Query WHERE berhasil di-generate dari parameter!');
+    setTimeout(() => setWhereFeedback(''), 4000);
   };
 
   const handleTest = async () => {
@@ -724,8 +963,33 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
               </div>
             )}
             {!isTool && (
-              <div style={{ marginTop: '10px', fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
-                💡 <strong>Mode Standar: Batch Ingestion</strong> — Mengekstrak seluruh isi tabel sekaligus ke Vector Store. Aktifkan saklar di atas untuk Mode On-Demand berparameter dengan penyimpanan otomatis ke Bank Data.
+              <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+                  💡 <strong>Mode Standar: Batch Ingestion</strong> — Mengekstrak seluruh isi tabel sekaligus ke Vector Store. Aktifkan saklar di atas untuk Mode On-Demand berparameter.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleToggleToolMode(true);
+                    handleInspectAndOpenParamPicker();
+                  }}
+                  style={{
+                    background: 'rgba(234, 179, 8, 0.12)',
+                    border: '1px solid rgba(234, 179, 8, 0.3)',
+                    color: '#fde047',
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <Sparkles size={11} /> Buat Parameter dari Field DB
+                </button>
               </div>
             )}
 
@@ -765,29 +1029,55 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
 
                 {/* Parameters Builder */}
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
                     <label style={{ fontSize: '12px', fontWeight: '700', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Code size={14} color="var(--accent-primary)" /> Query Parameters Schema ({parameters.length})
                     </label>
-                    <button
-                      type="button"
-                      onClick={handleAddParameter}
-                      style={{
-                        background: 'rgba(99, 102, 241, 0.15)',
-                        border: '1px solid rgba(99, 102, 241, 0.4)',
-                        color: 'var(--accent-primary)',
-                        padding: '4px 10px',
-                        borderRadius: '6px',
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <Plus size={12} /> Add Parameter
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        type="button"
+                        id="btn-auto-generate-params"
+                        onClick={handleInspectAndOpenParamPicker}
+                        disabled={inspectingForParams}
+                        style={{
+                          background: 'rgba(234, 179, 8, 0.15)',
+                          border: '1px solid rgba(234, 179, 8, 0.4)',
+                          color: '#fde047',
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          cursor: inspectingForParams ? 'not-allowed' : 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                        title="Pilih kolom database untuk dijadikan parameter query secara otomatis"
+                      >
+                        <Sparkles size={12} className={inspectingForParams ? 'animate-spin' : ''} />
+                        <span>{inspectingForParams ? 'Mendeteksi Kolom...' : 'Auto-Generate dari Field DB'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAddParameter}
+                        style={{
+                          background: 'rgba(99, 102, 241, 0.15)',
+                          border: '1px solid rgba(99, 102, 241, 0.4)',
+                          color: 'var(--accent-primary)',
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Plus size={12} /> Add Parameter
+                      </button>
+                    </div>
                   </div>
 
                   {parameters.length === 0 ? (
@@ -989,16 +1279,75 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
 
           {/* Query Editor Box */}
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '8px' }}>
               <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>
                 {dbType === 'mongodb' ? 'Mongo Filter / Query (JSON)' : 'Database Query (SQL)'}
               </label>
-              {(isTool || parameters.length > 0) && (
-                <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontFamily: 'JetBrains Mono, monospace' }}>
-                  {dbType === 'mongodb' ? 'Use :param_name, $param_name, or {param_name}' : 'Use :param_name or {param_name}'}
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  id="btn-auto-generate-where"
+                  onClick={handleGenerateWhereQuery}
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    border: '1px solid rgba(16, 185, 129, 0.4)',
+                    color: '#34d399',
+                    padding: '3px 10px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="Buat WHERE clause otomatis ke kotak query berdasarkan parameter yang telah didefinisikan"
+                >
+                  <Wand2 size={12} />
+                  <span>Auto-Generate WHERE dari Parameter</span>
+                </button>
+
+                {(isTool || parameters.length > 0) && (
+                  <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontFamily: 'JetBrains Mono, monospace' }}>
+                    {dbType === 'mongodb' ? 'Use :param_name' : 'Use :param_name'}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Quick WHERE Generation Options */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '11px', color: 'var(--text-muted)', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={whereOptionalFilter}
+                    onChange={(e) => setWhereOptionalFilter(e.target.checked)}
+                  />
+                  <span>Filter Opsional (:param IS NULL OR col = :param)</span>
+                </label>
+
+                {dbType !== 'mongodb' && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={whereMatchMode === 'exact'}
+                      onChange={(e) => setWhereMatchMode(e.target.checked ? 'exact' : 'smart')}
+                    />
+                    <span>Exact Match (= semua)</span>
+                  </label>
+                )}
+              </div>
+
+              {whereFeedback && (
+                <span style={{ color: '#34d399', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Check size={12} /> {whereFeedback}
                 </span>
               )}
             </div>
+
             <textarea
               className="input-field font-mono"
               rows={4}
@@ -1014,7 +1363,7 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
             {(isTool || parameters.length > 0) && (
               <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <HelpCircle size={12} />
-                <span>Values are safely bound and escaped automatically based on their declared type (string, integer, boolean).</span>
+                <span>Nilai parameter otomatis di-bind dan di-escape secara aman sesuai tipenya (string, integer, boolean).</span>
               </div>
             )}
           </div>
@@ -1073,34 +1422,30 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {Boolean(
-                  (testResult?.result?.data && (Array.isArray(testResult.result.data) ? testResult.result.data.length > 0 : true)) ||
-                  (testResult?.result?.columns && testResult.result.columns.length > 0) ||
-                  testResult?.data
-                ) && (
-                  <button
-                    type="button"
-                    onClick={handleAutoDetectFieldDefinitions}
-                    style={{
-                      background: 'rgba(16, 185, 129, 0.15)',
-                      border: '1px solid rgba(16, 185, 129, 0.4)',
-                      color: '#34d399',
-                      padding: '5px 10px',
-                      borderRadius: '6px',
-                      fontSize: '11px',
-                      fontWeight: '700',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                    title="Ekstrak nama kolom dan tipe data otomatis dari hasil query test di bawah"
-                  >
-                    <Sparkles size={13} />
-                    <span>Deteksi Otomatis dari Test</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  id="btn-auto-generate-field-definitions"
+                  onClick={handleAutoDetectFieldDefinitions}
+                  disabled={inspectingFieldDefs}
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    border: '1px solid rgba(16, 185, 129, 0.4)',
+                    color: '#34d399',
+                    padding: '5px 10px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    cursor: inspectingFieldDefs ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="Ekstrak nama kolom, tipe data, dan definisi deskripsi otomatis dari database"
+                >
+                  <Sparkles size={13} className={inspectingFieldDefs ? 'animate-spin' : ''} />
+                  <span>{inspectingFieldDefs ? 'Mendeteksi Kolom...' : 'Auto-Generate Field Definitions'}</span>
+                </button>
 
                 {fieldDefinitions.length > 0 && (
                   <button
@@ -1397,6 +1742,240 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
           </div>
         </form>
       </div>
+
+      {/* Column Picker Modal for Auto-Generate Parameters */}
+      {showParamPickerModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          backdropFilter: 'blur(5px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1200,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: '#1e293b',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            borderRadius: '12px',
+            width: '100%',
+            maxWidth: '680px',
+            maxHeight: '88vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.6)',
+            overflow: 'hidden'
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: 'rgba(0, 0, 0, 0.2)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sparkles size={18} color="#fde047" />
+                <div>
+                  <h3 style={{ fontSize: '14.5px', fontWeight: '700', color: '#ffffff', margin: 0 }}>
+                    Pilih Kolom Database untuk Parameter
+                  </h3>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    {detectedDbColumns.length} kolom terdeteksi dari skema/tabel database
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowParamPickerModal(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Toolbar: Search & Presets */}
+            <div style={{ padding: '12px 20px', background: 'rgba(0,0,0,0.15)', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Cari nama kolom (misal: nik, nama, nopol)..."
+                    value={paramSearchQuery}
+                    onChange={(e) => setParamSearchQuery(e.target.value)}
+                    style={{ paddingLeft: '32px', fontSize: '12px' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={handleSelectPopularColumns}
+                    style={{
+                      background: 'rgba(99, 102, 241, 0.15)',
+                      border: '1px solid rgba(99, 102, 241, 0.3)',
+                      color: '#a5b4fc',
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                    title="Pilih kolom identitas populer (NIK, Nama, No KK, Nopol, HP, dsb)"
+                  >
+                    Populer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSelectAllColumns}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      color: '#ffffff',
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    Semua
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeselectAllColumns}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      color: 'var(--text-muted)',
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    Kosongkan
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Columns List */}
+            <div style={{ padding: '12px 20px', overflowY: 'auto', maxHeight: '350px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {detectedDbColumns
+                .filter(c => !paramSearchQuery || c.name.toLowerCase().includes(paramSearchQuery.toLowerCase()))
+                .map((c, idx) => {
+                  const isSelected = selectedParamColumns.includes(c.name);
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => handleToggleSelectColumn(c.name)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        background: isSelected ? 'rgba(99, 102, 241, 0.12)' : 'rgba(0, 0, 0, 0.2)',
+                        border: isSelected ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid rgba(255, 255, 255, 0.05)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <div style={{ color: isSelected ? 'var(--accent-primary)' : 'var(--text-muted)', flexShrink: 0 }}>
+                        {isSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12.5px', fontWeight: '700', color: isSelected ? '#ffffff' : '#e2e8f0' }}>
+                            {c.name}
+                          </span>
+                          <span style={{
+                            fontSize: '10px',
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            background: 'rgba(255,255,255,0.08)',
+                            color: 'var(--text-muted)',
+                            textTransform: 'lowercase'
+                          }}>
+                            {c.type || 'string'}
+                          </span>
+                          {c.sample !== null && c.sample !== undefined && (
+                            <span style={{ fontSize: '11px', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '240px' }}>
+                              contoh: {typeof c.sample === 'object' ? JSON.stringify(c.sample) : String(c.sample)}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {c.description}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '14px 20px',
+              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'rgba(0,0,0,0.3)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '10px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={replaceExistingParams}
+                    onChange={(e) => setReplaceExistingParams(e.target.checked)}
+                  />
+                  <span>Timpa parameter lama</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: '#34d399', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={autoGenWhereOnApply}
+                    onChange={(e) => setAutoGenWhereOnApply(e.target.checked)}
+                  />
+                  <span>Otomatis generate WHERE query</span>
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setShowParamPickerModal(false)}
+                  style={{ fontSize: '12px', padding: '6px 14px' }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleApplySelectedParameters}
+                  style={{ fontSize: '12px', padding: '6px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Check size={14} /> Terapkan ({selectedParamColumns.length}) Parameter
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
