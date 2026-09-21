@@ -153,6 +153,7 @@ export default function MCPPersonality() {
     setPersonality({
       preset: presetItem.id || 'custom',
       name: (presetItem.name || '').replace(/\s*\(Default\)/i, ''),
+      nickname: presetItem.nickname || '',
       role: presetItem.role_title || presetItem.role || '',
       tone_of_voice: presetItem.tone_label || presetItem.tone_of_voice || presetItem.tone || 'Formal',
       core_mission: presetItem.core_mission || '',
@@ -198,6 +199,27 @@ export default function MCPPersonality() {
     } catch (err) {
       console.error('Failed to save custom personality:', err);
       setErrorMessage(err.response?.data?.detail || 'Gagal menyimpan kepribadian kustom.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdateCustom = async (e) => {
+    e.preventDefault();
+    if (!personality.preset?.startsWith('custom_')) return;
+    setSaving(true);
+    setErrorMessage(null);
+    setSaveSuccess(false);
+    try {
+      const res = await api.put(`/settings/personality/custom/${personality.preset}`, personality);
+      if (res.data && res.data.data) {
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 4000);
+        fetchPersonality();
+      }
+    } catch (err) {
+      console.error('Failed to update custom personality:', err);
+      setErrorMessage(err.response?.data?.detail || 'Gagal memperbarui kepribadian kustom.');
     } finally {
       setSaving(false);
     }
@@ -685,6 +707,25 @@ export default function MCPPersonality() {
                 {saving ? <RotateCcw size={16} className="animate-spin" /> : <Save size={16} />}
                 Simpan Baru (Kustom)
               </button>
+              {personality.preset?.startsWith('custom_') && (
+                <button
+                  type="button"
+                  onClick={handleUpdateCustom}
+                  disabled={saving || loading}
+                  className="btn-secondary"
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '8px', 
+                    padding: '10px 24px', 
+                    fontSize: '14px',
+                    borderColor: 'var(--text-secondary)'
+                  }}
+                >
+                  {saving ? <RotateCcw size={16} className="animate-spin" /> : <Save size={16} />}
+                  Perbarui (Kustom)
+                </button>
+              )}
               <button
                 type="submit"
                 disabled={saving || loading}
