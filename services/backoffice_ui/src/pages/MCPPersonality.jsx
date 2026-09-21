@@ -562,6 +562,25 @@ export default function MCPPersonality() {
               </span>
             </div>
 
+            {/* Nama Panggilan */}
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                Nama Panggilan
+              </label>
+              <input
+                type="text"
+                className="input-field"
+                value={personality.nickname || ''}
+                onChange={(e) => setPersonality({ ...personality, nickname: e.target.value })}
+                placeholder="Contoh: Asisten KPK"
+                required
+                style={{ width: '100%', fontSize: '14px', padding: '10px 14px' }}
+              />
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                Nama sapaan singkat asisten.
+              </span>
+            </div>
+
             {/* Peran & Spesialisasi (Role) */}
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>

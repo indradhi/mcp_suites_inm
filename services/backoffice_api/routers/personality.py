@@ -15,6 +15,7 @@ router = APIRouter(prefix="/settings/personality", tags=["MCP Personality Settin
 
 class PersonalityPayload(BaseModel):
     name: Optional[str] = None
+    nickname: Optional[str] = None
     role_title: Optional[str] = None
     role: Optional[str] = None
     preset_id: Optional[str] = None

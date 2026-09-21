@@ -10,6 +10,7 @@ SETTING_KEY_MCP_CUSTOM_PERSONALITIES = "mcp_custom_personalities"
 
 DEFAULT_PERSONALITY: Dict[str, Any] = {
     "name": "Analis Intelijen & Penyelidikan KPK",
+    "nickname": "Asisten Intelijen",
     "role_title": "Enterprise AI Knowledge & Investigation Orchestrator",
     "preset_id": "kpk_investigator",
     "tone": "formal_investigative",
@@ -167,6 +168,7 @@ class PersonalityService:
         """
         clean_data = {
             "name": str(payload.get("name") or DEFAULT_PERSONALITY["name"]).strip(),
+            "nickname": str(payload.get("nickname") or payload.get("name") or DEFAULT_PERSONALITY.get("nickname") or "").strip(),
             "role_title": str(payload.get("role_title") or payload.get("role") or DEFAULT_PERSONALITY["role_title"]).strip(),
             "preset_id": str(payload.get("preset_id") or payload.get("preset") or "custom"),
             "tone": str(payload.get("tone") or DEFAULT_PERSONALITY["tone"]),
@@ -263,6 +265,7 @@ class PersonalityService:
             "id": preset_id,
             "preset_id": preset_id,
             "name": str(payload.get("name") or "New Custom Persona").strip(),
+            "nickname": str(payload.get("nickname") or payload.get("name") or "").strip(),
             "role_title": str(payload.get("role_title") or payload.get("role") or "").strip(),
             "tone": str(payload.get("tone") or "custom"),
             "tone_label": str(payload.get("tone_label") or payload.get("tone_of_voice") or "").strip(),
@@ -292,6 +295,7 @@ class PersonalityService:
             raise ValueError("Custom personality not found")
             
         target["name"] = str(payload.get("name") or target.get("name")).strip()
+        target["nickname"] = str(payload.get("nickname") or target.get("nickname") or target.get("name")).strip()
         target["role_title"] = str(payload.get("role_title") or payload.get("role") or target.get("role_title")).strip()
         target["tone_label"] = str(payload.get("tone_label") or payload.get("tone_of_voice") or target.get("tone_label")).strip()
         target["core_mission"] = str(payload.get("core_mission") or target.get("core_mission")).strip()
@@ -351,6 +355,7 @@ class PersonalityService:
             prompt = f"{base_prompt}\n\n"
         else:
             name = pers.get("name") or "Asisten Intelijen & Penyelidikan KPK"
+            nickname = pers.get("nickname") or "Asisten AI"
             role = pers.get("role_title") or "Enterprise AI Knowledge Orchestrator"
             tone_label = pers.get("tone_label") or "Formal, Tegas & Berbasis Bukti Faktual"
             mission = pers.get("core_mission") or DEFAULT_PERSONALITY["core_mission"]
@@ -358,6 +363,7 @@ class PersonalityService:
             prompt = (
                 f"IDENTITAS & KEPRIBADIAN MCP:\n"
                 f"Nama Asisten: {name}\n"
+                f"Nama Panggilan: {nickname}\n"
                 f"Peran: {role}\n"
                 f"Gaya Bahasa & Nada Bicara: {tone_label}\n"
                 f"Misi Utama:\n{mission}\n\n"
