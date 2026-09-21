@@ -435,7 +435,7 @@ export default function MCPPersonality() {
                   <div style={{
                     position: 'absolute',
                     top: '12px',
-                    right: presetItem.id.startsWith('custom_') ? '40px' : '12px',
+                    right: presetItem.id?.startsWith('custom_') ? '40px' : '12px',
                     width: '20px',
                     height: '20px',
                     borderRadius: '50%',
@@ -447,7 +447,7 @@ export default function MCPPersonality() {
                     <Check size={13} color="#ffffff" strokeWidth={3} />
                   </div>
                 )}
-                {presetItem.id.startsWith('custom_') && (
+                {presetItem.id?.startsWith('custom_') && (
                   <div 
                     onClick={(e) => handleDeleteCustom(e, presetItem.id)}
                     style={{
