@@ -798,6 +798,7 @@ Patuhi aturan:
         local_llm_timeout = float(os.getenv("LOCAL_LLM_TIMEOUT", "600.0"))
         active_llm_timeout = cloud_llm_timeout if is_cloud else local_llm_timeout
         client = llm_service.get_client(api_base, api_key, timeout=active_llm_timeout)
+        thinking_process = None
         try:
             kwargs = {
                 "model": model,
@@ -965,7 +966,7 @@ Patuhi aturan:
                             seen_keys = set()
                             deduped_records = []
                             for r in payload_data:
-                                dedup_key = r.get("NIK") or r.get("nik") or r.get("id") or r.get("_id") or json.dumps(r, sort_keys=True)
+                                dedup_key = r.get("NIK") or r.get("nik") or r.get("id") or r.get("_id") or json.dumps(r, sort_keys=True, default=str)
                                 if dedup_key not in seen_keys:
                                     seen_keys.add(dedup_key)
                                     deduped_records.append(r)
