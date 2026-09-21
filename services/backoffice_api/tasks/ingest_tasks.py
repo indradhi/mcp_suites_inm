@@ -150,10 +150,11 @@ def run_ingest_source_task(self, source_id: int):
         total_entities = 0
         total_relations = 0
 
-        # Sample key chunks for graph extraction (first 10 chunks for fast responsiveness)
-        sample_size = min(10, len(texts_to_index))
-        for chunk_text in texts_to_index[:sample_size]:
+        # Extract graph entities for ALL chunks
+        total_to_process = len(texts_to_index)
+        for idx, chunk_text in enumerate(texts_to_index, start=1):
             try:
+                logger.info(f"Extracting entities for chunk {idx}/{total_to_process} (Source: {source.id})")
                 extraction = llm_service.extract_entities_and_relations(chunk_text, db)
                 ents = extraction.get("entities", [])
                 rels = extraction.get("relationships", [])
@@ -164,7 +165,7 @@ def run_ingest_source_task(self, source_id: int):
                 total_entities += ent_count
                 total_relations += rel_count
             except Exception as graph_err:
-                logger.warning(f"Notice during graph extraction: {graph_err}")
+                logger.warning(f"Notice during graph extraction for chunk {idx}/{total_to_process}: {graph_err}")
 
         job.entities_extracted = total_entities
         job.relations_created = total_relations
