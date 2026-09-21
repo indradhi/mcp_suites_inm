@@ -20,6 +20,7 @@ from config import settings
 from services.vector_store import vector_store
 from services.ingestion.database_ingester import database_ingester
 from services.ingestion.api_ingester import api_ingester
+from services.ingestion.mcp_ingester import mcp_ingester
 from services.personality_service import personality_service
 from tasks.ingest_tasks import run_ingest_source_task
 
@@ -27,7 +28,7 @@ router = APIRouter(prefix="/knowledge", tags=["Knowledge Sources"])
 
 class SourceCreate(BaseModel):
     name: str
-    source_type: str # database, api, website, websearch, google_drive
+    source_type: str # database, api, website, websearch, google_drive, mcp
     description: Optional[str] = None
     config: Dict[str, Any]
     schedule_cron: Optional[str] = None
@@ -156,6 +157,10 @@ async def test_source_connection(payload: TestConnectionRequest, user = Depends(
         elif stype == "google_drive":
             return {"success": True, "message": "Google Drive account configuration verified"}
 
+        elif stype in ["mcp", "mcp_server"]:
+            res = await mcp_ingester.test_connection(config)
+            return res
+
         else:
             raise HTTPException(status_code=400, detail=f"Unknown source type: {stype}")
     except Exception as e:
@@ -165,17 +170,35 @@ async def test_source_connection(payload: TestConnectionRequest, user = Depends(
 @router.get("/tools")
 def list_api_tools(db: Session = Depends(get_db)):
     """
-    Returns active knowledge sources (API and Database) configured as AI tools.
+    Returns active knowledge sources (API, Database, and MCP) configured as AI tools.
     """
     sources = db.query(KnowledgeSource).filter(
-        KnowledgeSource.source_type.in_(["api", "database"]),
+        KnowledgeSource.source_type.in_(["api", "database", "mcp", "mcp_server"]),
         KnowledgeSource.is_active == True
     ).all()
 
     tools = []
     for s in sources:
         conf = s.config or {}
-        if conf.get("is_tool") or conf.get("parameters"):
+        if s.source_type in ["mcp", "mcp_server"]:
+            mcp_tools = conf.get("tools") or []
+            prefix = f"mcp_{s.name.replace(' ', '_').lower()}_"
+            for t in mcp_tools:
+                if t.get("enabled", True):
+                    raw_name = t.get("name", "tool")
+                    clean_name = "".join(c if c.isalnum() or c == "_" else "_" for c in f"{prefix}{raw_name}").lower()
+                    tools.append({
+                        "source_id": s.id,
+                        "source_type": "mcp",
+                        "name": clean_name,
+                        "raw_tool_name": raw_name,
+                        "title": f"{s.name}: {t.get('title') or raw_name}",
+                        "description": t.get("description") or f"MCP tool '{raw_name}' from {s.name}",
+                        "parameters": t.get("parameters", []),
+                        "input_schema": t.get("input_schema", {}),
+                        "config": conf
+                    })
+        elif conf.get("is_tool") or conf.get("parameters"):
             prefix = "db_" if s.source_type == "database" else "api_"
             tool_name = conf.get("tool_name") or f"{prefix}{s.name.replace(' ', '_').lower()}"
             clean_tool_name = "".join(c if c.isalnum() or c == "_" else "_" for c in tool_name).lower()
@@ -201,7 +224,29 @@ def list_api_tools(db: Session = Depends(get_db)):
             tools.append(tool_entry)
     return {"tools": tools}
 
+@router.post("/mcp-tools/discover")
+async def discover_mcp_tools(payload: TestConnectionRequest, user = Depends(get_current_user)):
+    try:
+        tools = await mcp_ingester.fetch_tools(payload.config)
+        return {"success": True, "tools": tools, "count": len(tools)}
+    except Exception as e:
+        return {"success": False, "error": str(e), "tools": []}
+
+@router.get("/sources/{source_id}/mcp-tools")
+async def get_source_mcp_tools(source_id: int, db: Session = Depends(get_db)):
+    source = db.query(KnowledgeSource).filter(KnowledgeSource.id == source_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    if source.source_type not in ["mcp", "mcp_server"]:
+        raise HTTPException(status_code=400, detail="Source is not an MCP type")
+    try:
+        tools = await mcp_ingester.fetch_tools(source.config)
+        return {"success": True, "tools": tools, "count": len(tools)}
+    except Exception as e:
+        return {"success": False, "error": str(e), "tools": []}
+
 class ExecuteToolRequest(BaseModel):
+    tool_name: Optional[str] = None
     arguments: Dict[str, Any] = {}
 
 @router.post("/api-tools/{source_id}/execute")
@@ -214,11 +259,20 @@ async def execute_api_tool(
     source = db.query(KnowledgeSource).filter(KnowledgeSource.id == source_id).first()
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
-    if source.source_type not in ["api", "database"]:
-        raise HTTPException(status_code=400, detail="Source is not an API or Database type")
+    if source.source_type not in ["api", "database", "mcp", "mcp_server"]:
+        raise HTTPException(status_code=400, detail="Source is not an API, Database, or MCP type")
 
     try:
-        if source.source_type == "api":
+        if source.source_type in ["mcp", "mcp_server"]:
+            tname = payload.tool_name or payload.arguments.pop("_tool_name", None)
+            if not tname:
+                tlist = (source.config or {}).get("tools", [])
+                if len(tlist) == 1:
+                    tname = tlist[0].get("name")
+                elif "tool_name" in (source.config or {}):
+                    tname = source.config["tool_name"]
+            result = await mcp_ingester.execute_tool_call(source.config, tname or "", payload.arguments)
+        elif source.source_type == "api":
             result = await api_ingester.execute_tool_call(source.config, payload.arguments)
         else:
             result = await database_ingester.execute_tool_call(source.config, payload.arguments)
@@ -235,7 +289,7 @@ async def execute_api_tool(
         # Attach data priority metadata and field definitions for caller (MCP client or LLM)
         if isinstance(result, dict) and result.get("success"):
             result["data_priority"] = "PRIORITAS_UTAMA_MUTLAK (Data diambil langsung secara real-time dari database/source data resmi)"
-            result["fetch_mode"] = "LIVE_DIRECT_DATABASE_QUERY"
+            result["fetch_mode"] = "LIVE_DIRECT_DATABASE_QUERY" if source.source_type == "database" else ("LIVE_REMOTE_MCP_CALL" if source.source_type in ["mcp", "mcp_server"] else "LIVE_DIRECT_API_QUERY")
             field_defs = (source.config or {}).get("field_definitions")
             if field_defs:
                 result["field_definitions"] = field_defs
@@ -252,7 +306,8 @@ def create_knowledge_source(
 ):
     is_tool_mode = bool(
         (payload.config or {}).get("is_tool") or 
-        (payload.source_type.lower() in ["database", "api"] and (payload.config or {}).get("parameters") and len((payload.config or {}).get("parameters", [])) > 0)
+        (payload.source_type.lower() in ["database", "api"] and (payload.config or {}).get("parameters") and len((payload.config or {}).get("parameters", [])) > 0) or
+        (payload.source_type.lower() in ["mcp", "mcp_server"] and not (payload.config or {}).get("sync_resources"))
     )
 
     source = KnowledgeSource(
@@ -416,7 +471,8 @@ def update_source(
 
     is_tool_mode = bool(
         (payload.config or {}).get("is_tool") or 
-        (source.source_type in ["database", "api"] and (payload.config or {}).get("parameters") and len((payload.config or {}).get("parameters", [])) > 0)
+        (source.source_type in ["database", "api"] and (payload.config or {}).get("parameters") and len((payload.config or {}).get("parameters", [])) > 0) or
+        (source.source_type in ["mcp", "mcp_server"] and not (payload.config or {}).get("sync_resources"))
     )
 
     if is_tool_mode:

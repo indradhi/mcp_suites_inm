@@ -344,7 +344,7 @@ async def fetch_dynamic_api_tools() -> List[Dict[str, Any]]:
                 for item in raw_tools:
                     tool_name = item.get("name")
                     source_type = item.get("source_type", "api")
-                    default_desc = f"Dynamic Database query tool for {item.get('title')}" if source_type == "database" else f"Dynamic API tool for {item.get('title')}"
+                    default_desc = f"Dynamic Database query tool for {item.get('title')}" if source_type == "database" else (f"Remote MCP tool '{item.get('raw_tool_name') or tool_name}' from {item.get('title')}" if source_type == "mcp" else f"Dynamic API tool for {item.get('title')}")
                     description = item.get("description") or default_desc
                     params_list = item.get("parameters", [])
 
@@ -391,6 +391,7 @@ async def fetch_dynamic_api_tools() -> List[Dict[str, Any]]:
                         },
                         "field_definitions": field_defs,
                         "_source_id": item.get("source_id"),
+                        "_raw_tool_name": item.get("raw_tool_name"),
                         "_config": item.get("config")
                     })
                 _cached_dynamic_tools = converted_tools
@@ -743,7 +744,10 @@ async def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
                 async with httpx.AsyncClient(timeout=35.0) as client:
                     res = await client.post(
                         f"{BACKOFFICE_API_URL}/api/knowledge/api-tools/{source_id}/execute",
-                        json={"arguments": args}
+                        json={
+                            "tool_name": matched_tool.get("_raw_tool_name"),
+                            "arguments": args
+                        }
                     )
                     res_data = res.json()
                     return {

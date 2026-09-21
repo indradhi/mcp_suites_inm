@@ -125,7 +125,18 @@ class ChatService:
                     KnowledgeSource.is_active == True
                 ).all()
                 for sel_s in selected_sources:
-                    if (sel_s.config or {}).get("is_tool") or (sel_s.config or {}).get("parameters"):
+                    if sel_s.source_type in ["mcp", "mcp_server"]:
+                        mcp_tools = (sel_s.config or {}).get("tools", [])
+                        prefix = f"mcp_{sel_s.name.replace(' ', '_').lower()}_"
+                        for t in mcp_tools:
+                            if t.get("enabled", True):
+                                raw_name = t.get("name", "tool")
+                                tool_slug = "".join(c if c.isalnum() or c == "_" else "_" for c in f"{prefix}{raw_name}").lower()
+                                selected_tool_names.append(tool_slug)
+                        if not mcp_tools:
+                            tool_slug = "".join(c if c.isalnum() or c == "_" else "_" for c in f"mcp_{sel_s.name}").lower()
+                            selected_tool_names.append(tool_slug)
+                    elif (sel_s.config or {}).get("is_tool") or (sel_s.config or {}).get("parameters"):
                         prefix = "db_" if sel_s.source_type == "database" else "api_"
                         raw_name = (sel_s.config or {}).get("tool_name") or f"{prefix}{sel_s.name.replace(' ', '_').lower()}"
                         tool_slug = "".join(c if c.isalnum() or c == "_" else "_" for c in raw_name).lower()
@@ -196,7 +207,7 @@ class ChatService:
                             cfg = (s_obj.config or {}) if s_obj else {}
 
                             # Validity tier hierarchy defaults
-                            default_tier = "authoritative" if s_obj and s_obj.source_type in ["database", "api"] and (cfg.get("is_tool") or cfg.get("parameters")) else ("verified" if s_obj and s_obj.source_type in ["database", "file"] else "secondary")
+                            default_tier = "authoritative" if s_obj and s_obj.source_type in ["database", "api", "mcp", "mcp_server"] and (cfg.get("is_tool") or cfg.get("parameters") or s_obj.source_type in ["mcp", "mcp_server"]) else ("verified" if s_obj and s_obj.source_type in ["database", "file"] else "secondary")
                             default_score = 95 if default_tier == "authoritative" else (85 if default_tier == "verified" else 65)
 
                             v_tier = cfg.get("validity_tier") or default_tier
@@ -478,11 +489,12 @@ class ChatService:
         # 5. Discover Active API Tools (if db session available)
         tools = []
         tool_dispatch_map = {}
+        tool_raw_name_map = {}
         if db:
             try:
                 from models.knowledge_source import KnowledgeSource
                 all_tool_sources = db.query(KnowledgeSource).filter(
-                    KnowledgeSource.source_type.in_(["api", "database"]),
+                    KnowledgeSource.source_type.in_(["api", "database", "mcp", "mcp_server"]),
                     KnowledgeSource.is_active == True
                 ).all()
 
@@ -493,7 +505,7 @@ class ChatService:
                     for s in all_tool_sources:
                         if s.id in active_source_ids:
                             cfg = s.config or {}
-                            if cfg.get("is_tool") or cfg.get("parameters"):
+                            if cfg.get("is_tool") or cfg.get("parameters") or s.source_type in ["mcp", "mcp_server"]:
                                 explicit_tool_ids.add(s.id)
 
                     if explicit_tool_ids:
@@ -515,7 +527,7 @@ class ChatService:
 
                             for t_s in all_tool_sources:
                                 t_cfg = t_s.config or {}
-                                if not (t_cfg.get("is_tool") or t_cfg.get("parameters")):
+                                if not (t_cfg.get("is_tool") or t_cfg.get("parameters") or t_s.source_type in ["mcp", "mcp_server"]):
                                     continue
                                 t_db = str(t_cfg.get("database") or t_cfg.get("database_id") or "").lower()
                                 t_coll = str(t_cfg.get("collection") or t_cfg.get("collection_name") or t_cfg.get("table_name") or "").lower()
@@ -535,13 +547,64 @@ class ChatService:
                             active_tool_sources = [s for s in all_tool_sources if s.id in companion_tool_ids]
                         else:
                             # Keep all active query tools available so live searching is not unexpectedly disabled
-                            active_tool_sources = [s for s in all_tool_sources if (s.config or {}).get("is_tool") or (s.config or {}).get("parameters")]
+                            active_tool_sources = [s for s in all_tool_sources if (s.config or {}).get("is_tool") or (s.config or {}).get("parameters") or s.source_type in ["mcp", "mcp_server"]]
                 else:
-                    active_tool_sources = [s for s in all_tool_sources if (s.config or {}).get("is_tool") or (s.config or {}).get("parameters")]
+                    active_tool_sources = [s for s in all_tool_sources if (s.config or {}).get("is_tool") or (s.config or {}).get("parameters") or s.source_type in ["mcp", "mcp_server"]]
 
                 for s in active_tool_sources:
                     cfg = s.config or {}
-                    if cfg.get("is_tool") or cfg.get("parameters"):
+                    if s.source_type in ["mcp", "mcp_server"]:
+                        mcp_tools = cfg.get("tools") or []
+                        prefix = f"mcp_{s.name.replace(' ', '_').lower()}_"
+                        for t in mcp_tools:
+                            if not t.get("enabled", True):
+                                continue
+                            raw_name = t.get("name", "tool")
+                            clean_name = "".join(c if c.isalnum() or c == "_" else "_" for c in f"{prefix}{raw_name}").lower()
+
+                            properties = {}
+                            required_params = []
+                            if t.get("input_schema") and isinstance(t["input_schema"], dict):
+                                properties = t["input_schema"].get("properties", {})
+                                required_params = t["input_schema"].get("required", [])
+                            elif t.get("parameters"):
+                                for p in t.get("parameters", []):
+                                    p_name = p.get("name")
+                                    if not p_name:
+                                        continue
+                                    p_type = (p.get("type") or "string").lower()
+                                    if p_type in ["int", "integer"]:
+                                        p_type = "integer"
+                                    elif p_type in ["float", "number"]:
+                                        p_type = "number"
+                                    elif p_type in ["bool", "boolean"]:
+                                        p_type = "boolean"
+                                    else:
+                                        p_type = "string"
+                                    properties[p_name] = {
+                                        "type": p_type,
+                                        "description": p.get("description") or f"Parameter {p_name}"
+                                    }
+                                    if p.get("required"):
+                                        required_params.append(p_name)
+
+                            tool_desc = t.get("description") or f"Remote MCP tool '{raw_name}' dari {s.name}"
+                            tools.append({
+                                "type": "function",
+                                "function": {
+                                    "name": clean_name,
+                                    "description": tool_desc,
+                                    "parameters": {
+                                        "type": "object",
+                                        "properties": properties,
+                                        "required": required_params
+                                    }
+                                }
+                            })
+                            tool_dispatch_map[clean_name] = s
+                            tool_raw_name_map[clean_name] = raw_name
+
+                    elif cfg.get("is_tool") or cfg.get("parameters"):
                         prefix = "db_" if s.source_type == "database" else "api_"
                         raw_name = cfg.get("tool_name") or f"{prefix}{s.name.replace(' ', '_').lower()}"
                         clean_name = "".join(c if c.isalnum() or c == "_" else "_" for c in raw_name).lower()
@@ -597,6 +660,7 @@ class ChatService:
                             }
                         })
                         tool_dispatch_map[clean_name] = s
+                        tool_raw_name_map[clean_name] = raw_name
             except Exception as tool_disc_err:
                 logger.warning(f"Error discovering dynamic tools for chat: {tool_disc_err}")
 
@@ -843,6 +907,14 @@ Patuhi aturan:
                                             lambda: database_ingester.execute_tool_call_sync(source_cfg, fn_args),
                                             db
                                         )
+                                    elif matched_source.source_type in ["mcp", "mcp_server"]:
+                                        from services.ingestion.mcp_ingester import mcp_ingester
+                                        target_tname = tool_raw_name_map.get(fn_name) or fn_name
+                                        refresh_cache_async(
+                                            matched_source, fn_args,
+                                            lambda: mcp_ingester.execute_tool_call_sync(source_cfg, target_tname, fn_args),
+                                            db
+                                        )
                                     else:
                                         refresh_cache_async(
                                             matched_source, fn_args,
@@ -856,6 +928,11 @@ Patuhi aturan:
                                 from services.ingestion.database_ingester import database_ingester
                                 exec_res = database_ingester.execute_tool_call_sync(source_cfg, fn_args)
                                 target_url = f"{source_cfg.get('db_type', 'db').upper()}://{source_cfg.get('database', '')}"
+                            elif matched_source.source_type in ["mcp", "mcp_server"]:
+                                from services.ingestion.mcp_ingester import mcp_ingester
+                                target_tname = tool_raw_name_map.get(fn_name) or fn_name
+                                exec_res = mcp_ingester.execute_tool_call_sync(source_cfg, target_tname, fn_args)
+                                target_url = source_cfg.get("endpoint") or source_cfg.get("url") or "mcp://server"
                             else:
                                 exec_res = api_ingester.execute_tool_call_sync(source_cfg, fn_args)
                                 target_url = exec_res.get("endpoint") or exec_res.get("url")

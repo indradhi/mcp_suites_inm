@@ -8,7 +8,7 @@ class KnowledgeSource(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(150), nullable=False)
-    source_type = Column(String(50), nullable=False, index=True) # database, api, file, website, websearch, google_drive
+    source_type = Column(String(50), nullable=False, index=True) # database, api, file, website, websearch, google_drive, mcp
     description = Column(Text, nullable=True)
     config = Column(JSON, nullable=False) # connection strings, endpoints, auth, urls, file paths
     schedule_cron = Column(String(100), nullable=True)

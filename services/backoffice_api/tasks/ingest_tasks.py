@@ -15,6 +15,7 @@ from services.ingestion.database_ingester import database_ingester
 from services.ingestion.api_ingester import api_ingester
 from services.ingestion.website_ingester import website_ingester
 from services.ingestion.websearch_ingester import websearch_ingester
+from services.ingestion.mcp_ingester import mcp_ingester
 from tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ def run_ingest_source_task(self, source_id: int):
         config = source.config or {}
 
         # If source is configured as an on-demand AI Tool (live query without vector ingestion), skip batch ingestion
-        if config.get("is_tool") or (source_type in ["database", "api"] and config.get("parameters")):
+        if config.get("is_tool") or (source_type in ["database", "api"] and config.get("parameters")) or (source_type in ["mcp", "mcp_server"] and not config.get("sync_resources")):
             logger.info(f"Source with id {source_id} ('{source.name}') is configured as on-demand AI Tool. Skipping batch vector ingestion.")
             job.status = "completed"
             job.total_records = 0
@@ -102,6 +103,9 @@ def run_ingest_source_task(self, source_id: int):
             query = config.get("query")
             crawl = config.get("crawl_pages", True)
             raw_chunks = asyncio.run(websearch_ingester.search_and_extract(query, crawl_pages=crawl))
+
+        elif source_type in ["mcp", "mcp_server"]:
+            raw_chunks = asyncio.run(mcp_ingester.extract_knowledge(config))
 
         raw_chunks = raw_chunks or []
         total_chunks = len(raw_chunks)

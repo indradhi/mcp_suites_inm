@@ -18,12 +18,14 @@ import {
   Copy,
   Download,
   Upload,
-  BookOpen
+  BookOpen,
+  Cpu
 } from 'lucide-react';
 import api from '../api/client';
 import { formatDateTimeWIB } from '../utils/dateUtils';
 import AddDatabaseModal from '../components/modals/AddDatabaseModal';
 import AddApiModal from '../components/modals/AddApiModal';
+import AddMcpModal from '../components/modals/AddMcpModal';
 import AddFileModal from '../components/modals/AddFileModal';
 import AddWebsiteModal from '../components/modals/AddWebsiteModal';
 import AddWebSearchModal from '../components/modals/AddWebSearchModal';
@@ -186,6 +188,8 @@ export default function KnowledgeSources() {
       case 'website': return <Globe size={18} color="var(--accent-emerald)" />;
       case 'websearch': return <Search size={18} color="var(--accent-amber)" />;
       case 'google_drive': return <FolderGit2 size={18} color="#a78bfa" />;
+      case 'mcp':
+      case 'mcp_server': return <Cpu size={18} color="#c084fc" />;
       default: return <Database size={18} color="var(--text-muted)" />;
     }
   };
@@ -272,6 +276,19 @@ export default function KnowledgeSources() {
           </button>
           <button className="btn-secondary" onClick={() => { setEditingSource(null); setActiveModal('api'); }}>
             <Globe size={15} /> API
+          </button>
+          <button 
+            type="button"
+            id="btn-add-mcp-source"
+            className="btn-secondary" 
+            onClick={() => { setEditingSource(null); setActiveModal('mcp'); }}
+            style={{
+              borderColor: 'rgba(168, 85, 247, 0.4)',
+              color: '#c084fc',
+              background: 'rgba(168, 85, 247, 0.12)'
+            }}
+          >
+            <Cpu size={15} /> Server MCP
           </button>
           <button className="btn-secondary" onClick={() => { setEditingSource(null); setActiveModal('file'); }}>
             <FileText size={15} /> Document (OCR)
@@ -542,16 +559,20 @@ export default function KnowledgeSources() {
       {/* Sources Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '20px' }}>
         {filteredSources.map((source) => {
-          const isTool = (source.source_type === 'api' || source.source_type === 'database') && (source.config?.is_tool || source.sync_status?.includes('tool'));
+          const isMcp = source.source_type === 'mcp' || source.source_type === 'mcp_server';
+          const isTool = (source.source_type === 'api' || source.source_type === 'database' || isMcp) && (source.config?.is_tool || source.sync_status?.includes('tool') || isMcp);
           const isDbTool = source.source_type === 'database' && isTool;
           const isApiTool = source.source_type === 'api' && isTool;
-          const paramCount = source.config?.parameters?.length || 0;
-          const defaultPrefix = source.source_type === 'database' ? 'db_' : 'api_';
-          const toolSlug = source.config?.tool_name || `${defaultPrefix}${source.name.toLowerCase().replace(/[^a-z0-9_]/g, '_')}`;
-          const accentColor = isDbTool ? 'var(--accent-primary)' : 'var(--accent-cyan)';
-          const accentBg = isDbTool ? 'rgba(99, 102, 241, 0.15)' : 'rgba(6, 182, 212, 0.15)';
-          const accentBorder = isDbTool ? 'rgba(99, 102, 241, 0.4)' : 'rgba(6, 182, 212, 0.4)';
-          const toolBadgeLabel = isDbTool ? 'AI DATABASE TOOL' : 'AI API TOOL';
+          const isMcpTool = isMcp;
+          const paramCount = isMcp ? (source.config?.tools?.length || 0) : (source.config?.parameters?.length || 0);
+          const defaultPrefix = source.source_type === 'database' ? 'db_' : (isMcp ? 'mcp_' : 'api_');
+          const toolSlug = isMcp 
+            ? `${source.config?.tools?.length || 0} tools terdaftar` 
+            : (source.config?.tool_name || `${defaultPrefix}${source.name.toLowerCase().replace(/[^a-z0-9_]/g, '_')}`);
+          const accentColor = isMcp ? '#c084fc' : (isDbTool ? 'var(--accent-primary)' : 'var(--accent-cyan)');
+          const accentBg = isMcp ? 'rgba(168, 85, 247, 0.15)' : (isDbTool ? 'rgba(99, 102, 241, 0.15)' : 'rgba(6, 182, 212, 0.15)');
+          const accentBorder = isMcp ? 'rgba(168, 85, 247, 0.4)' : (isDbTool ? 'rgba(99, 102, 241, 0.4)' : 'rgba(6, 182, 212, 0.4)');
+          const toolBadgeLabel = isMcp ? 'SERVER MCP / TOOLS' : (isDbTool ? 'AI DATABASE TOOL' : 'AI API TOOL');
           const isActive = source.is_active !== false;
 
           return (
@@ -571,7 +592,7 @@ export default function KnowledgeSources() {
                   : (isTool ? `1px solid ${accentBorder}` : '1px solid var(--border-color)'),
                 background: !isActive
                   ? 'rgba(15, 23, 42, 0.35)'
-                  : (isTool ? (isDbTool ? 'rgba(99, 102, 241, 0.03)' : 'rgba(6, 182, 212, 0.03)') : undefined),
+                  : (isTool ? (isMcp ? 'rgba(168, 85, 247, 0.04)' : (isDbTool ? 'rgba(99, 102, 241, 0.03)' : 'rgba(6, 182, 212, 0.03)')) : undefined),
                 opacity: !isActive ? 0.72 : 1,
                 transition: 'all 0.2s ease',
                 position: 'relative'
@@ -756,8 +777,37 @@ export default function KnowledgeSources() {
                   </div>
                 )}
 
+                {/* MCP Tools Chips */}
+                {isMcp && source.config?.tools && source.config.tools.length > 0 && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Cpu size={12} color="#c084fc" /> <span style={{ color: !isActive ? '#cbd5e1' : '#ffffff', fontWeight: '600' }}>Alat MCP Terdaftar:</span>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      {source.config.tools.slice(0, 6).map((t, tIdx) => (
+                        <span key={tIdx} style={{
+                          background: t.enabled !== false ? 'rgba(168, 85, 247, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                          border: `1px solid ${t.enabled !== false ? 'rgba(168, 85, 247, 0.3)' : 'var(--border-color)'}`,
+                          borderRadius: '4px',
+                          padding: '2px 6px',
+                          fontSize: '11px',
+                          color: t.enabled !== false ? '#d8b4fe' : '#64748b',
+                          fontFamily: 'monospace'
+                        }}>
+                          {t.name}
+                        </span>
+                      ))}
+                      {source.config.tools.length > 6 && (
+                        <span style={{ fontSize: '10px', color: 'var(--text-muted)', alignSelf: 'center' }}>
+                          +{source.config.tools.length - 6} lainnya
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Parameter Chips if AI Tool */}
-                {isTool && source.config?.parameters && source.config.parameters.length > 0 && (
+                {!isMcp && isTool && source.config?.parameters && source.config.parameters.length > 0 && (
                   <div style={{ marginBottom: '16px' }}>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <Code size={12} color={!isActive ? 'var(--text-muted)' : accentColor} /> <span style={{ color: !isActive ? '#cbd5e1' : '#ffffff', fontWeight: '600' }}>{toolSlug}</span>
@@ -961,6 +1011,12 @@ export default function KnowledgeSources() {
       />
       <AddApiModal
         isOpen={activeModal === 'api'}
+        onClose={closeModals}
+        onSuccess={fetchSources}
+        initialData={editingSource}
+      />
+      <AddMcpModal
+        isOpen={activeModal === 'mcp' || activeModal === 'mcp_server'}
         onClose={closeModals}
         onSuccess={fetchSources}
         initialData={editingSource}
