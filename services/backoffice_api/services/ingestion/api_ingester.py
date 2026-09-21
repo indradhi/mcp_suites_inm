@@ -168,6 +168,10 @@ class APIIngester:
 
         # Process passed arguments
         for arg_name, arg_val in (arguments or {}).items():
+            # Skip empty or null parameters
+            if arg_val is None or (isinstance(arg_val, str) and str(arg_val).strip() == ""):
+                continue
+
             spec = param_specs.get(arg_name, {})
             loc = spec.get("in", "query").lower()
             
@@ -319,6 +323,10 @@ class APIIngester:
         param_specs = {p.get("name"): p for p in parameters_def if p.get("name")}
 
         for arg_name, arg_val in (arguments or {}).items():
+            # Skip empty or null parameters
+            if arg_val is None or (isinstance(arg_val, str) and str(arg_val).strip() == ""):
+                continue
+
             spec = param_specs.get(arg_name, {})
             loc = spec.get("in", "query").lower()
             if loc == "path" or f"{{{arg_name}}}" in endpoint:
