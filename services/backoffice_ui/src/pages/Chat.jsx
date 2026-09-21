@@ -539,6 +539,13 @@ export default function Chat() {
       };
 
       setMessages(prev => [...prev, aiMessage]);
+      
+      // Auto-open GeoJSON modal if polygons are detected
+      const extractedPolygons = (res.data.tools_executed || []).flatMap(t => extractPolygonsFromData(t.data));
+      if (extractedPolygons && extractedPolygons.length > 0) {
+        setGeoJsonModalData({ features: extractedPolygons, activeIndex: 0 });
+      }
+      
       // All additional info sections (sources, tools, graph, map, face) default to COLLAPSED
     } catch (err) {
       let errorDetail = err.response?.data?.detail || err.message;
