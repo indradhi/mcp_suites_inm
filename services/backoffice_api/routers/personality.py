@@ -156,6 +156,35 @@ def add_custom_personality(
         raise HTTPException(status_code=500, detail=f"Gagal menambah kepribadian: {str(e)}")
 
 
+@router.put("/preset/{preset_id}")
+def update_preset_personality(
+    preset_id: str,
+    payload: PersonalityPayload,
+    db: Session = Depends(get_db)
+):
+    """
+    Updates any preset (both predefined/curated defined templates and custom presets),
+    allowing persisting the nickname and parameters to defined templates.
+    """
+    try:
+        raw_data = payload.dict(exclude_unset=True)
+        updated = personality_service.update_preset(db, preset_id, raw_data)
+        preview = personality_service.build_system_instruction(db=db)
+        return {
+            "status": "success",
+            "success": True,
+            "message": f"Template '{preset_id}' berhasil diperbarui.",
+            "data": updated,
+            "preset": updated,
+            "presets": personality_service.get_all_available_personalities(db),
+            "system_instruction": preview,
+            "preview": preview
+        }
+    except Exception as e:
+        logger.error(f"Error updating preset {preset_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Gagal memperbarui template: {str(e)}")
+
+
 @router.put("/custom/{preset_id}")
 def update_custom_personality(
     preset_id: str,
@@ -163,16 +192,21 @@ def update_custom_personality(
     db: Session = Depends(get_db)
 ):
     """
-    Updates an existing custom personality.
+    Updates an existing custom personality or defined template.
     """
     try:
         raw_data = payload.dict(exclude_unset=True)
-        updated = personality_service.update_custom_personality(db, preset_id, raw_data)
+        updated = personality_service.update_preset(db, preset_id, raw_data)
+        preview = personality_service.build_system_instruction(db=db)
         return {
             "status": "success",
             "success": True,
-            "message": "Kepribadian kustom berhasil diperbarui.",
-            "data": updated
+            "message": "Kepribadian berhasil diperbarui.",
+            "data": updated,
+            "preset": updated,
+            "presets": personality_service.get_all_available_personalities(db),
+            "system_instruction": preview,
+            "preview": preview
         }
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

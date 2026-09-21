@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 SETTING_KEY_MCP_PERSONALITY = "mcp_personality"
 SETTING_KEY_MCP_CUSTOM_PERSONALITIES = "mcp_custom_personalities"
+SETTING_KEY_MCP_PRESET_OVERRIDES = "mcp_preset_overrides"
 
 DEFAULT_PERSONALITY: Dict[str, Any] = {
     "name": "Analis Intelijen & Penyelidikan KPK",
@@ -38,6 +39,7 @@ CURATED_PRESETS: List[Dict[str, Any]] = [
     {
         "id": "kpk_investigator",
         "name": "Analis Intelijen & Penyelidikan KPK",
+        "nickname": "Asisten Intelijen",
         "role_title": "Enterprise AI Knowledge & Investigation Orchestrator",
         "category": "investigation",
         "tone": "formal_investigative",
@@ -62,6 +64,7 @@ CURATED_PRESETS: List[Dict[str, Any]] = [
     {
         "id": "legal_compliance",
         "name": "Ahli Hukum & Regulasi Anti-Korupsi",
+        "nickname": "Pakar Hukum",
         "role_title": "Legal & Regulatory Compliance Specialist",
         "category": "legal",
         "tone": "academic_legal",
@@ -84,6 +87,7 @@ CURATED_PRESETS: List[Dict[str, Any]] = [
     {
         "id": "forensic_auditor",
         "name": "Auditor Forensik Keuangan & LHKPN",
+        "nickname": "Auditor Forensik",
         "role_title": "Forensic Financial Auditor & Asset Tracking Specialist",
         "category": "audit",
         "tone": "analytical_methodical",
@@ -106,6 +110,7 @@ CURATED_PRESETS: List[Dict[str, Any]] = [
     {
         "id": "general_enterprise",
         "name": "MCP Enterprise Knowledge Assistant",
+        "nickname": "Asisten MCP",
         "role_title": "Enterprise Knowledge & Intelligence Assistant",
         "category": "general",
         "tone": "helpful_professional",
@@ -127,6 +132,7 @@ CURATED_PRESETS: List[Dict[str, Any]] = [
     {
         "id": "custom",
         "name": "Kepribadian Kustom",
+        "nickname": "Asisten Kustom",
         "role_title": "Custom Specialized Assistant",
         "category": "custom",
         "tone": "custom",
@@ -213,15 +219,51 @@ class PersonalityService:
         """
         return self.update_personality(db, DEFAULT_PERSONALITY)
 
-    def get_presets(self) -> List[Dict[str, Any]]:
+    def get_preset_overrides(self, db: Session) -> Dict[str, Any]:
         """
-        Returns the curated presets list with aliases.
+        Retrieves user customizations for curated/predefined presets from database.
         """
+        try:
+            record = db.query(SystemSetting).filter(SystemSetting.key == SETTING_KEY_MCP_PRESET_OVERRIDES).first()
+            if record and isinstance(record.value, dict):
+                return record.value
+        except Exception as e:
+            logger.warning(f"Error reading preset overrides from database: {e}")
+        return {}
+
+    def save_preset_overrides(self, db: Session, overrides: Dict[str, Any]):
+        """
+        Saves user customizations for curated/predefined presets to database.
+        """
+        try:
+            record = db.query(SystemSetting).filter(SystemSetting.key == SETTING_KEY_MCP_PRESET_OVERRIDES).first()
+            if not record:
+                record = SystemSetting(
+                    key=SETTING_KEY_MCP_PRESET_OVERRIDES,
+                    value=overrides,
+                    description="User overrides for predefined MCP personality presets"
+                )
+                db.add(record)
+            else:
+                record.value = overrides
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to save preset overrides: {e}")
+            raise e
+
+    def get_presets(self, db: Optional[Session] = None) -> List[Dict[str, Any]]:
+        """
+        Returns the curated presets list with aliases and any user-saved overrides (e.g. nickname).
+        """
+        overrides = self.get_preset_overrides(db) if db else {}
         results = []
         for p in CURATED_PRESETS:
             cp = dict(p)
-            cp["role"] = p.get("role_title", "")
-            cp["tone_of_voice"] = p.get("tone_label", "")
+            if p["id"] in overrides and isinstance(overrides[p["id"]], dict):
+                cp.update(overrides[p["id"]])
+            cp["role"] = cp.get("role_title", "")
+            cp["tone_of_voice"] = cp.get("tone_label", "")
             results.append(cp)
         return results
 
@@ -316,11 +358,54 @@ class PersonalityService:
 
     def get_all_available_personalities(self, db: Session) -> List[Dict[str, Any]]:
         """
-        Returns combination of curated presets, default, and user custom personalities.
+        Returns combination of curated presets (with user overrides), default, and user custom personalities.
         """
-        all_p = self.get_presets()
+        all_p = self.get_presets(db)
         all_p.extend(self.get_custom_personalities(db))
         return all_p
+
+    def update_preset(self, db: Session, preset_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Updates any preset - custom or predefined/curated defined template - with new fields such as nickname, name, etc.
+        """
+        if preset_id.startswith("custom_"):
+            return self.update_custom_personality(db, preset_id, payload)
+
+        # Predefined curated template override
+        overrides = self.get_preset_overrides(db)
+        preset_override = dict(overrides.get(preset_id, {}))
+
+        if "nickname" in payload and payload["nickname"] is not None:
+            preset_override["nickname"] = str(payload["nickname"]).strip()
+        if "name" in payload and payload["name"]:
+            preset_override["name"] = str(payload["name"]).strip()
+        if "role_title" in payload or "role" in payload:
+            preset_override["role_title"] = str(payload.get("role_title") or payload.get("role")).strip()
+        if "tone_label" in payload or "tone_of_voice" in payload:
+            preset_override["tone_label"] = str(payload.get("tone_label") or payload.get("tone_of_voice")).strip()
+        if "core_mission" in payload and payload["core_mission"] is not None:
+            preset_override["core_mission"] = str(payload["core_mission"]).strip()
+        if "custom_instructions" in payload and payload["custom_instructions"] is not None:
+            preset_override["custom_instructions"] = str(payload["custom_instructions"]).strip()
+        if "guidelines" in payload and isinstance(payload["guidelines"], list):
+            preset_override["guidelines"] = payload["guidelines"]
+
+        overrides[preset_id] = preset_override
+        self.save_preset_overrides(db, overrides)
+
+        # If the currently active personality matches this preset_id, synchronize active personality as well
+        active = self.get_personality(db)
+        if active.get("preset_id") == preset_id or active.get("preset") == preset_id:
+            for k in ["nickname", "name", "role_title", "tone_label", "core_mission", "custom_instructions"]:
+                if k in preset_override:
+                    active[k] = preset_override[k]
+            self.update_personality(db, active)
+
+        # Return full updated preset representation
+        for p in self.get_presets(db):
+            if p["id"] == preset_id:
+                return p
+        return preset_override
 
     def build_system_instruction(
         self,

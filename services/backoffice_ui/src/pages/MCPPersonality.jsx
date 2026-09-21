@@ -76,6 +76,7 @@ export default function MCPPersonality() {
   const [personality, setPersonality] = useState({
     preset: 'kpk_investigator',
     name: 'Analis Intelijen & Penyelidikan KPK',
+    nickname: 'Asisten Intelijen',
     role: 'Analis Intelijen & Penyelidikan Korupsi',
     tone_of_voice: 'Formal, lugas, analitis, presisi, objektif, berintegritas tinggi',
     core_mission: 'Melakukan penelaahan bukti dan fakta, penelusuran aset (asset tracing), profiling entitas terduga...',
@@ -97,6 +98,7 @@ export default function MCPPersonality() {
           setPersonality({
             preset: p.preset_id || p.preset || 'kpk_investigator',
             name: p.name || 'Analis Intelijen & Penyelidikan KPK',
+            nickname: p.nickname || '',
             role: p.role_title || p.role || 'Enterprise AI Knowledge & Investigation Orchestrator',
             tone_of_voice: p.tone_label || p.tone_of_voice || p.tone || 'Formal, Tegas & Berbasis Bukti Faktual',
             core_mission: p.core_mission || '',
@@ -127,6 +129,7 @@ export default function MCPPersonality() {
     const lines = [
       `### IDENTITAS & PERAN SISTEM:`,
       `Nama: ${personality.name || 'AI Assistant'}`,
+      personality.nickname ? `Nama Panggilan: ${personality.nickname}` : null,
       `Peran: ${personality.role || 'Assistant'}`,
       `Gaya Bahasa & Nada Bicara: ${personality.tone_of_voice || 'Formal dan objektif'}`,
       ``,
@@ -138,7 +141,7 @@ export default function MCPPersonality() {
       `2. ANTI-HALUSINASI: DILARANG mengarang fakta, entitas, kronologi, atau status hukum yang tidak ada dalam data. Bila data tidak ada, jawab secara tegas dan lugas: "Data tidak ditemukan dalam basis data pengetahuan".`,
       `3. ATRIBUSI SUMBER: Wajib mencantumkan rujukan sumber resmi (Nama Dokumen, NIK, ID Aset, atau Nama Tool) untuk setiap temuan investigasi.`,
       `4. PEMANGGILAN TOOLS: Jika menemukan entitas terduga, NIK, atau aset tanah/perusahaan, prioritaskan verifikasi silang menggunakan tools investigasi yang tersedia.`
-    ];
+    ].filter(l => l !== null);
 
     if (personality.custom_instructions && personality.custom_instructions.trim()) {
       lines.push(``, `### INSTRUKSI TAMBAHAN KHUSUS:`, personality.custom_instructions.trim());
@@ -204,25 +207,34 @@ export default function MCPPersonality() {
     }
   };
 
-  const handleUpdateCustom = async (e) => {
-    e.preventDefault();
-    if (!personality.preset?.startsWith('custom_')) return;
+  const handleUpdatePreset = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const presetId = personality.preset || 'kpk_investigator';
     setSaving(true);
     setErrorMessage(null);
     setSaveSuccess(false);
     try {
-      const res = await api.put(`/settings/personality/custom/${personality.preset}`, personality);
-      if (res.data && res.data.data) {
+      const res = await api.put(`/settings/personality/preset/${presetId}`, personality);
+      if (res.data) {
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 4000);
-        fetchPersonality();
+        await fetchPersonality();
       }
     } catch (err) {
-      console.error('Failed to update custom personality:', err);
-      setErrorMessage(err.response?.data?.detail || 'Gagal memperbarui kepribadian kustom.');
+      console.error('Failed to update preset template:', err);
+      setErrorMessage(err.response?.data?.detail || 'Gagal memperbarui template kepribadian.');
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSaveNickname = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!personality.nickname?.trim()) {
+      setErrorMessage('Mohon masukkan nama panggilan terlebih dahulu.');
+      return;
+    }
+    await handleUpdatePreset(e);
   };
 
   const handleDeleteCustom = async (e, presetId) => {
@@ -514,6 +526,21 @@ export default function MCPPersonality() {
                     }}>
                       {presetItem.name}
                     </h3>
+                    {presetItem.nickname && (
+                      <div style={{
+                        fontSize: '11px',
+                        color: isSelected ? '#ffffff' : color.accent,
+                        opacity: isSelected ? 0.95 : 1,
+                        fontWeight: '600',
+                        marginTop: '3px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}>
+                        <span style={{ opacity: 0.75 }}>Panggilan:</span>
+                        <span style={{ fontStyle: 'italic', fontWeight: '600' }}>"{presetItem.nickname}"</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -586,20 +613,47 @@ export default function MCPPersonality() {
 
             {/* Nama Panggilan */}
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                Nama Panggilan
-              </label>
-              <input
-                type="text"
-                className="input-field"
-                value={personality.nickname || ''}
-                onChange={(e) => setPersonality({ ...personality, nickname: e.target.value })}
-                placeholder="Contoh: Asisten KPK"
-                required
-                style={{ width: '100%', fontSize: '14px', padding: '10px 14px' }}
-              />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', margin: 0 }}>
+                  Nama Panggilan (Short Greeting Name)
+                </label>
+                <span style={{ fontSize: '11px', color: activeColor.accent, fontWeight: '500' }}>
+                  Target Template: <strong>{presets.find(p => p.id === personality.preset)?.name || personality.preset}</strong>
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  className="input-field"
+                  value={personality.nickname || ''}
+                  onChange={(e) => setPersonality({ ...personality, nickname: e.target.value })}
+                  placeholder="Contoh: Asisten KPK"
+                  required
+                  style={{ flex: 1, fontSize: '14px', padding: '10px 14px' }}
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveNickname}
+                  disabled={saving || loading || !personality.nickname}
+                  className="btn-secondary"
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '6px', 
+                    padding: '10px 16px', 
+                    fontSize: '13px',
+                    whiteSpace: 'nowrap',
+                    borderColor: 'rgba(59, 130, 246, 0.5)',
+                    color: '#60a5fa'
+                  }}
+                  title={`Simpan nama panggilan "${personality.nickname || ''}" ke template yang dipilih (${presets.find(p => p.id === personality.preset)?.name || personality.preset})`}
+                >
+                  {saving ? <RotateCcw size={14} className="animate-spin" /> : <Save size={14} />}
+                  Simpan Nama Panggilan
+                </button>
+              </div>
               <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-                Nama sapaan singkat asisten.
+                Nama sapaan singkat asisten yang disimpan langsung ke dalam template yang sedang dipilih (baik template bawaan maupun kustom).
               </span>
             </div>
 
@@ -689,7 +743,8 @@ export default function MCPPersonality() {
               gap: '12px', 
               marginTop: '10px',
               paddingTop: '16px',
-              borderTop: '1px solid var(--border-color)'
+              borderTop: '1px solid var(--border-color)',
+              flexWrap: 'wrap'
             }}>
               <button
                 type="button"
@@ -700,32 +755,39 @@ export default function MCPPersonality() {
                   display: 'flex', 
                   alignItems: 'center', 
                   gap: '8px', 
-                  padding: '10px 24px', 
+                  padding: '10px 20px', 
                   fontSize: '14px'
                 }}
               >
                 {saving ? <RotateCcw size={16} className="animate-spin" /> : <Save size={16} />}
                 Simpan Baru (Kustom)
               </button>
-              {personality.preset?.startsWith('custom_') && (
-                <button
-                  type="button"
-                  onClick={handleUpdateCustom}
-                  disabled={saving || loading}
-                  className="btn-secondary"
-                  style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '8px', 
-                    padding: '10px 24px', 
-                    fontSize: '14px',
-                    borderColor: 'var(--text-secondary)'
-                  }}
-                >
-                  {saving ? <RotateCcw size={16} className="animate-spin" /> : <Save size={16} />}
-                  Perbarui (Kustom)
-                </button>
-              )}
+
+              {/* Tombol Simpan/Perbarui Template Defined & Kustom */}
+              <button
+                type="button"
+                onClick={handleUpdatePreset}
+                disabled={saving || loading}
+                className="btn-secondary"
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px', 
+                  padding: '10px 20px', 
+                  fontSize: '14px',
+                  borderColor: personality.preset?.startsWith('custom_') ? 'var(--text-secondary)' : 'rgba(56, 189, 248, 0.6)',
+                  color: personality.preset?.startsWith('custom_') ? 'inherit' : '#38bdf8'
+                }}
+                title={personality.preset?.startsWith('custom_') 
+                  ? "Perbarui template kustom yang dipilih" 
+                  : `Simpan nama panggilan & parameter ke template defined: "${presets.find(p => p.id === personality.preset)?.name || personality.preset}"`}
+              >
+                {saving ? <RotateCcw size={16} className="animate-spin" /> : <Save size={16} />}
+                {personality.preset?.startsWith('custom_') 
+                  ? 'Perbarui (Kustom)' 
+                  : 'Simpan ke Template (Defined)'}
+              </button>
+
               <button
                 type="submit"
                 disabled={saving || loading}
