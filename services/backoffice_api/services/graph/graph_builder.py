@@ -59,7 +59,16 @@ class GraphBuilder:
                 continue
 
             query = f"""
-            MATCH (a:Entity {{name: $src}}), (b:Entity {{name: $dst}})
+            MERGE (a:Entity {{name: $src}})
+            ON CREATE SET 
+                a.type = 'UNKNOWN',
+                a.source_id = $source_id,
+                a.created_at = datetime()
+            MERGE (b:Entity {{name: $dst}})
+            ON CREATE SET 
+                b.type = 'UNKNOWN',
+                b.source_id = $source_id,
+                b.created_at = datetime()
             MERGE (a)-[r:{rel_type}]->(b)
             ON CREATE SET 
                 r.source_id = $source_id,
@@ -76,5 +85,16 @@ class GraphBuilder:
                 logger.warning(f"Failed to create relationship {src} -[{rel_type}]-> {dst}: {e}")
 
         return created
+
+    def get_entity_count_by_source(self, source_id: int) -> int:
+        """Returns the number of unique entities in Neo4j linked to a specific source_id."""
+        query = "MATCH (e:Entity {source_id: $source_id}) RETURN count(e) AS cnt"
+        try:
+            records = neo4j_client.execute_read(query, {"source_id": int(source_id)})
+            if records and len(records) > 0:
+                return records[0].get("cnt", 0)
+        except Exception as e:
+            logger.warning(f"Failed to get entity count for source {source_id}: {e}")
+        return 0
 
 graph_builder = GraphBuilder()

@@ -1,12 +1,15 @@
 import hashlib
 import json
 import logging
+import re
 import threading
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional, Tuple
 
 from services.vector_store import vector_store
 from models.knowledge_source import KnowledgeSource, KnowledgeDocument
+from services.graph.graph_builder import graph_builder
+from services.llm_service import llm_service
 
 logger = logging.getLogger(__name__)
 
@@ -258,6 +261,413 @@ def normalize_tool_data(raw_data: Any) -> List[Dict[str, Any]]:
     return [raw_data]
 
 
+# ---------------------------------------------------------------------------
+# Structured Network Entity & Relationship Extraction
+# ---------------------------------------------------------------------------
+
+def _clean_str(val: Any) -> Optional[str]:
+    if val is None:
+        return None
+    s = str(val).strip()
+    if not s or s in ['-', '--', 'null', 'None', 'undefined', 'NULL', 'nan']:
+        return None
+    return re.sub(r'\s+', ' ', s)
+
+
+def _get_field(rec: Dict[str, Any], *candidates: str) -> Optional[str]:
+    """Case-insensitive dictionary lookup matching any candidate key."""
+    for cand in candidates:
+        if cand in rec:
+            val = _clean_str(rec[cand])
+            if val:
+                return val
+    lower_map = {k.lower(): v for k, v in rec.items()}
+    for cand in candidates:
+        cand_l = cand.lower()
+        if cand_l in lower_map:
+            val = _clean_str(lower_map[cand_l])
+            if val:
+                return val
+    return None
+
+
+def extract_structured_entities_and_relations(
+    record: Dict[str, Any],
+    source: KnowledgeSource,
+    query_args: Optional[Dict[str, Any]] = None
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """
+    Extracts canonical domain entities and semantic network relationships from a tool result record.
+    Covers:
+      - Persons (Dukcapil, BPN, corporate, generic)
+      - Documents / Identifiers (NIK, KK, NPWP, Paspor, SIM, Akta, SK)
+      - Assets (Sertifikat Hak Atas Tanah, NIB, Kendaraan / Nopol, Rekening Bank)
+      - Organizations (PT, CV, Bank, Instansi, Kantor Pertanahan)
+      - Locations (Alamat, Kelurahan, Kecamatan, Kota/Kabupaten, Provinsi)
+      - Family relationships (Ayah, Ibu, Anak, Pasangan)
+      - Professional / Corporate roles (Direktur, Komisaris, Pemegang Hak, Nasabah)
+    """
+    entities: List[Dict[str, Any]] = []
+    relationships: List[Dict[str, Any]] = []
+
+    # 1. Identify Person or Primary Individual
+    raw_person = _get_field(
+        record,
+        'NAMA_LGKP', 'NAMA', 'NAMA_LENGKAP', 'pemilik_nama', 'pemilik',
+        'pemegang_hak', 'pemeganghak', 'nama_pemilik', 'nama_nasabah',
+        'direktur', 'komisaris', 'name', 'full_name', 'client_name', 'employee_name'
+    )
+
+    person_name: Optional[str] = None
+    org_from_person: Optional[str] = None
+
+    if raw_person:
+        upper_p = raw_person.upper()
+        if any(upper_p.startswith(pfx) for pfx in ['PT ', 'PT.', 'CV ', 'CV.', 'UD ', 'YAYASAN ', 'KOPERASI ', 'KSP ', 'PERUM ', 'DINAS ', 'KEMENTERIAN ']):
+            org_from_person = raw_person
+        else:
+            person_name = raw_person
+            entities.append({
+                "name": person_name,
+                "type": "PERSON",
+                "description": f"Individu tercatat pada {source.name}"
+            })
+
+    # 2. Identify Corporate / Organization
+    raw_org = _get_field(
+        record,
+        'nama_perusahaan', 'perusahaan', 'pt', 'cv', 'instansi',
+        'kantor', 'nama_kantor', 'kantor_pertanahan', 'lembaga',
+        'company', 'organization', 'company_name'
+    ) or org_from_person
+
+    org_name: Optional[str] = None
+    if raw_org:
+        org_name = raw_org
+        entities.append({
+            "name": org_name,
+            "type": "ORGANIZATION",
+            "description": f"Organisasi / Instansi tercatat pada {source.name}"
+        })
+
+        if person_name:
+            if _get_field(record, 'direktur'):
+                relationships.append({"source": person_name, "relation": "DIREKTUR_DI", "target": org_name})
+            elif _get_field(record, 'komisaris'):
+                relationships.append({"source": person_name, "relation": "KOMISARIS_DI", "target": org_name})
+            elif _get_field(record, 'pemegang_saham'):
+                relationships.append({"source": person_name, "relation": "PEMEGANG_SAHAM_DI", "target": org_name})
+            else:
+                relationships.append({"source": person_name, "relation": "TERAFILIASI_DENGAN", "target": org_name})
+
+    # 3. Identify Documents & Identification
+    # NIK
+    nik_val = _get_field(record, 'NIK', 'nik', 'pemilik_nik', 'nik_pemilik', 'no_ktp', 'ktp')
+    doc_nik: Optional[str] = None
+    if nik_val and len(re.sub(r'\D', '', nik_val)) >= 6:
+        doc_nik = f"NIK: {nik_val}"
+        entities.append({
+            "name": doc_nik,
+            "type": "DOCUMENT",
+            "description": f"Nomor Induk Kependudukan ({person_name or 'Individu'})"
+        })
+        if person_name:
+            relationships.append({"source": person_name, "relation": "MEMILIKI_NIK", "target": doc_nik})
+
+    # NO_KK
+    kk_val = _get_field(record, 'NO_KK', 'no_kk', 'nomor_kk', 'nkk')
+    doc_kk: Optional[str] = None
+    if kk_val and len(re.sub(r'\D', '', kk_val)) >= 6:
+        doc_kk = f"KK: {kk_val}"
+        entities.append({
+            "name": doc_kk,
+            "type": "DOCUMENT",
+            "description": "Nomor Kartu Keluarga"
+        })
+        if person_name:
+            relationships.append({"source": person_name, "relation": "TERDAFTAR_DALAM_KK", "target": doc_kk})
+        if doc_nik:
+            relationships.append({"source": doc_nik, "relation": "TERCATAT_DALAM_KK", "target": doc_kk})
+
+    # NPWP
+    npwp_val = _get_field(record, 'NPWP', 'npwp', 'nomor_npwp')
+    if npwp_val:
+        doc_npwp = f"NPWP: {npwp_val}"
+        entities.append({
+            "name": doc_npwp,
+            "type": "DOCUMENT",
+            "description": "Nomor Pokok Wajib Pajak"
+        })
+        if person_name:
+            relationships.append({"source": person_name, "relation": "MEMILIKI_NPWP", "target": doc_npwp})
+        elif org_name:
+            relationships.append({"source": org_name, "relation": "MEMILIKI_NPWP", "target": doc_npwp})
+
+    # PASPOR
+    paspor_val = _get_field(record, 'nomor_paspor', 'paspor', 'passport')
+    if paspor_val:
+        doc_paspor = f"PASPOR: {paspor_val}"
+        entities.append({
+            "name": doc_paspor,
+            "type": "DOCUMENT",
+            "description": "Dokumen Paspor Resmi"
+        })
+        if person_name:
+            relationships.append({"source": person_name, "relation": "MEMILIKI_PASPOR", "target": doc_paspor})
+
+    # SIM
+    sim_val = _get_field(record, 'nomor_sim', 'sim', 'no_sim')
+    if sim_val:
+        doc_sim = f"SIM: {sim_val}"
+        entities.append({
+            "name": doc_sim,
+            "type": "DOCUMENT",
+            "description": "Surat Izin Mengemudi"
+        })
+        if person_name:
+            relationships.append({"source": person_name, "relation": "MEMILIKI_SIM", "target": doc_sim})
+
+    # 4. Identify Assets (Land / Vehicles / Bank Accounts)
+    # Land / Sertifikat Hak Atas Tanah / NIB
+    hak_val = _get_field(record, 'nomor_hak', 'nomor_sertifikat', 'nib', 'no_hak', 'no_sertifikat')
+    asset_tanah: Optional[str] = None
+    if hak_val:
+        jenis_hak = _get_field(record, 'jenis_hak', 'tipe_hak', 'tipe') or 'Hak Atas Tanah'
+        asset_tanah = f"{jenis_hak.upper()} NO: {hak_val}"
+        luas = _get_field(record, 'luas')
+        luas_desc = f" (Luas {luas} m2)" if luas else ""
+        entities.append({
+            "name": asset_tanah,
+            "type": "ASSET",
+            "description": f"Sertifikat {jenis_hak} BPN{luas_desc}"
+        })
+        if person_name:
+            relationships.append({"source": person_name, "relation": "MEMEGANG_HAK", "target": asset_tanah})
+        elif org_name:
+            relationships.append({"source": org_name, "relation": "MEMEGANG_HAK", "target": asset_tanah})
+
+    # Kendaraan Bermotor
+    nopol_val = _get_field(record, 'nomor_polisi', 'nopol', 'no_polisi', 'police_no')
+    if nopol_val:
+        merk = _get_field(record, 'merk', 'merek', 'brand') or ''
+        tipe = _get_field(record, 'tipe', 'model') or ''
+        asset_ranmor = f"NOPOL: {nopol_val.upper()}"
+        entities.append({
+            "name": asset_ranmor,
+            "type": "ASSET",
+            "description": f"Kendaraan Bermotor {merk} {tipe}".strip()
+        })
+        if person_name:
+            relationships.append({"source": person_name, "relation": "PEMILIK_KENDARAAN", "target": asset_ranmor})
+
+    # Rekening Bank
+    rek_val = _get_field(record, 'nomor_rekening', 'no_rekening', 'rekening', 'account_number')
+    if rek_val:
+        bank_name = _get_field(record, 'nama_bank', 'bank', 'bank_name') or 'BANK'
+        bank_org = bank_name.upper()
+        asset_rek = f"REKENING: {bank_org} - {rek_val}"
+        entities.append({
+            "name": asset_rek,
+            "type": "ASSET",
+            "description": f"Rekening pada {bank_name}"
+        })
+        entities.append({
+            "name": bank_org,
+            "type": "ORGANIZATION",
+            "description": f"Institusi Perbankan {bank_org}"
+        })
+        relationships.append({"source": asset_rek, "relation": "DIKELOLA_OLEH", "target": bank_org})
+        if person_name:
+            relationships.append({"source": person_name, "relation": "PEMILIK_REKENING", "target": asset_rek})
+        elif org_name:
+            relationships.append({"source": org_name, "relation": "PEMILIK_REKENING", "target": asset_rek})
+
+    # 5. Identify Location / Address
+    alamat_val = _get_field(record, 'ALAMAT', 'alamat', 'address')
+    rt_val = _get_field(record, 'NO_RT', 'rt')
+    rw_val = _get_field(record, 'NO_RW', 'rw')
+    kel_val = _get_field(record, 'KEL_NAME', 'kelurahan', 'desa')
+    kec_val = _get_field(record, 'KEC_NAME', 'kecamatan')
+    kab_val = _get_field(record, 'KAB_NAME', 'kabupaten', 'kota', 'city')
+    prop_val = _get_field(record, 'PROP_NAME', 'provinsi', 'province')
+
+    loc_parts = []
+    if alamat_val:
+        loc_parts.append(alamat_val)
+    if rt_val or rw_val:
+        rt_str = f"RT {rt_val}" if rt_val else ""
+        rw_str = f"RW {rw_val}" if rw_val else ""
+        loc_parts.append(f"{rt_str} {rw_str}".strip())
+    if kel_val:
+        loc_parts.append(f"Kel. {kel_val}")
+    if kec_val:
+        loc_parts.append(f"Kec. {kec_val}")
+    if kab_val:
+        loc_parts.append(kab_val)
+    if prop_val:
+        loc_parts.append(prop_val)
+
+    if loc_parts:
+        loc_str = ", ".join(loc_parts)
+        loc_ent = f"LOKASI: {loc_str}"
+        entities.append({
+            "name": loc_ent,
+            "type": "LOCATION",
+            "description": f"Wilayah: {loc_str}"
+        })
+        if person_name:
+            relationships.append({"source": person_name, "relation": "BERALAMAT_DI", "target": loc_ent})
+        if asset_tanah:
+            relationships.append({"source": asset_tanah, "relation": "BERLOKASI_DI", "target": loc_ent})
+
+    # 6. Family Relationships (Dukcapil)
+    # Ayah
+    ayah_val = _get_field(record, 'NAMA_LGKP_AYAH', 'NAMA_AYAH', 'AYAH', 'ayah')
+    if ayah_val and person_name and ayah_val.upper() != person_name.upper():
+        entities.append({
+            "name": ayah_val,
+            "type": "PERSON",
+            "description": f"Ayah dari {person_name}"
+        })
+        relationships.append({"source": person_name, "relation": "ANAK_DARI", "target": ayah_val})
+        relationships.append({"source": ayah_val, "relation": "ORANG_TUA_DARI", "target": person_name})
+
+        nik_ayah = _get_field(record, 'NIK_AYAH', 'nik_ayah')
+        if nik_ayah and len(re.sub(r'\D', '', nik_ayah)) >= 6:
+            nik_ayah_ent = f"NIK: {nik_ayah}"
+            entities.append({
+                "name": nik_ayah_ent,
+                "type": "DOCUMENT",
+                "description": f"NIK Ayah ({ayah_val})"
+            })
+            relationships.append({"source": ayah_val, "relation": "MEMILIKI_NIK", "target": nik_ayah_ent})
+        if doc_kk:
+            relationships.append({"source": ayah_val, "relation": "TERDAFTAR_DALAM_KK", "target": doc_kk})
+
+    # Ibu
+    ibu_val = _get_field(record, 'NAMA_LGKP_IBU', 'NAMA_IBU', 'IBU', 'ibu')
+    if ibu_val and person_name and ibu_val.upper() != person_name.upper():
+        entities.append({
+            "name": ibu_val,
+            "type": "PERSON",
+            "description": f"Ibu dari {person_name}"
+        })
+        relationships.append({"source": person_name, "relation": "ANAK_DARI", "target": ibu_val})
+        relationships.append({"source": ibu_val, "relation": "ORANG_TUA_DARI", "target": person_name})
+
+        nik_ibu = _get_field(record, 'NIK_IBU', 'nik_ibu')
+        if nik_ibu and len(re.sub(r'\D', '', nik_ibu)) >= 6:
+            nik_ibu_ent = f"NIK: {nik_ibu}"
+            entities.append({
+                "name": nik_ibu_ent,
+                "type": "DOCUMENT",
+                "description": f"NIK Ibu ({ibu_val})"
+            })
+            relationships.append({"source": ibu_val, "relation": "MEMILIKI_NIK", "target": nik_ibu_ent})
+        if doc_kk:
+            relationships.append({"source": ibu_val, "relation": "TERDAFTAR_DALAM_KK", "target": doc_kk})
+
+    if ayah_val and ibu_val and ayah_val.upper() != ibu_val.upper():
+        relationships.append({"source": ayah_val, "relation": "PASANGAN_DARI", "target": ibu_val})
+
+    # 7. BPN Catatan / Akta PPAT
+    riwayat_cat = _get_field(record, 'riwayat_catatan', 'catatan')
+    if riwayat_cat:
+        ppat_m = re.search(r'PPAT:\s*([^,\]]+)', riwayat_cat, re.IGNORECASE)
+        akta_m = re.search(r'No:\s*([^,\]]+)', riwayat_cat, re.IGNORECASE)
+
+        akta_ent = None
+        if akta_m:
+            akta_no = akta_m.group(1).strip()
+            if akta_no and akta_no != '-':
+                akta_ent = f"AKTA: {akta_no}"
+                entities.append({
+                    "name": akta_ent,
+                    "type": "DOCUMENT",
+                    "description": "Akta Peralihan Hak PPAT"
+                })
+                if asset_tanah:
+                    relationships.append({"source": akta_ent, "relation": "MENCATAT_PERALIHAN", "target": asset_tanah})
+
+        if ppat_m:
+            ppat_name = ppat_m.group(1).strip()
+            if ppat_name and ppat_name != '-':
+                ppat_ent = f"PPAT: {ppat_name}"
+                entities.append({
+                    "name": ppat_ent,
+                    "type": "ORGANIZATION",
+                    "description": "Pejabat Pembuat Akta Tanah"
+                })
+                if akta_ent:
+                    relationships.append({"source": ppat_ent, "relation": "MENERBITKAN_AKTA", "target": akta_ent})
+
+    # 8. Deduplicate entities by name (case-insensitive) and relationships
+    unique_entities = []
+    seen_ent_names = set()
+    for ent in entities:
+        norm = ent["name"].strip().upper()
+        if norm and norm not in seen_ent_names:
+            seen_ent_names.add(norm)
+            unique_entities.append(ent)
+
+    unique_relationships = []
+    seen_rels = set()
+    for rel in relationships:
+        key = (rel["source"].strip().upper(), rel["relation"], rel["target"].strip().upper())
+        if key[0] and key[2] and key[0] != key[2] and key not in seen_rels:
+            seen_rels.add(key)
+            unique_relationships.append(rel)
+
+    return unique_entities, unique_relationships
+
+
+def _enrich_narrative_graph_async(source_id: int, source_name: str, narrative_chunks: List[str]):
+    """
+    Background daemon thread to asynchronously extract nuanced semantic entities
+    and relationships using LLM without holding up live chat or API responses.
+    """
+    def _worker():
+        from database import SessionLocal
+        db = None
+        try:
+            db = SessionLocal()
+            for chunk in narrative_chunks:
+                try:
+                    res = llm_service.extract_entities_and_relations(chunk, db)
+                    ents = res.get("entities", [])
+                    rels = res.get("relationships", [])
+                    if ents:
+                        graph_builder.upsert_entities(ents, source_id, source_name)
+                    if rels:
+                        graph_builder.upsert_relationships(rels, source_id)
+                except Exception as chunk_err:
+                    logger.debug(f"Narrative enrichment chunk notice: {chunk_err}")
+
+            # Update entities count after background enrichment
+            try:
+                actual_ent_count = graph_builder.get_entity_count_by_source(source_id)
+                doc_title = f"Bank Data: {source_name} (Hasil Query On-Demand)"
+                doc = db.query(KnowledgeDocument).filter(
+                    KnowledgeDocument.source_id == source_id,
+                    KnowledgeDocument.title == doc_title
+                ).first()
+                if doc:
+                    doc.entities_count = actual_ent_count
+                    db.commit()
+            except Exception:
+                pass
+
+            logger.info(f"Background narrative graph enrichment completed for source '{source_name}' ({source_id})")
+        except Exception as e:
+            logger.warning(f"Background narrative graph enrichment failed for source '{source_name}': {e}")
+        finally:
+            if db:
+                db.close()
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+
+
 def save_tool_records_to_bank_data(
     source: KnowledgeSource,
     query_args: Dict[str, Any],
@@ -267,6 +677,7 @@ def save_tool_records_to_bank_data(
     """
     Automatically ingests query-by-parameter results into ChromaDB vector store
     and registers them into KnowledgeDocument as cumulative 'Bank Data'.
+    Also extracts and saves network entities and relationships into Neo4j Knowledge Graph.
     Idempotent: Prevents duplication via content-based hashing.
     """
     norm_records = normalize_tool_data(records)
@@ -277,9 +688,28 @@ def save_tool_records_to_bank_data(
     metas_to_index = []
     ids_to_index = []
 
+    # 1. Extract structured entities and relations for Knowledge Graph
+    all_extracted_entities = []
+    all_extracted_relations = []
+    narrative_chunks = []
+
     for r_idx, record in enumerate(norm_records[:100]):
         if not isinstance(record, dict):
             continue
+
+        # Extract graph entities & relations from structured fields
+        try:
+            ents, rels = extract_structured_entities_and_relations(record, source, query_args)
+            all_extracted_entities.extend(ents)
+            all_extracted_relations.extend(rels)
+        except Exception as ext_err:
+            logger.warning(f"Notice during structured graph extraction for record {r_idx}: {ext_err}")
+
+        # Check for narrative text for background LLM enrichment
+        for nk in ['riwayat_catatan', 'catatan', 'keterangan', 'deskripsi', 'kronologi', 'notes', 'memo']:
+            nval = record.get(nk)
+            if nval and isinstance(nval, str) and len(nval.strip()) > 60:
+                narrative_chunks.append(f"Sumber: {source.name}\n{nk}: {nval.strip()}")
 
         fields = [f"Sumber Data: {source.name} ({source.source_type.upper()})"]
         if query_args:
@@ -325,13 +755,60 @@ def save_tool_records_to_bank_data(
         metas_to_index.append(metadata)
         ids_to_index.append(chunk_id)
 
+    # Deduplicate entities before upsert
+    dedup_entities = []
+    seen_names = set()
+    for ent in all_extracted_entities:
+        nm = ent["name"].strip().upper()
+        if nm and nm not in seen_names:
+            seen_names.add(nm)
+            dedup_entities.append(ent)
+
+    dedup_relations = []
+    seen_rel_keys = set()
+    for rel in all_extracted_relations:
+        rk = (rel["source"].strip().upper(), rel["relation"], rel["target"].strip().upper())
+        if rk[0] and rk[2] and rk[0] != rk[2] and rk not in seen_rel_keys:
+            seen_rel_keys.add(rk)
+            dedup_relations.append(rel)
+
+    ent_upserted = 0
+    rel_upserted = 0
+    if dedup_entities:
+        try:
+            ent_upserted = graph_builder.upsert_entities(dedup_entities, source.id, source.name)
+            logger.info(f"Auto Bank Data: Upserted {ent_upserted} entities to Neo4j for source '{source.name}'")
+        except Exception as ge_err:
+            logger.warning(f"Notice upserting entities to Neo4j for source '{source.name}': {ge_err}")
+
+    if dedup_relations:
+        try:
+            rel_upserted = graph_builder.upsert_relationships(dedup_relations, source.id)
+            logger.info(f"Auto Bank Data: Upserted {rel_upserted} relationships to Neo4j for source '{source.name}'")
+        except Exception as gr_err:
+            logger.warning(f"Notice upserting relationships to Neo4j for source '{source.name}': {gr_err}")
+
+    # Launch background async LLM enrichment for narrative text if present
+    if narrative_chunks:
+        _enrich_narrative_graph_async(source.id, source.name, narrative_chunks[:5])
+
     if texts_to_index:
         try:
             vector_store.add_chunks(texts_to_index, metas_to_index, ids_to_index)
             logger.info(f"Successfully cached {len(texts_to_index)} record(s) from '{source.name}' into ChromaDB Bank Data.")
 
-            # Update document record and source timestamp if db session is provided
-            if db:
+            # Update document record, entities count, and source timestamp in MySQL
+            own_db_session = False
+            active_db = db
+            if active_db is None:
+                try:
+                    from database import SessionLocal
+                    active_db = SessionLocal()
+                    own_db_session = True
+                except Exception:
+                    active_db = None
+
+            if active_db:
                 try:
                     coll = vector_store.get_collection()
                     existing = coll.get(where={"source_id": source.id})
@@ -339,26 +816,42 @@ def save_tool_records_to_bank_data(
                 except Exception:
                     actual_count = len(texts_to_index)
 
-                doc_title = f"Bank Data: {source.name} (Hasil Query On-Demand)"
-                doc = db.query(KnowledgeDocument).filter(
-                    KnowledgeDocument.source_id == source.id,
-                    KnowledgeDocument.title == doc_title
-                ).first()
+                try:
+                    actual_entities = graph_builder.get_entity_count_by_source(source.id)
+                    if actual_entities == 0:
+                        actual_entities = ent_upserted
 
-                if not doc:
-                    doc = KnowledgeDocument(
-                        source_id=source.id,
-                        title=doc_title,
-                        file_type="bank_data",
-                        chunk_count=actual_count,
-                        status="processed"
-                    )
-                    db.add(doc)
-                else:
-                    doc.chunk_count = actual_count
+                    doc_title = f"Bank Data: {source.name} (Hasil Query On-Demand)"
+                    doc = active_db.query(KnowledgeDocument).filter(
+                        KnowledgeDocument.source_id == source.id,
+                        KnowledgeDocument.title == doc_title
+                    ).first()
 
-                source.last_synced_at = datetime.utcnow()
-                db.commit()
+                    if not doc:
+                        doc = KnowledgeDocument(
+                            source_id=source.id,
+                            title=doc_title,
+                            file_type="bank_data",
+                            chunk_count=actual_count,
+                            entities_count=actual_entities,
+                            status="processed"
+                        )
+                        active_db.add(doc)
+                    else:
+                        doc.chunk_count = actual_count
+                        doc.entities_count = actual_entities
+
+                    source_in_db = active_db.query(KnowledgeSource).filter(KnowledgeSource.id == source.id).first()
+                    if source_in_db:
+                        source_in_db.last_synced_at = datetime.utcnow()
+
+                    active_db.commit()
+                    logger.info(f"Auto Bank Data: Updated KnowledgeDocument for '{source.name}' (chunks={actual_count}, entities={actual_entities})")
+                except Exception as doc_err:
+                    logger.warning(f"Error updating KnowledgeDocument in Bank Data: {doc_err}")
+                finally:
+                    if own_db_session and active_db:
+                        active_db.close()
 
             return len(texts_to_index)
         except Exception as e:

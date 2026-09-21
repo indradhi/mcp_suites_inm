@@ -15,7 +15,9 @@ import {
   AlertCircle,
   FileText,
   Zap,
-  Tag
+  Tag,
+  Share2,
+  ExternalLink
 } from 'lucide-react';
 import api from '../../api/client';
 import { formatDateTimeWIB } from '../../utils/dateUtils';
@@ -216,33 +218,66 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                     <span style={{ color: '#34d399', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                       <Zap size={12} /> Auto-Saved on Tool Execution
                     </span>
+                    <span>•</span>
+                    <span style={{ color: '#818cf8', display: 'inline-flex', alignItems: 'center', gap: '4px' }} title="Entitas & relasi otomatis tersimpan ke Neo4j Knowledge Graph">
+                      <Share2 size={12} /> Network Graph Synced
+                    </span>
                   </>
                 )}
               </div>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            title="Tutup Modal"
-            style={{ 
-              background: 'rgba(255, 255, 255, 0.05)', 
-              border: '1px solid var(--border-color)', 
-              color: 'var(--text-muted)', 
-              cursor: 'pointer', 
-              padding: '6px', 
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all 0.2s ease'
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
-          >
-            <X size={18} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <a
+              href="/network-explorer"
+              target="_blank"
+              rel="noreferrer"
+              title="Buka Knowledge Graph Network Profiling di tab baru"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: '600',
+                color: '#a5b4fc',
+                background: 'rgba(99, 102, 241, 0.12)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                textDecoration: 'none',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.25)'; e.currentTarget.style.color = '#ffffff'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.12)'; e.currentTarget.style.color = '#a5b4fc'; }}
+            >
+              <Share2 size={13} />
+              <span>Network Graph</span>
+              <ExternalLink size={11} />
+            </a>
+
+            <button
+              type="button"
+              onClick={onClose}
+              title="Tutup Modal"
+              style={{ 
+                background: 'rgba(255, 255, 255, 0.05)', 
+                border: '1px solid var(--border-color)', 
+                color: 'var(--text-muted)', 
+                cursor: 'pointer', 
+                padding: '6px', 
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Notification Toast */}

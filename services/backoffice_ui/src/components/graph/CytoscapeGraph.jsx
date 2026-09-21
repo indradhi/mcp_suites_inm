@@ -5,9 +5,11 @@ import { ZoomIn, ZoomOut, Maximize2, RotateCcw } from 'lucide-react';
 const ENTITY_LEGEND = [
   { type: 'PERSON', label: 'Orang / Individu', color: '#6366f1' },
   { type: 'ORGANIZATION', label: 'Organisasi / Korporasi', color: '#06b6d4' },
-  { type: 'DATABASE_RECORD', label: 'Data Record', color: '#10b981' },
-  { type: 'API_ENDPOINT', label: 'API Endpoint', color: '#f59e0b' },
-  { type: 'DOCUMENT', label: 'Dokumen', color: '#ec4899' },
+  { type: 'DOCUMENT', label: 'Dokumen / Identitas', color: '#ec4899' },
+  { type: 'ASSET', label: 'Aset / Tanah / Ranmor', color: '#f59e0b' },
+  { type: 'LOCATION', label: 'Lokasi / Wilayah', color: '#10b981' },
+  { type: 'DATABASE_RECORD', label: 'Data Record', color: '#14b8a6' },
+  { type: 'API_ENDPOINT', label: 'API Endpoint', color: '#f97316' },
   { type: 'OTHER', label: 'Lainnya', color: '#8b5cf6' }
 ];
 
@@ -47,9 +49,11 @@ export default function CytoscapeGraph({
               const type = (ele.data('type') || '').toUpperCase();
               if (type === 'PERSON') return '#6366f1';
               if (type === 'ORGANIZATION') return '#06b6d4';
-              if (type === 'DATABASE_RECORD') return '#10b981';
-              if (type === 'API_ENDPOINT') return '#f59e0b';
               if (type === 'DOCUMENT') return '#ec4899';
+              if (type === 'ASSET') return '#f59e0b';
+              if (type === 'LOCATION') return '#10b981';
+              if (type === 'DATABASE_RECORD') return '#14b8a6';
+              if (type === 'API_ENDPOINT') return '#f97316';
               return '#8b5cf6';
             },
             'width': 28,
