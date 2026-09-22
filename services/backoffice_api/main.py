@@ -11,9 +11,10 @@ from models.knowledge_source import KnowledgeSource
 from models.ingest_job import IngestJob
 from models.llm_backend import LLMBackend
 from models.chat_feedback import ChatFeedback
+from models.api_key import ApiKey
 from security import get_current_user
 
-from routers import auth, users, knowledge, jobs, graph, llm_backends, chat, face, personality, orchestrator
+from routers import auth, users, knowledge, jobs, graph, llm_backends, chat, face, personality, orchestrator, api_keys
 from models.orchestration_flow import OrchestrationFlow
 from services.flow_orchestrator import flow_orchestrator
 
@@ -82,6 +83,7 @@ app.include_router(chat.router, prefix="/api")
 app.include_router(face.router, prefix="/api")
 app.include_router(personality.router, prefix="/api")
 app.include_router(orchestrator.router, prefix="/api")
+app.include_router(api_keys.router, prefix="/api")
 
 @app.get("/health")
 def health():

@@ -86,3 +86,43 @@ def get_current_user_profile(current_user: User = Depends(get_current_user)):
         "full_name": current_user.full_name,
         "role": current_user.role.name if current_user.role else "viewer"
     }
+
+
+class ValidateApiKeyRequest(BaseModel):
+    api_key: str
+
+
+@router.post("/validate-api-key")
+def validate_api_key(payload: ValidateApiKeyRequest, db: Session = Depends(get_db)):
+    """
+    Internal endpoint for MCP Server to validate an API key.
+    No JWT required — intended for Docker internal network calls only.
+    """
+    from models.api_key import ApiKey
+    raw_key = (payload.api_key or "").strip()
+    if not raw_key or not raw_key.startswith("mcp_"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key format")
+
+    # Find active keys and check hash
+    active_keys = db.query(ApiKey).filter(ApiKey.is_active == True).all()
+    for ak in active_keys:
+        if verify_password(raw_key, ak.key_hash):
+            # Check expiration
+            if ak.expires_at and ak.expires_at < datetime.utcnow():
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="API key has expired")
+
+            # Update last_used_at
+            ak.last_used_at = datetime.utcnow()
+            db.commit()
+
+            import json
+            scopes = json.loads(ak.scopes) if ak.scopes else None
+            return {
+                "valid": True,
+                "key_id": ak.id,
+                "name": ak.name,
+                "scopes": scopes
+            }
+
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or revoked API key")
+

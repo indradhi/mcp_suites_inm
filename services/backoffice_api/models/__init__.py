@@ -6,6 +6,7 @@ from models.llm_backend import LLMBackend, ModelAssignment
 from models.chat_feedback import ChatFeedback
 from models.system_setting import SystemSetting
 from models.orchestration_flow import OrchestrationFlow
+from models.api_key import ApiKey
 
 __all__ = [
     "Base",
@@ -19,5 +20,7 @@ __all__ = [
     "ModelAssignment",
     "ChatFeedback",
     "SystemSetting",
-    "OrchestrationFlow"
+    "OrchestrationFlow",
+    "ApiKey"
 ]
+

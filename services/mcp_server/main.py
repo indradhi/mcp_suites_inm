@@ -5,11 +5,13 @@ import base64
 import copy
 import logging
 import asyncio
+import time as _time
 from typing import Dict, Any, List, Optional, Tuple
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel, Field
 import httpx
@@ -23,9 +25,96 @@ logger = logging.getLogger("mcp_server")
 vector_client = VectorClient()
 graph_client = GraphClient()
 
+# ── API Key Auth Configuration ────────────────────────────────────────
+MCP_AUTH_ENABLED = os.getenv("MCP_AUTH_ENABLED", "true").lower() in ("true", "1", "yes")
+BACKOFFICE_API_URL_AUTH = os.getenv("BACKOFFICE_API_URL", "http://backoffice-api:8000")
+
+# In-memory cache for validated API keys: { key_hash -> (expiry_timestamp, validation_result) }
+_api_key_cache: Dict[str, tuple] = {}
+_API_KEY_CACHE_TTL = 60  # seconds
+
+AUTH_EXEMPT_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
+
+
+class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
+    """Middleware that validates MCP API keys via the backoffice API."""
+
+    async def dispatch(self, request: Request, call_next):
+        # Skip auth if disabled
+        if not MCP_AUTH_ENABLED:
+            return await call_next(request)
+
+        # Skip auth for exempt paths
+        if request.url.path in AUTH_EXEMPT_PATHS:
+            return await call_next(request)
+
+        # Extract Bearer token
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return JSONResponse(
+                status_code=401,
+                content={"error": "Missing or invalid Authorization header. Use: Authorization: Bearer mcp_<your_key>"}
+            )
+
+        api_key = auth_header[7:].strip()  # Remove "Bearer " prefix
+        if not api_key.startswith("mcp_"):
+            return JSONResponse(
+                status_code=401,
+                content={"error": "Invalid API key format. Keys must start with 'mcp_'"}
+            )
+
+        # Check cache first
+        now = _time.time()
+        cache_key = api_key  # Use the raw key as cache key
+        if cache_key in _api_key_cache:
+            expiry, cached_result = _api_key_cache[cache_key]
+            if now < expiry:
+                if cached_result.get("valid"):
+                    return await call_next(request)
+                else:
+                    return JSONResponse(status_code=401, content={"error": cached_result.get("detail", "Invalid API key")})
+
+        # Validate against backoffice API
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.post(
+                    f"{BACKOFFICE_API_URL_AUTH}/api/auth/validate-api-key",
+                    json={"api_key": api_key}
+                )
+
+            if resp.status_code == 200:
+                result = resp.json()
+                _api_key_cache[cache_key] = (now + _API_KEY_CACHE_TTL, result)
+                return await call_next(request)
+            else:
+                detail = "Invalid or expired API key"
+                try:
+                    detail = resp.json().get("detail", detail)
+                except Exception:
+                    pass
+                _api_key_cache[cache_key] = (now + _API_KEY_CACHE_TTL, {"valid": False, "detail": detail})
+                return JSONResponse(status_code=401, content={"error": detail})
+
+        except httpx.TimeoutException:
+            logger.warning("Timeout validating API key against backoffice API")
+            # On timeout, check if we have a stale cache entry — better to allow than block
+            if cache_key in _api_key_cache:
+                _, cached_result = _api_key_cache[cache_key]
+                if cached_result.get("valid"):
+                    return await call_next(request)
+            return JSONResponse(status_code=503, content={"error": "Authentication service temporarily unavailable"})
+        except Exception as e:
+            logger.error(f"Error validating API key: {e}")
+            return JSONResponse(status_code=503, content={"error": "Authentication service error"})
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Initializing MCP Server connections...")
+    if MCP_AUTH_ENABLED:
+        logger.info("🔐 API Key authentication is ENABLED")
+    else:
+        logger.info("⚠️ API Key authentication is DISABLED (MCP_AUTH_ENABLED=false)")
     try:
         vector_client.get_collection()
         logger.info("Connected to ChromaDB successfully.")
@@ -57,6 +146,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# API Key Authentication Middleware (added after CORS so CORS preflight works)
+app.add_middleware(ApiKeyAuthMiddleware)
+
 
 # ── Available Tools Definition (MCP / OpenWebUI schema) ───────────────
 TOOLS_METADATA = [

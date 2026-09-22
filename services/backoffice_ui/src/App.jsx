@@ -11,6 +11,7 @@ import LLMBackends from './pages/LLMBackends';
 import MCPPersonality from './pages/MCPPersonality';
 import Jobs from './pages/Jobs';
 import Users from './pages/Users';
+import ApiKeys from './pages/ApiKeys';
 import { useAuthStore } from './store/authStore';
 
 function ProtectedRoute({ children, adminOnly = false }) {
@@ -48,6 +49,14 @@ export default function App() {
           <Route path="llm-backends" element={<LLMBackends />} />
           <Route path="personality" element={<MCPPersonality />} />
           <Route path="jobs" element={<Jobs />} />
+          <Route
+            path="keys"
+            element={
+              <ProtectedRoute adminOnly>
+                <ApiKeys />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="users"
             element={

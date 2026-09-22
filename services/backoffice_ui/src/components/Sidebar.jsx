@@ -11,7 +11,8 @@ import {
   Layers,
   MessageSquare,
   Workflow,
-  LogOut
+  LogOut,
+  Key
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
@@ -36,6 +37,7 @@ export default function Sidebar() {
   ];
 
   if (isAdmin()) {
+    navItems.push({ to: '/keys', label: 'API Keys', icon: Key });
     navItems.push({ to: '/users', label: 'Users & Roles', icon: Users });
   }
 
