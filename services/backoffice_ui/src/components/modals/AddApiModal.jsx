@@ -91,6 +91,8 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
         if (p.name) initialTestArgs[p.name] = p.default || '';
       });
       setTestArgs(initialTestArgs);
+      setTestResult(null);
+      setTesting(false);
     } else if (isOpen && !initialData) {
       setName('');
       setEndpoint('');

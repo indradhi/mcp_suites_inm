@@ -120,6 +120,17 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
         if (p.name) initialTestArgs[p.name] = p.default || '';
       });
       setTestArgs(initialTestArgs);
+      setTestResult(null);
+      setTesting(false);
+      
+      // Reset UI sub-states to prevent bleed from previously opened modals
+      setShowParamPickerModal(false);
+      setDetectedDbColumns([]);
+      setSelectedParamColumns([]);
+      setParamSearchQuery('');
+      setInspectingForParams(false);
+      setInspectingFieldDefs(false);
+      setWhereFeedback('');
     } else if (isOpen && !initialData) {
       setName('');
       setDescription('');
