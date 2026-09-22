@@ -21,7 +21,9 @@ import {
   CheckSquare,
   Square,
   Filter,
-  Check
+  Check,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import api from '../../api/client';
 import { 
@@ -70,6 +72,10 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
   const [whereMatchMode, setWhereMatchMode] = useState('smart'); // 'smart' | 'exact'
   const [whereOptionalFilter, setWhereOptionalFilter] = useState(false);
   const [whereFeedback, setWhereFeedback] = useState('');
+
+  // UI Collapse States
+  const [isParamsCollapsed, setIsParamsCollapsed] = useState(true);
+  const [isFieldsCollapsed, setIsFieldsCollapsed] = useState(true);
 
   // Cache States
   const [cacheEnabled, setCacheEnabled] = useState(false);
@@ -1040,10 +1046,14 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
 
                 {/* Parameters Builder */}
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isParamsCollapsed ? '0' : '10px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div 
+                      onClick={() => setIsParamsCollapsed(!isParamsCollapsed)}
+                      style={{ fontSize: '12px', fontWeight: '700', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}
+                    >
                       <Code size={14} color="var(--accent-primary)" /> Query Parameters Schema ({parameters.length})
-                    </label>
+                      {isParamsCollapsed ? <ChevronRight size={14} color="var(--text-muted)" /> : <ChevronDown size={14} color="var(--text-muted)" />}
+                    </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <button
                         type="button"
@@ -1091,12 +1101,14 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                     </div>
                   </div>
 
-                  {parameters.length === 0 ? (
-                    <div style={{ padding: '14px', textAlign: 'center', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', fontSize: '12px', color: 'var(--text-muted)' }}>
-                      No parameters defined yet. Click "Add Parameter" to configure query placeholders.
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {!isParamsCollapsed && (
+                    <>
+                      {parameters.length === 0 ? (
+                        <div style={{ padding: '14px', textAlign: 'center', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                          No parameters defined yet. Click "Add Parameter" to configure query placeholders.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {parameters.map((param, pIdx) => (
                         <div
                           key={pIdx}
@@ -1184,6 +1196,8 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                       ))}
                     </div>
                   )}
+                  </>
+                )}
                 </div>
 
                 {/* Live Test Parameter Inputs */}
@@ -1377,6 +1391,85 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                 <span>Nilai parameter otomatis di-bind dan di-escape secara aman sesuai tipenya (string, integer, boolean).</span>
               </div>
             )}
+          
+            <div style={{ marginTop: '12px' }}>
+                <button 
+                type="button" 
+                className="btn-secondary" 
+                onClick={handleTest} 
+                disabled={testing}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                {testing ? 'Executing...' : (isTool || parameters.length > 0 ? '⚡ Test Query with Parameters' : '⚡ Test Connection & Sample Data')}
+                </button>
+            </div>
+
+
+          {/* Test Connection / Query Output */}
+          {testResult && (
+            <div style={{
+              marginTop: '12px',
+              padding: '12px 16px',
+              borderRadius: '8px',
+              fontSize: '12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+              background: testResult.success ? 'rgba(16, 185, 129, 0.1)' : 'rgba(244, 63, 94, 0.1)',
+              border: `1px solid ${testResult.success ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`,
+              color: testResult.success ? '#34d399' : '#f87171'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: '600' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {testResult.success ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+                  <span>{testResult.message}</span>
+                </div>
+                {testResult.result?.latency_ms !== undefined && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '11px', color: '#94a3b8' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Clock size={12} /> {testResult.result.latency_ms}ms
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Layers size={12} /> {testResult.result.row_count || 0} rows
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {testResult.result?.query && (
+                <div style={{
+                  marginTop: '4px',
+                  background: 'rgba(0,0,0,0.3)',
+                  padding: '6px 10px',
+                  borderRadius: '4px',
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: '11px',
+                  color: '#93c5fd',
+                  border: '1px solid rgba(147, 197, 253, 0.2)'
+                }}>
+                  <span style={{ color: 'var(--text-muted)', marginRight: '6px' }}>Interpolated Query:</span>
+                  {testResult.result.query}
+                </div>
+              )}
+
+              {testResult.result?.data && (
+                <div style={{
+                  marginTop: '6px',
+                  background: 'rgba(0,0,0,0.4)',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: '11px',
+                  color: '#e2e8f0',
+                  maxHeight: '140px',
+                  overflowY: 'auto',
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {JSON.stringify(testResult.result.data, null, 2)}
+                </div>
+              )}
+            </div>
+          )}
           </div>
 
           {/* Ingestion Limit (when not configured as dynamic AI tool) */}
@@ -1411,8 +1504,11 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
             flexDirection: 'column',
             gap: '12px'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
-              <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: isFieldsCollapsed ? '0' : '10px' }}>
+              <div 
+                onClick={() => setIsFieldsCollapsed(!isFieldsCollapsed)}
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+              >
                 <div style={{ fontSize: '13px', fontWeight: '700', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <BookOpen size={16} color="var(--accent-primary)" />
                   <span>Definisi Kolom / Field Balikan Database (Kamus Data)</span>
@@ -1426,6 +1522,7 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                   }}>
                     {fieldDefinitions.length} Kolom
                   </span>
+                  {isFieldsCollapsed ? <ChevronRight size={16} color="var(--text-muted)" /> : <ChevronDown size={16} color="var(--text-muted)" />}
                 </div>
                 <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', maxWidth: '560px' }}>
                   Bantu AI memahami arti dari setiap kolom, singkatan kode, status numerik, atau nama field teknis pada query database ini.
@@ -1507,6 +1604,8 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
               </div>
             </div>
 
+            {!isFieldsCollapsed && (
+              <>
             {fieldDefinitions.length === 0 ? (
               <div style={{
                 padding: '14px',
@@ -1632,72 +1731,9 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                 ))}
               </div>
             )}
+              </>
+            )}
           </div>
-
-          {/* Test Connection / Query Output */}
-          {testResult && (
-            <div style={{
-              padding: '12px 16px',
-              borderRadius: '8px',
-              fontSize: '12px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px',
-              background: testResult.success ? 'rgba(16, 185, 129, 0.1)' : 'rgba(244, 63, 94, 0.1)',
-              border: `1px solid ${testResult.success ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`,
-              color: testResult.success ? '#34d399' : '#f87171'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: '600' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {testResult.success ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
-                  <span>{testResult.message}</span>
-                </div>
-                {testResult.result?.latency_ms !== undefined && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '11px', color: '#94a3b8' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Clock size={12} /> {testResult.result.latency_ms}ms
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Layers size={12} /> {testResult.result.row_count || 0} rows
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {testResult.result?.query && (
-                <div style={{
-                  marginTop: '4px',
-                  background: 'rgba(0,0,0,0.3)',
-                  padding: '6px 10px',
-                  borderRadius: '4px',
-                  fontFamily: 'JetBrains Mono, monospace',
-                  fontSize: '11px',
-                  color: '#93c5fd',
-                  border: '1px solid rgba(147, 197, 253, 0.2)'
-                }}>
-                  <span style={{ color: 'var(--text-muted)', marginRight: '6px' }}>Interpolated Query:</span>
-                  {testResult.result.query}
-                </div>
-              )}
-
-              {testResult.result?.data && (
-                <div style={{
-                  marginTop: '6px',
-                  background: 'rgba(0,0,0,0.4)',
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  fontFamily: 'JetBrains Mono, monospace',
-                  fontSize: '11px',
-                  color: '#e2e8f0',
-                  maxHeight: '140px',
-                  overflowY: 'auto',
-                  whiteSpace: 'pre-wrap'
-                }}>
-                  {JSON.stringify(testResult.result.data, null, 2)}
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Validity Tier Hierarchy Selector */}
           <ValidityTierSelector
@@ -1731,17 +1767,7 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                 onClick={onClose}
               >
                 Cancel
-              </button>
-              <button 
-                type="button" 
-                className="btn-secondary" 
-                onClick={handleTest} 
-                disabled={testing}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-              >
-                {testing ? 'Executing...' : (isTool || parameters.length > 0 ? '⚡ Test Query with Parameters' : '⚡ Test Connection & Sample Data')}
-              </button>
-              <button 
+              </button>              <button 
                 type="submit" 
                 className="btn-primary" 
                 disabled={submitting}
