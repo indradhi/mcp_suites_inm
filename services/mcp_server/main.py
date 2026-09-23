@@ -1183,3 +1183,71 @@ async def sse_endpoint(request: Request):
             }
 
     return EventSourceResponse(event_generator())
+
+# ── Native MCP Protocol Endpoint ──────────────────────────────────────
+
+from mcp.server import Server
+from mcp.server.sse import SseServerTransport
+import mcp.types as types
+
+mcp_native = Server("mcp_knowledge_network")
+sse = SseServerTransport("/mcp/messages")
+
+@mcp_native.list_tools()
+async def handle_list_tools() -> list[types.Tool]:
+    all_tools = await get_all_tools_metadata()
+    mcp_tools = []
+    for t in all_tools:
+        mcp_tools.append(
+            types.Tool(
+                name=t["name"],
+                description=t["description"],
+                inputSchema=t["parameters"]
+            )
+        )
+    return mcp_tools
+
+@mcp_native.call_tool()
+async def handle_call_tool(name: str, arguments: dict) -> list:
+    try:
+        output = await execute_tool(name, arguments)
+        clean_output, images = extract_mcp_images(output)
+        
+        content_blocks = []
+        content_blocks.append(
+            types.TextContent(
+                type="text",
+                text=json.dumps(clean_output, indent=2)
+            )
+        )
+        for img in images:
+            content_blocks.append(
+                types.ImageContent(
+                    type="image",
+                    data=img["data"],
+                    mimeType=img["mimeType"]
+                )
+            )
+        return content_blocks
+    except Exception as e:
+        return [
+            types.TextContent(
+                type="text",
+                text=f"Error executing tool {name}: {str(e)}"
+            )
+        ]
+
+@app.get("/mcp")
+async def handle_mcp_sse(request: Request):
+    async with sse.connect_sse(
+        request.scope, request.receive, request._send
+    ) as (read_stream, write_stream):
+        await mcp_native.run(
+            read_stream,
+            write_stream,
+            mcp_native.create_initialization_options()
+        )
+
+@app.post("/mcp/messages")
+async def handle_mcp_messages(request: Request):
+    await sse.handle_post_message(request.scope, request.receive, request._send)

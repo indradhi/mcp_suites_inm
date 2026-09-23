@@ -7,3 +7,4 @@ python-dotenv>=1.0.0
 chromadb-client>=0.4.22
 neo4j>=5.17.0
 sse-starlette>=2.0.0
+mcp>=1.0.0
