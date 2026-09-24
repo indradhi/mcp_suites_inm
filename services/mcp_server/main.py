@@ -1199,8 +1199,7 @@ if HAS_MCP:
     mcp_native = Server("mcp_knowledge_network")
     sse = SseServerTransport("/mcp/messages")
 
-    @mcp_native.list_tools()
-    async def handle_list_tools() -> list[types.Tool]:
+    async def handle_list_tools(params: types.PaginatedRequestParams | None = None) -> types.ListToolsResult:
         all_tools = await get_all_tools_metadata()
         mcp_tools = []
         for t in all_tools:
@@ -1211,10 +1210,12 @@ if HAS_MCP:
                     inputSchema=t["parameters"]
                 )
             )
-        return mcp_tools
+        return types.ListToolsResult(tools=mcp_tools)
+    mcp_native.add_request_handler("tools/list", types.PaginatedRequestParams, handle_list_tools)
 
-    @mcp_native.call_tool()
-    async def handle_call_tool(name: str, arguments: dict) -> list:
+    async def handle_call_tool(params: types.CallToolRequestParams) -> types.CallToolResult:
+        name = params.name
+        arguments = params.arguments or {}
         try:
             output = await execute_tool(name, arguments)
             clean_output, images = extract_mcp_images(output)
@@ -1234,14 +1235,15 @@ if HAS_MCP:
                         mimeType=img["mimeType"]
                     )
                 )
-            return content_blocks
+            return types.CallToolResult(content=content_blocks)
         except Exception as e:
-            return [
+            return types.CallToolResult(content=[
                 types.TextContent(
                     type="text",
                     text=f"Error executing tool {name}: {str(e)}"
                 )
-            ]
+            ])
+    mcp_native.add_request_handler("tools/call", types.CallToolRequestParams, handle_call_tool)
 
     @app.get("/mcp")
     async def handle_mcp_sse(request: Request):
