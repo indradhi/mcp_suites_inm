@@ -21,7 +21,7 @@ services:
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
-      - ./data/mysql:/var/lib/mysql
+      - ${DATA_DIR:-./data}/mysql:/var/lib/mysql
       - ./services/mysql_init:/docker-entrypoint-initdb.d:ro
     networks:
       - mcp_net
@@ -39,7 +39,7 @@ services:
     restart: unless-stopped
     command: redis-server /usr/local/etc/redis/redis.conf
     volumes:
-      - ./data/redis:/data
+      - ${DATA_DIR:-./data}/redis:/data
       - ./services/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
     networks:
       - mcp_net
@@ -58,7 +58,7 @@ services:
       IS_PERSISTENT: "TRUE"
       ANONYMIZED_TELEMETRY: "FALSE"
     volumes:
-      - ./data/chromadb:/chroma/chroma
+      - ${DATA_DIR:-./data}/chromadb:/chroma/chroma
     networks:
       - mcp_net
     healthcheck:
@@ -83,10 +83,10 @@ services:
       NEO4J_db_tx__log_rotation_retention__policy: "100M size"
       NEO4J_db_tx__log_rotation_size: "64M"
     volumes:
-      - ./data/neo4j/data:/data
-      - ./data/neo4j/logs:/logs
-      - ./data/neo4j/import:/import
-      - ./data/neo4j/plugins:/plugins
+      - ${DATA_DIR:-./data}/neo4j/data:/data
+      - ${DATA_DIR:-./data}/neo4j/logs:/logs
+      - ${DATA_DIR:-./data}/neo4j/import:/import
+      - ${DATA_DIR:-./data}/neo4j/plugins:/plugins
     networks:
       - mcp_net
     logging:
@@ -130,7 +130,7 @@ services:
     restart: unless-stopped
     env_file: .env
     volumes:
-      - ./data/uploads:/app/uploads
+      - ${DATA_DIR:-./data}/uploads:/app/uploads
     networks:
       - mcp_net
     depends_on:
@@ -154,7 +154,7 @@ services:
     env_file: .env
     command: celery -A tasks.celery_app worker --loglevel=info --concurrency=4 -Q default,ingestion,graph
     volumes:
-      - ./data/uploads:/app/uploads
+      - ${DATA_DIR:-./data}/uploads:/app/uploads
     networks:
       - mcp_net
     depends_on:
@@ -178,7 +178,7 @@ services:
     env_file: .env
     command: celery -A tasks.celery_app beat --loglevel=info
     volumes:
-      - ./data/uploads:/app/uploads
+      - ${DATA_DIR:-./data}/uploads:/app/uploads
     networks:
       - mcp_net
     depends_on:
@@ -204,10 +204,10 @@ services:
     container_name: mcp_backup
     restart: unless-stopped
     volumes:
-      - ./data/mysql:/data/mysql:ro
-      - ./data/neo4j:/data/neo4j:ro
-      - ./data/chromadb:/data/chromadb:ro
-      - ./data/redis:/data/redis:ro
+      - ${DATA_DIR:-./data}/mysql:/data/mysql:ro
+      - ${DATA_DIR:-./data}/neo4j:/data/neo4j:ro
+      - ${DATA_DIR:-./data}/chromadb:/data/chromadb:ro
+      - ${DATA_DIR:-./data}/redis:/data/redis:ro
       - ./backups:/backups
       - ./services/backup_service/backup.sh:/backup.sh:ro
       - ./services/backup_service/crontab:/etc/crontabs/root:ro

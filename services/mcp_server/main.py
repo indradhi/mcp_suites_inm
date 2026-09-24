@@ -8,6 +8,11 @@ import asyncio
 import time as _time
 from typing import Dict, Any, List, Optional, Tuple
 from contextlib import asynccontextmanager
+import contextvars
+
+# Context variables for API key permissions
+api_key_allowed_tools = contextvars.ContextVar("api_key_allowed_tools", default=None)
+api_key_allowed_kbs = contextvars.ContextVar("api_key_allowed_kbs", default=None)
 from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -70,6 +75,8 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
             expiry, cached_result = _api_key_cache[cache_key]
             if now < expiry:
                 if cached_result.get("valid"):
+                    api_key_allowed_tools.set(cached_result.get("allowed_tools"))
+                    api_key_allowed_kbs.set(cached_result.get("allowed_kbs"))
                     return await call_next(request)
                 else:
                     return JSONResponse(status_code=401, content={"error": cached_result.get("detail", "Invalid API key")})
@@ -85,6 +92,8 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
             if resp.status_code == 200:
                 result = resp.json()
                 _api_key_cache[cache_key] = (now + _API_KEY_CACHE_TTL, result)
+                api_key_allowed_tools.set(result.get("allowed_tools"))
+                api_key_allowed_kbs.set(result.get("allowed_kbs"))
                 return await call_next(request)
             else:
                 detail = "Invalid or expired API key"
@@ -101,6 +110,8 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
             if cache_key in _api_key_cache:
                 _, cached_result = _api_key_cache[cache_key]
                 if cached_result.get("valid"):
+                    api_key_allowed_tools.set(cached_result.get("allowed_tools"))
+                    api_key_allowed_kbs.set(cached_result.get("allowed_kbs"))
                     return await call_next(request)
             return JSONResponse(status_code=503, content={"error": "Authentication service temporarily unavailable"})
         except Exception as e:
@@ -505,7 +516,14 @@ async def get_all_tools_metadata() -> List[Dict[str, Any]]:
         }
         for t in dynamic
     ]
-    return TOOLS_METADATA + clean_dynamic
+    all_tools = TOOLS_METADATA + clean_dynamic
+    
+    # Filter based on allowed_tools context var
+    allowed = api_key_allowed_tools.get()
+    if allowed is not None:
+        all_tools = [t for t in all_tools if t["name"] in allowed]
+        
+    return all_tools
 
 @app.get("/health")
 async def health_check():
@@ -526,6 +544,12 @@ class ToolCallRequest(BaseModel):
 
 async def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
     import httpx
+    
+    # Check if tool is allowed
+    allowed = api_key_allowed_tools.get()
+    if allowed is not None and name not in allowed:
+        return {"error": f"API key does not have permission to execute tool '{name}'"}
+
     if name == "search_knowledge_base":
         query = args.get("query", "")
         max_results = int(args.get("max_results", 5))

@@ -11,10 +11,32 @@ export default function ApiKeys() {
   const [submitting, setSubmitting] = useState(false);
   const [newKeyData, setNewKeyData] = useState(null);
   const [copied, setCopied] = useState(false);
+  
+  // Options state
+  const [apiTools, setApiTools] = useState([]);
+  const [knowledgeSources, setKnowledgeSources] = useState([]);
+  
+  // Form state for selection
+  const [selectedTools, setSelectedTools] = useState([]);
+  const [selectedKBs, setSelectedKBs] = useState([]);
 
   useEffect(() => {
     fetchApiKeys();
+    fetchOptions();
   }, []);
+
+  const fetchOptions = async () => {
+    try {
+      const [toolsRes, sourcesRes] = await Promise.all([
+        api.get('/knowledge/api-tools'),
+        api.get('/knowledge/sources')
+      ]);
+      setApiTools(toolsRes.data || []);
+      setKnowledgeSources(sourcesRes.data || []);
+    } catch (err) {
+      console.error('Error fetching options:', err);
+    }
+  };
 
   const fetchApiKeys = async () => {
     try {
@@ -34,7 +56,9 @@ export default function ApiKeys() {
     try {
       const payload = {
         name,
-        expires_at: expiresAt ? new Date(expiresAt).toISOString() : null
+        expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
+        allowed_tools: selectedTools.length > 0 ? selectedTools : null,
+        allowed_kbs: selectedKBs.length > 0 ? selectedKBs : null
       };
       const res = await api.post('/api-keys', payload);
       setNewKeyData(res.data);
@@ -81,6 +105,8 @@ export default function ApiKeys() {
     setExpiresAt('');
     setNewKeyData(null);
     setCopied(false);
+    setSelectedTools([]);
+    setSelectedKBs([]);
   };
 
   return (
@@ -278,6 +304,105 @@ export default function ApiKeys() {
                     onChange={(e) => setExpiresAt(e.target.value)}
                     className="input-field"
                   />
+                </div>
+                
+                <div style={{ display: 'flex', gap: '16px', flexDirection: 'column', marginTop: '8px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                      Allowed Tools (Leave empty to allow all)
+                    </label>
+                    <div style={{ 
+                      maxHeight: '150px', 
+                      overflowY: 'auto', 
+                      background: 'rgba(0,0,0,0.2)', 
+                      padding: '12px', 
+                      borderRadius: '8px', 
+                      border: '1px solid var(--border-color)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px'
+                    }}>
+                      {/* Hardcoded native tools */}
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#fff', cursor: 'pointer' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={selectedTools.includes('search_knowledge_base')}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedTools([...selectedTools, 'search_knowledge_base']);
+                            else setSelectedTools(selectedTools.filter(t => t !== 'search_knowledge_base'));
+                          }}
+                        />
+                        Search Knowledge Base (Native)
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#fff', cursor: 'pointer' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={selectedTools.includes('get_retrieval_flow_for_prompt')}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedTools([...selectedTools, 'get_retrieval_flow_for_prompt']);
+                            else setSelectedTools(selectedTools.filter(t => t !== 'get_retrieval_flow_for_prompt'));
+                          }}
+                        />
+                        Get Retrieval Flow (Native)
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#fff', cursor: 'pointer' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={selectedTools.includes('manage_retrieval_flow')}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedTools([...selectedTools, 'manage_retrieval_flow']);
+                            else setSelectedTools(selectedTools.filter(t => t !== 'manage_retrieval_flow'));
+                          }}
+                        />
+                        Manage Retrieval Flow (Native)
+                      </label>
+                      {/* Dynamic tools */}
+                      {apiTools.map(t => (
+                        <label key={t.name} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#fff', cursor: 'pointer' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={selectedTools.includes(t.name)}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedTools([...selectedTools, t.name]);
+                              else setSelectedTools(selectedTools.filter(name => name !== t.name));
+                            }}
+                          />
+                          {t.name}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                      Allowed Knowledge Bases (Leave empty to allow all)
+                    </label>
+                    <div style={{ 
+                      maxHeight: '150px', 
+                      overflowY: 'auto', 
+                      background: 'rgba(0,0,0,0.2)', 
+                      padding: '12px', 
+                      borderRadius: '8px', 
+                      border: '1px solid var(--border-color)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px'
+                    }}>
+                      {knowledgeSources.filter(s => s.type !== 'api').map(s => (
+                        <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#fff', cursor: 'pointer' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={selectedKBs.includes(s.name)}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedKBs([...selectedKBs, s.name]);
+                              else setSelectedKBs(selectedKBs.filter(name => name !== s.name));
+                            }}
+                          />
+                          {s.name} ({s.type})
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                 </div>
                 
                 <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>

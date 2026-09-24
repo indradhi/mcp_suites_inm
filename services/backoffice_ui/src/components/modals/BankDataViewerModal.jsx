@@ -603,20 +603,23 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                       type="button"
                       onClick={() => toggleExpand(item.id)}
                       style={{
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        border: '1px solid var(--border-color)',
-                        color: 'var(--text-secondary)',
+                        background: isExpanded ? 'rgba(6, 182, 212, 0.1)' : 'rgba(255, 255, 255, 0.1)',
+                        border: `1px solid ${isExpanded ? 'var(--accent-cyan)' : 'var(--border-color)'}`,
+                        color: isExpanded ? 'var(--accent-cyan)' : '#ffffff',
                         borderRadius: '6px',
-                        padding: '4px 6px',
+                        padding: '4px 10px',
                         fontSize: '11px',
+                        fontWeight: '600',
                         cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '2px'
+                        gap: '4px',
+                        transition: 'all 0.2s ease'
                       }}
                       title={isExpanded ? 'Perkecil tampilan' : 'Tampilkan seluruh teks'}
                     >
                       {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      {isExpanded ? 'Sembunyikan' : 'Selengkapnya'}
                     </button>
                   </div>
                 </div>
@@ -647,19 +650,26 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                         bottom: 0,
                         left: 0,
                         right: 0,
-                        height: '45px',
-                        background: 'linear-gradient(to bottom, transparent, rgba(15, 23, 42, 0.95))',
+                        height: '60px',
+                        background: 'linear-gradient(to bottom, transparent, rgba(15, 23, 42, 1) 90%)',
                         display: 'flex',
                         alignItems: 'flex-end',
                         justifyContent: 'center',
-                        paddingBottom: '4px',
-                        cursor: 'pointer',
-                        color: 'var(--accent-cyan)',
-                        fontSize: '11px',
-                        fontWeight: '700'
+                        paddingBottom: '8px',
+                        cursor: 'pointer'
                       }}
                     >
-                      <span>Klik untuk melihat selengkapnya ({item.char_count.toLocaleString()} karakter)</span>
+                      <span style={{
+                        color: '#000000',
+                        background: 'var(--accent-cyan)',
+                        padding: '4px 12px',
+                        borderRadius: '12px',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        boxShadow: '0 2px 8px rgba(6, 182, 212, 0.4)'
+                      }}>
+                        Klik untuk melihat selengkapnya ({item.char_count?.toLocaleString()} karakter)
+                      </span>
                     </div>
                   )}
                 </div>

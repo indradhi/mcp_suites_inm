@@ -12,6 +12,8 @@ class ApiKey(Base):
     key_prefix = Column(String(10), nullable=False)
     key_hash = Column(String(255), nullable=False)
     scopes = Column(Text, nullable=True)  # JSON list: ["tools", "chat", "knowledge"]
+    allowed_tools = Column(Text, nullable=True) # JSON list of tool names
+    allowed_kbs = Column(Text, nullable=True) # JSON list of kb ids
     is_active = Column(Boolean, default=True)
     expires_at = Column(DateTime, nullable=True)
     last_used_at = Column(DateTime, nullable=True)

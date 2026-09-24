@@ -22,6 +22,8 @@ router = APIRouter(prefix="/api-keys", tags=["API Keys"])
 class ApiKeyCreateRequest(BaseModel):
     name: str
     scopes: Optional[List[str]] = None
+    allowed_tools: Optional[List[str]] = None
+    allowed_kbs: Optional[List[str]] = None
     expires_at: Optional[str] = None  # ISO datetime string
 
 
@@ -53,6 +55,8 @@ def list_api_keys(db: Session = Depends(get_db), user=Depends(get_current_user))
             "name": k.name,
             "key_prefix": k.key_prefix,
             "scopes": json.loads(k.scopes) if k.scopes else None,
+            "allowed_tools": json.loads(k.allowed_tools) if k.allowed_tools else None,
+            "allowed_kbs": json.loads(k.allowed_kbs) if k.allowed_kbs else None,
             "is_active": k.is_active,
             "expires_at": k.expires_at.isoformat() if k.expires_at else None,
             "last_used_at": k.last_used_at.isoformat() if k.last_used_at else None,
@@ -84,12 +88,16 @@ def create_api_key(
             raise HTTPException(status_code=400, detail="Invalid expires_at format. Use ISO 8601.")
 
     scopes_json = json.dumps(req.scopes) if req.scopes else None
+    allowed_tools_json = json.dumps(req.allowed_tools) if req.allowed_tools else None
+    allowed_kbs_json = json.dumps(req.allowed_kbs) if req.allowed_kbs else None
 
     api_key = ApiKey(
         name=req.name.strip(),
         key_prefix=key_prefix,
         key_hash=key_hash,
         scopes=scopes_json,
+        allowed_tools=allowed_tools_json,
+        allowed_kbs=allowed_kbs_json,
         is_active=True,
         expires_at=expires_at,
         created_by=user.id
@@ -106,6 +114,8 @@ def create_api_key(
         "key_prefix": key_prefix,
         "api_key": raw_key,  # Full key — shown only once!
         "scopes": req.scopes,
+        "allowed_tools": req.allowed_tools,
+        "allowed_kbs": req.allowed_kbs,
         "is_active": True,
         "expires_at": expires_at.isoformat() if expires_at else None,
         "created_at": api_key.created_at.isoformat() if api_key.created_at else None,

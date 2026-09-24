@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Sparkles, 
   ShieldCheck, 
@@ -17,7 +17,9 @@ import {
   Cpu, 
   FileText,
   Info,
-  Trash2
+  Trash2,
+  Download,
+  Upload
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
@@ -71,6 +73,7 @@ export default function MCPPersonality() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Active personality form state
   const [personality, setPersonality] = useState({
@@ -284,6 +287,45 @@ export default function MCPPersonality() {
     setTimeout(() => setCopiedPrompt(false), 2000);
   };
 
+  // Export personality to JSON
+  const handleExport = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(personality, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `mcp_personality_${personality.preset || 'custom'}.json`);
+    document.body.appendChild(downloadAnchorNode); // required for firefox
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  };
+
+  // Import personality from JSON
+  const handleImport = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target.result);
+        if (parsed && typeof parsed === 'object') {
+          setPersonality(parsed);
+          setSaveSuccess(true);
+          setTimeout(() => setSaveSuccess(false), 3000);
+          setErrorMessage(null);
+        } else {
+          setErrorMessage('Format file JSON tidak valid.');
+        }
+      } catch (err) {
+        setErrorMessage('Gagal membaca file JSON: ' + err.message);
+      }
+      // reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const activeColor = PRESET_COLORS[personality.preset] || PRESET_COLORS.kpk_investigator;
   const ActiveIcon = PRESET_ICONS[personality.preset] || ShieldCheck;
 
@@ -364,6 +406,45 @@ export default function MCPPersonality() {
           >
             <RotateCcw size={16} />
             {resetting ? 'Mereset...' : 'Reset ke Default KPK'}
+          </button>
+          <button
+            type="button"
+            onClick={handleExport}
+            className="btn-secondary"
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px', 
+              padding: '9px 16px', 
+              fontSize: '13px'
+            }}
+            title="Export Kepribadian ke JSON"
+          >
+            <Download size={16} />
+            Export
+          </button>
+          <input 
+            type="file"
+            accept=".json"
+            ref={fileInputRef}
+            style={{ display: 'none' }}
+            onChange={handleImport}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="btn-secondary"
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px', 
+              padding: '9px 16px', 
+              fontSize: '13px'
+            }}
+            title="Import Kepribadian dari JSON"
+          >
+            <Upload size={16} />
+            Import
           </button>
           <button
             type="button"

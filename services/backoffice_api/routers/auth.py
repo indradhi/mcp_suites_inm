@@ -117,11 +117,15 @@ def validate_api_key(payload: ValidateApiKeyRequest, db: Session = Depends(get_d
 
             import json
             scopes = json.loads(ak.scopes) if ak.scopes else None
+            allowed_tools = json.loads(ak.allowed_tools) if getattr(ak, 'allowed_tools', None) else None
+            allowed_kbs = json.loads(ak.allowed_kbs) if getattr(ak, 'allowed_kbs', None) else None
             return {
                 "valid": True,
                 "key_id": ak.id,
                 "name": ak.name,
-                "scopes": scopes
+                "scopes": scopes,
+                "allowed_tools": allowed_tools,
+                "allowed_kbs": allowed_kbs
             }
 
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or revoked API key")
