@@ -171,6 +171,12 @@ def normalize_tool_data(raw_data: Any) -> List[Dict[str, Any]]:
     if not isinstance(raw_data, dict):
         return []
 
+    # Flatten common wrappers
+    if 'data' in raw_data and isinstance(raw_data['data'], dict):
+        raw_data = raw_data['data']
+    elif 'result' in raw_data and isinstance(raw_data['result'], dict):
+        raw_data = raw_data['result']
+
     # 1. BPN-style combinedResults (Land certificates with owner info)
     if 'combinedResults' in raw_data and isinstance(raw_data['combinedResults'], list):
         records = []
@@ -429,10 +435,10 @@ def extract_structured_entities_and_relations(
 
     # 4. Identify Assets (Land / Vehicles / Bank Accounts)
     # Land / Sertifikat Hak Atas Tanah / NIB
-    hak_val = _get_field(record, 'nomor_hak', 'nomor_sertifikat', 'nib', 'no_hak', 'no_sertifikat')
+    hak_val = _get_field(record, 'nomor_hak', 'nomorhak', 'nomor_sertifikat', 'nib', 'no_hak', 'no_sertifikat')
     asset_tanah: Optional[str] = None
     if hak_val:
-        jenis_hak = _get_field(record, 'jenis_hak', 'tipe_hak', 'tipe') or 'Hak Atas Tanah'
+        jenis_hak = _get_field(record, 'jenis_hak', 'jenishak', 'tipe_hak', 'tipe') or 'Hak Atas Tanah'
         asset_tanah = f"{jenis_hak.upper()} NO: {hak_val}"
         luas = _get_field(record, 'luas')
         luas_desc = f" (Luas {luas} m2)" if luas else ""
@@ -483,7 +489,7 @@ def extract_structured_entities_and_relations(
             relationships.append({"source": org_name, "relation": "PEMILIK_REKENING", "target": asset_rek})
 
     # 5. Identify Location / Address
-    alamat_val = _get_field(record, 'ALAMAT', 'alamat', 'address')
+    alamat_val = _get_field(record, 'ALAMAT', 'alamat', 'address', 'pemilik_alamat')
     rt_val = _get_field(record, 'NO_RT', 'rt')
     rw_val = _get_field(record, 'NO_RW', 'rw')
     kel_val = _get_field(record, 'KEL_NAME', 'kelurahan', 'desa')
