@@ -31,7 +31,7 @@ export default function ApiKeys() {
         api.get('/knowledge/api-tools'),
         api.get('/knowledge/sources')
       ]);
-      setApiTools(toolsRes.data || []);
+      setApiTools(toolsRes.data?.tools || []);
       setKnowledgeSources(sourcesRes.data || []);
     } catch (err) {
       console.error('Error fetching options:', err);
