@@ -81,13 +81,3 @@ services:
       - ./services/backoffice_ui/vite.config.js:/app/vite.config.js
     command: npm run dev -- --host 0.0.0.0
 
-  oracle-db:
-    image: gvenzl/oracle-free:slim
-    ports:
-      - "1521:1521"
-    environment:
-      ORACLE_PASSWORD: "oracle_password"
-      APP_USER: "mcp_user"
-      APP_USER_PASSWORD: "mcp_password"
-    volumes:
-      - ./services/oracle_init:/container-entrypoint-initdb.d

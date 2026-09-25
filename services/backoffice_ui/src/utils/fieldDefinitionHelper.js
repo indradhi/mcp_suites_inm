@@ -494,7 +494,7 @@ export function inferParameterDescription(fieldName, inferredType = 'string', sa
 /**
  * Automatically generates a WHERE query or MongoDB filter from a list of parameters
  *
- * @param {string} dbType - 'mysql' | 'postgres' | 'mssql' | 'oracle' | 'mongodb' | 'sqlite'
+ * @param {string} dbType - 'mysql' | 'postgres' | 'mssql' | 'mongodb' | 'sqlite'
  * @param {string} currentQuery - Existing query text in editor (used to extract table name/columns)
  * @param {Array} parameters - List of parameter objects [{ name, type, ... }]
  * @param {Object} options - { matchMode: 'smart' | 'exact', optionalFilter: boolean, tableName: string }
@@ -552,7 +552,6 @@ export function generateWhereClause(dbType = 'mysql', currentQuery = '', paramet
 
   if (validParams.length === 0) {
     if (lowerDb === 'mssql') return `SELECT TOP 50 ${selectFields} FROM ${tableName}`;
-    if (lowerDb === 'oracle') return `SELECT ${selectFields} FROM ${tableName} WHERE ROWNUM <= 50`;
     return `SELECT ${selectFields} FROM ${tableName} LIMIT 50`;
   }
 
@@ -566,9 +565,7 @@ export function generateWhereClause(dbType = 'mysql', currentQuery = '', paramet
 
     let baseCond = '';
     if (isTextSearch) {
-      if (lowerDb === 'oracle') {
-        baseCond = `${pName} LIKE '%' || :${pName} || '%'`;
-      } else if (lowerDb === 'mssql') {
+      if (lowerDb === 'mssql') {
         baseCond = `${pName} LIKE '%' + :${pName} + '%'`;
       } else {
         baseCond = `${pName} LIKE CONCAT('%', :${pName}, '%')`;
@@ -587,8 +584,6 @@ export function generateWhereClause(dbType = 'mysql', currentQuery = '', paramet
 
   if (lowerDb === 'mssql') {
     return `SELECT TOP 50 ${selectFields} FROM ${tableName}\nWHERE ${whereBody}`;
-  } else if (lowerDb === 'oracle') {
-    return `SELECT ${selectFields} FROM ${tableName}\nWHERE ${whereBody}\n  AND ROWNUM <= 50`;
   } else {
     return `SELECT ${selectFields} FROM ${tableName}\nWHERE ${whereBody}\nLIMIT 50`;
   }
