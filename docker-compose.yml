@@ -86,7 +86,6 @@ services:
       - ${DATA_DIR:-./data}/neo4j/logs:/logs
       - ${DATA_DIR:-./data}/neo4j/import:/import
       - ${DATA_DIR:-./data}/neo4j/plugins:/plugins
-      - ${DATA_DIR:-./data}/neo4j/tmp:/tmp
     tmpfs:
       - /tmp:rw,size=1g
     networks:
