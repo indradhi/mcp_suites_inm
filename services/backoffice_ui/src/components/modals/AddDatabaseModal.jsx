@@ -187,9 +187,6 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
     } else if (type === 'mongodb') {
       setPort('27017');
       if (!query || query.startsWith('SELECT')) setQuery('{}');
-    } else if (type === 'oracle') {
-      setPort('1521');
-      if (query === '{}') setQuery('SELECT * FROM users WHERE ROWNUM <= 100');
     }
   };
 
@@ -735,8 +732,8 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
             <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
               Database Engine
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px' }}>
-              {['mysql', 'postgres', 'mssql', 'mongodb', 'oracle'].map((type) => (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+              {['mysql', 'postgres', 'mssql', 'mongodb'].map((type) => (
                 <button
                   type="button"
                   key={type}
@@ -819,7 +816,7 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                Database Name {dbType === 'oracle' && '(or Service Name)'}
+                Database Name
               </label>
               <input
                 type="text"

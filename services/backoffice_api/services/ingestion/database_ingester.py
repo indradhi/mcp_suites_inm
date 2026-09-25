@@ -4,7 +4,6 @@ from services.ingestion.db_adapters.mysql_adapter import MySQLAdapter
 from services.ingestion.db_adapters.postgres_adapter import PostgresAdapter
 from services.ingestion.db_adapters.mssql_adapter import MSSQLAdapter
 from services.ingestion.db_adapters.mongodb_adapter import MongoDBAdapter
-from services.ingestion.db_adapters.oracle_adapter import OracleAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +14,7 @@ ADAPTERS = {
     "mssql": MSSQLAdapter,
     "sqlserver": MSSQLAdapter,
     "mongodb": MongoDBAdapter,
-    "oracle": OracleAdapter,
+
 }
 
 class DatabaseIngester:
