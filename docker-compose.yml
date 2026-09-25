@@ -116,8 +116,10 @@ services:
     depends_on:
       chromadb:
         condition: service_healthy
+        required: false
       neo4j:
         condition: service_healthy
+        required: false
       mysql:
         condition: service_healthy
 
@@ -141,8 +143,10 @@ services:
         condition: service_healthy
       chromadb:
         condition: service_healthy
+        required: false
       neo4j:
         condition: service_healthy
+        required: false
 
   # ── Celery Worker ─────────────────────────
   celery-worker:
@@ -165,8 +169,10 @@ services:
         condition: service_healthy
       chromadb:
         condition: service_healthy
+        required: false
       neo4j:
         condition: service_healthy
+        required: false
 
   # ── Celery Beat (Scheduler) ───────────────
   celery-beat:

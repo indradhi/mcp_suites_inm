@@ -36,10 +36,20 @@ class Settings(BaseSettings):
     def CELERY_RESULT_BACKEND(self) -> str:
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/1"
 
+    # Vector Database
+    VECTOR_DB_PROVIDER: str = os.getenv("VECTOR_DB_PROVIDER", "chromadb")
+
     # ChromaDB
     CHROMADB_HOST: str = os.getenv("CHROMADB_HOST") or os.getenv("CHROMA_HOST", "chromadb")
     CHROMADB_PORT: int = int(os.getenv("CHROMADB_PORT") or os.getenv("CHROMA_PORT", "8000"))
     CHROMADB_COLLECTION: str = os.getenv("CHROMADB_COLLECTION") or os.getenv("CHROMA_COLLECTION", "knowledge_base")
+
+    # Qdrant
+    QDRANT_HOST: str = os.getenv("QDRANT_HOST", "localhost")
+    QDRANT_PORT: int = int(os.getenv("QDRANT_PORT", "6333"))
+    QDRANT_COLLECTION: str = os.getenv("QDRANT_COLLECTION", "knowledge_base")
+    QDRANT_API_KEY: str = os.getenv("QDRANT_API_KEY", "")
+    QDRANT_HTTPS: bool = os.getenv("QDRANT_HTTPS", "false").lower() in ("true", "1", "yes")
 
     # Neo4j
     NEO4J_URI: str = os.getenv("NEO4J_URI", "bolt://neo4j:7687")

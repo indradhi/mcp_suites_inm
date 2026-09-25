@@ -67,11 +67,11 @@ class FastFeatureEmbeddingFunction(EmbeddingFunction[Documents]):
         return [self._embed_text(doc) for doc in input]
 
 
+from database import SessionLocal
+from services.database_settings_service import database_settings_service
+
 class VectorStoreService:
     def __init__(self):
-        self.host = settings.CHROMADB_HOST
-        self.port = settings.CHROMADB_PORT
-        self.collection_name = settings.CHROMADB_COLLECTION
         self.embedding_fn = FastFeatureEmbeddingFunction(dim=384)
         self._client = None
         self._collection = None
@@ -79,6 +79,16 @@ class VectorStoreService:
     def get_client(self):
         if self._client is None:
             try:
+                db = SessionLocal()
+                try:
+                    db_config = database_settings_service.get_settings(db)
+                finally:
+                    db.close()
+                
+                self.host = db_config.get("CHROMADB_HOST") or settings.CHROMADB_HOST
+                self.port = db_config.get("CHROMADB_PORT") or settings.CHROMADB_PORT
+                self.collection_name = db_config.get("CHROMADB_COLLECTION") or settings.CHROMADB_COLLECTION
+
                 self._client = chromadb.HttpClient(
                     host=self.host,
                     port=self.port,

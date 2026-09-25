@@ -5,19 +5,30 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
+from database import SessionLocal
+from services.database_settings_service import database_settings_service
+
 class Neo4jClient:
     def __init__(self):
-        self.uri = settings.NEO4J_URI
-        self.user = settings.NEO4J_USER
-        self.password = settings.NEO4J_PASSWORD
         self._driver = None
 
     def get_driver(self):
         if self._driver is None:
             try:
+                # Fetch dynamic settings from DB
+                db = SessionLocal()
+                try:
+                    db_config = database_settings_service.get_settings(db)
+                finally:
+                    db.close()
+
+                uri = db_config.get("NEO4J_URI") or settings.NEO4J_URI
+                user = db_config.get("NEO4J_USER") or settings.NEO4J_USER
+                password = db_config.get("NEO4J_PASSWORD") or settings.NEO4J_PASSWORD
+
                 self._driver = GraphDatabase.driver(
-                    self.uri,
-                    auth=(self.user, self.password),
+                    uri,
+                    auth=(user, password),
                     max_connection_lifetime=3600
                 )
                 self.init_schema()

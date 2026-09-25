@@ -37,6 +37,7 @@ export default function Sidebar() {
   ];
 
   if (isAdmin()) {
+    navItems.push({ to: '/db-settings', label: 'Database Config', icon: Database });
     navItems.push({ to: '/keys', label: 'API Keys', icon: Key });
     navItems.push({ to: '/users', label: 'Users & Roles', icon: Users });
   }
