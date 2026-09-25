@@ -5,6 +5,8 @@ import pdfplumber
 import pytesseract
 from pdf2image import convert_from_path
 from PIL import Image
+import cv2
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +19,30 @@ class PDFIngester:
 
     def __init__(self, ocr_threshold_chars: int = 40):
         self.ocr_threshold_chars = ocr_threshold_chars
+
+    def _preprocess_image_for_ocr(self, pil_img: Image.Image) -> np.ndarray:
+        """
+        Applies image processing techniques to improve OCR accuracy.
+        Converts to grayscale and applies adaptive thresholding.
+        """
+        # Convert PIL image to OpenCV format
+        open_cv_image = np.array(pil_img)
+        
+        # Handle RGB to Grayscale
+        if len(open_cv_image.shape) == 3 and open_cv_image.shape[2] == 3:
+            # Convert RGB to BGR for standard OpenCV processing (optional but good practice)
+            open_cv_image = open_cv_image[:, :, ::-1].copy()
+            gray = cv2.cvtColor(open_cv_image, cv2.COLOR_BGR2GRAY)
+        elif len(open_cv_image.shape) == 2:
+            gray = open_cv_image
+        else:
+            gray = cv2.cvtColor(open_cv_image, cv2.COLOR_BGRA2GRAY)
+
+        # Apply adaptive thresholding to get a cleaner binary image
+        thresh = cv2.adaptiveThreshold(
+            gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+        )
+        return thresh
 
     def extract_text(self, file_path: str) -> List[Dict[str, Any]]:
         results = []
@@ -42,7 +68,11 @@ class PDFIngester:
                                 dpi=200
                             )
                             if images:
-                                ocr_text = pytesseract.image_to_string(images[0])
+                                # Image Processing (Pre-processing for OCR)
+                                processed_img = self._preprocess_image_for_ocr(images[0])
+                                
+                                # OCR on processed image
+                                ocr_text = pytesseract.image_to_string(processed_img)
                                 if len(ocr_text.strip()) > len(clean_text):
                                     clean_text = ocr_text.strip()
                                     is_ocr = True
