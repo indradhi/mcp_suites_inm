@@ -1,4 +1,3 @@
-
 # ─────────────────────────────────────────────
 #  MCP Knowledge Server — Base Compose (shared)
 #  Extend with docker-compose.dev.yml or docker-compose.prod.yml
@@ -26,7 +25,7 @@ services:
     networks:
       - mcp_net
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}" ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -44,7 +43,7 @@ services:
     networks:
       - mcp_net
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -62,7 +61,7 @@ services:
     networks:
       - mcp_net
     healthcheck:
-      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/8000 && echo -e \"GET /api/v2/heartbeat HTTP/1.1\\r\\nHost: localhost:8000\\r\\nConnection: close\\r\\n\\r\\n\" >&3 && cat <&3 | grep -q \"200 OK\"'"]
+      test: [ "CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/8000 && echo -e \"GET /api/v2/heartbeat HTTP/1.1\\r\\nHost: localhost:8000\\r\\nConnection: close\\r\\n\\r\\n\" >&3 && cat <&3 | grep -q \"200 OK\"'" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -88,6 +87,8 @@ services:
       - ${DATA_DIR:-./data}/neo4j/import:/import
       - ${DATA_DIR:-./data}/neo4j/plugins:/plugins
       - ${DATA_DIR:-./data}/neo4j/tmp:/tmp
+    tmpfs:
+      - /tmp:rw,size=1g
     networks:
       - mcp_net
     logging:
@@ -96,7 +97,7 @@ services:
         max-size: "50m"
         max-file: "3"
     healthcheck:
-      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "${NEO4J_PASSWORD}", "RETURN 1"]
+      test: [ "CMD", "cypher-shell", "-u", "neo4j", "-p", "${NEO4J_PASSWORD}", "RETURN 1" ]
       interval: 20s
       timeout: 10s
       retries: 10
@@ -218,7 +219,7 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
-    entrypoint: ["/bin/sh", "-c", "apk add --no-cache mysql-client gzip tar && crond -f -l 2"]
+    entrypoint: [ "/bin/sh", "-c", "apk add --no-cache mysql-client gzip tar && crond -f -l 2" ]
     networks:
       - mcp_net
     depends_on:
