@@ -25,6 +25,9 @@ export default function FlowEditorModal({
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
 
+  const [apiTools, setApiTools] = useState([]);
+  const [toolsLoading, setToolsLoading] = useState(false);
+
   const activeFlow = initialFlow || flow;
 
   const handleSuccess = (savedData) => {
@@ -34,6 +37,21 @@ export default function FlowEditorModal({
   };
 
   useEffect(() => {
+    const fetchTools = async () => {
+      setToolsLoading(true);
+      try {
+        const res = await api.get('/knowledge/api-tools');
+        setApiTools(res.data?.tools || []);
+      } catch (err) {
+        console.error('Error fetching tools:', err);
+      } finally {
+        setToolsLoading(false);
+      }
+    };
+    if (isOpen) {
+      fetchTools();
+    }
+
     const target = initialFlow || flow;
     if (target) {
       setName(target.name || '');
@@ -549,13 +567,24 @@ export default function FlowEditorModal({
                             required
                           >
                             <option value="">-- Pilih Tool --</option>
-                            <option value="api_dukcapil_lookup">api_dukcapil_lookup</option>
-                            <option value="api_ahus_lookup">api_ahus_lookup</option>
-                            <option value="api_bpn_lookup">api_bpn_lookup</option>
-                            <option value="api_ppatk_lookup">api_ppatk_lookup</option>
-                            <option value="api_polri_lookup">api_polri_lookup</option>
-                            <option value="api_kemenkeu_lookup">api_kemenkeu_lookup</option>
-                            <option value="api_bi_checking">api_bi_checking</option>
+                            {toolsLoading ? (
+                              <option value="" disabled>Memuat tools...</option>
+                            ) : (
+                              <>
+                                {apiTools.map(t => {
+                                  const score = t.config?.validity_score !== undefined ? t.config.validity_score : 95;
+                                  const tier = t.config?.validity_tier || 'authoritative';
+                                  return (
+                                    <option key={t.name} value={t.name}>
+                                      {t.name} (Validitas: {score}, {tier})
+                                    </option>
+                                  );
+                                })}
+                                {step.target && !apiTools.some(t => t.name === step.target) && (
+                                  <option value={step.target}>{step.target} (Tidak Ditemukan)</option>
+                                )}
+                              </>
+                            )}
                           </select>
                         )}
                         {step.action === 'graph_traversal' && (
