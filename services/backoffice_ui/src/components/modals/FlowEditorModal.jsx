@@ -540,15 +540,78 @@ export default function FlowEditorModal({
                         </select>
                       </div>
                       <div>
-                        <input
-                          type="text"
-                          className="input-field font-mono"
-                          placeholder="Target (misal: api_dukcapil_lookup)"
-                          value={step.target || ''}
-                          onChange={(e) => handleStepChange(idx, 'target', e.target.value)}
-                          style={{ fontSize: '11px', padding: '6px 8px' }}
-                          required
-                        />
+                        {step.action === 'tool_call' && (
+                          <select
+                            className="input-field font-mono"
+                            value={step.target || ''}
+                            onChange={(e) => handleStepChange(idx, 'target', e.target.value)}
+                            style={{ fontSize: '11px', padding: '6px 8px' }}
+                            required
+                          >
+                            <option value="">-- Pilih Tool --</option>
+                            <option value="api_dukcapil_lookup">api_dukcapil_lookup</option>
+                            <option value="api_ahus_lookup">api_ahus_lookup</option>
+                            <option value="api_bpn_lookup">api_bpn_lookup</option>
+                            <option value="api_ppatk_lookup">api_ppatk_lookup</option>
+                            <option value="api_polri_lookup">api_polri_lookup</option>
+                            <option value="api_kemenkeu_lookup">api_kemenkeu_lookup</option>
+                            <option value="api_bi_checking">api_bi_checking</option>
+                          </select>
+                        )}
+                        {step.action === 'graph_traversal' && (
+                          <select
+                            className="input-field font-mono"
+                            value={step.target || ''}
+                            onChange={(e) => handleStepChange(idx, 'target', e.target.value)}
+                            style={{ fontSize: '11px', padding: '6px 8px' }}
+                            required
+                          >
+                            <option value="">-- Pilih Knowledge Graph --</option>
+                            <option value="neo4j_entity_network">neo4j_entity_network</option>
+                            <option value="neo4j_corporate_ownership">neo4j_corporate_ownership</option>
+                            <option value="neo4j_family_tree">neo4j_family_tree</option>
+                          </select>
+                        )}
+                        {step.action === 'vector_search' && (
+                          <select
+                            className="input-field font-mono"
+                            value={step.target || ''}
+                            onChange={(e) => handleStepChange(idx, 'target', e.target.value)}
+                            style={{ fontSize: '11px', padding: '6px 8px' }}
+                            required
+                          >
+                            <option value="">-- Pilih Vector Store --</option>
+                            <option value="chromadb_vector_store">chromadb_vector_store</option>
+                            <option value="milvus_document_search">milvus_document_search</option>
+                            <option value="qdrant_knowledge_base">qdrant_knowledge_base</option>
+                          </select>
+                        )}
+                        {step.action === 'synthesis_rule' && (
+                          <select
+                            className="input-field font-mono"
+                            value={step.target || ''}
+                            onChange={(e) => handleStepChange(idx, 'target', e.target.value)}
+                            style={{ fontSize: '11px', padding: '6px 8px' }}
+                            required
+                          >
+                            <option value="">-- Pilih Aturan Sintesis --</option>
+                            <option value="validity_ranking">validity_ranking</option>
+                            <option value="temporal_recency">temporal_recency</option>
+                            <option value="source_credibility">source_credibility</option>
+                            <option value="cross_validation">cross_validation</option>
+                          </select>
+                        )}
+                        {!['tool_call', 'graph_traversal', 'vector_search', 'synthesis_rule'].includes(step.action) && (
+                          <input
+                            type="text"
+                            className="input-field font-mono"
+                            placeholder="Target (misal: api_dukcapil_lookup)"
+                            value={step.target || ''}
+                            onChange={(e) => handleStepChange(idx, 'target', e.target.value)}
+                            style={{ fontSize: '11px', padding: '6px 8px' }}
+                            required
+                          />
+                        )}
                       </div>
                       <div>
                         <input
