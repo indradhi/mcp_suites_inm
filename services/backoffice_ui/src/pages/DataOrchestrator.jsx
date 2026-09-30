@@ -41,6 +41,60 @@ import api from '../api/client';
 import FlowEditorModal from '../components/modals/FlowEditorModal';
 import { ValidityBadge } from '../components/common/ValidityTierSelector';
 
+const renderMarkdown = (text) => {
+  if (!text) return null;
+  
+  const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+  const parts = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = imageRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ type: 'text', content: text.substring(lastIndex, match.index) });
+    }
+    parts.push({ type: 'image', alt: match[1], src: match[2] });
+    lastIndex = imageRegex.lastIndex;
+  }
+  
+  if (lastIndex < text.length) {
+    parts.push({ type: 'text', content: text.substring(lastIndex) });
+  }
+
+  return parts.map((part, index) => {
+    if (part.type === 'image') {
+      return (
+        <img 
+          key={`img-${index}`} 
+          src={part.src} 
+          alt={part.alt} 
+          style={{ maxWidth: '100%', maxHeight: '400px', borderRadius: '8px', margin: '12px 0', display: 'block', objectFit: 'contain' }} 
+        />
+      );
+    }
+    
+    const textContent = part.content;
+    const boldRegex = /\*\*([^*]+)\*\*/g;
+    const subParts = [];
+    let subLast = 0;
+    let subMatch;
+    
+    while ((subMatch = boldRegex.exec(textContent)) !== null) {
+      if (subMatch.index > subLast) {
+        subParts.push(textContent.substring(subLast, subMatch.index));
+      }
+      subParts.push(<strong key={`bold-${index}-${subMatch.index}`} style={{ color: '#fff', fontWeight: 'bold' }}>{subMatch[1]}</strong>);
+      subLast = boldRegex.lastIndex;
+    }
+    
+    if (subLast < textContent.length) {
+      subParts.push(textContent.substring(subLast));
+    }
+    
+    return <span key={`text-${index}`}>{subParts}</span>;
+  });
+};
+
 export default function DataOrchestrator() {
   const [query, setQuery] = useState('Cari tanah atas nama indradhi nugraha mulyanto');
   const [strategy, setStrategy] = useState('hybrid');
@@ -1487,7 +1541,8 @@ export default function DataOrchestrator() {
                     minHeight: '180px',
                     maxHeight: '340px',
                     overflowY: 'auto',
-                    whiteSpace: 'pre-wrap'
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word'
                   }}>
                     {synthesizing ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--accent-primary)', padding: '20px 0' }}>
@@ -1495,7 +1550,7 @@ export default function DataOrchestrator() {
                         Mensintesis jawaban berbasis hierarki validitas dan alur memori...
                       </div>
                     ) : synthesizedAnswer ? (
-                      synthesizedAnswer
+                      renderMarkdown(synthesizedAnswer)
                     ) : (
                       "Klik 'Sintesis dengan LLM' untuk membuat jawaban yang berpijak pada data terverifikasi, graph entitas, dan tool resmi."
                     )}
