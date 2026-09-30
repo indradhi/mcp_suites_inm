@@ -246,8 +246,18 @@ class FlowOrchestrator:
             # 1. Regex / Wildcard Pattern Match
             pattern = flow.prompt_pattern
             if pattern:
+                # Strip JavaScript-style regex delimiters (e.g. /pattern/gi)
+                clean_pattern = pattern
+                if clean_pattern.startswith('/') and '/' in clean_pattern[1:]:
+                    parts = clean_pattern.rsplit('/', 1)
+                    if len(parts) == 2:
+                        clean_pattern = parts[0][1:]
+                
+                # Convert JS-style named capture groups `(?<name>...)` to Python `(?P<name>...)`
+                clean_pattern = clean_pattern.replace('(?<', '(?P<')
+                
                 try:
-                    if re.search(pattern, q_lower, re.IGNORECASE):
+                    if re.search(clean_pattern, q_lower, re.IGNORECASE):
                         score += 0.55
                         reasons.append(f"Mencocokkan pola prompt: '{pattern}'")
                 except Exception:
