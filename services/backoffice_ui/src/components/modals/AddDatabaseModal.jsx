@@ -339,13 +339,44 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
       if (fd.name) existingMap.set(fd.name.toLowerCase().trim(), fd);
     });
 
-    const detected = [];
-    const keys = (sampleItem && typeof sampleItem === 'object' && Object.keys(sampleItem).length > 0)
-      ? Object.keys(sampleItem)
-      : columns;
+    const extractFields = (obj, prefix = '') => {
+      let fields = [];
+      if (Array.isArray(obj)) {
+        if (obj.length > 0 && typeof obj[0] === 'object' && obj[0] !== null) {
+          fields = fields.concat(extractFields(obj[0], prefix));
+        }
+      } else if (typeof obj === 'object' && obj !== null) {
+        Object.keys(obj).forEach(key => {
+          const val = obj[key];
+          const newPrefix = prefix ? `${prefix}.${key}` : key;
+          
+          fields.push({
+            key: newPrefix,
+            val: val
+          });
+          
+          if (typeof val === 'object' && val !== null) {
+            if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'object' && val[0] !== null) {
+               fields = fields.concat(extractFields(val[0], newPrefix));
+            } else if (!Array.isArray(val)) {
+               fields = fields.concat(extractFields(val, newPrefix));
+            }
+          }
+        });
+      }
+      return fields;
+    };
 
-    keys.forEach(key => {
-      const val = sampleItem ? sampleItem[key] : null;
+    const detected = [];
+    let extracted = [];
+    if (sampleItem && typeof sampleItem === 'object' && Object.keys(sampleItem).length > 0) {
+      extracted = extractFields(sampleItem);
+    } else {
+      extracted = (columns || []).map(c => ({ key: c, val: null }));
+    }
+
+    extracted.forEach(item => {
+      const { key, val } = item;
       const inferredType = inferFieldDataType(key, val);
 
       const existing = existingMap.get(key.toLowerCase().trim());

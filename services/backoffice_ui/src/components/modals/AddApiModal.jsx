@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  X, 
-  Globe, 
-  Key, 
-  CheckCircle, 
-  AlertCircle, 
-  Edit2, 
-  Zap, 
-  Plus, 
-  Trash2, 
-  Code, 
-  Play, 
+import {
+  X,
+  Globe,
+  Key,
+  CheckCircle,
+  AlertCircle,
+  Edit2,
+  Zap,
+  Plus,
+  Trash2,
+  Code,
+  Play,
   HelpCircle,
   Clock,
   Copy,
@@ -31,7 +31,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
   const [verifySsl, setVerifySsl] = useState(false);
-  
+
   // AI Tool Mode States
   const [isTool, setIsTool] = useState(false);
   const [toolName, setToolName] = useState('');
@@ -42,10 +42,10 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
   // Cache States
   const [cacheEnabled, setCacheEnabled] = useState(false);
   const [cacheTtlMinutes, setCacheTtlMinutes] = useState(60);
-  
+
   // Field Definitions (Kamus Data Balikan)
   const [fieldDefinitions, setFieldDefinitions] = useState([]);
-  
+
   // Validity Hierarchy States
   const [validityTier, setValidityTier] = useState('authoritative');
   const [validityScore, setValidityScore] = useState(95);
@@ -68,7 +68,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       setClientId(auth.payload?.client_id || '');
       setClientSecret(auth.payload?.client_secret || '');
       setVerifySsl(conf.verify_ssl !== undefined ? Boolean(conf.verify_ssl) : false);
-      
+
       const isToolMode = Boolean(conf.is_tool || (conf.parameters && conf.parameters.length > 0));
       setIsTool(isToolMode);
       setToolName(conf.tool_name || '');
@@ -227,9 +227,39 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       if (fd.name) existingMap.set(fd.name.toLowerCase().trim(), fd);
     });
 
+    const extractFields = (obj, prefix = '') => {
+      let fields = [];
+      if (Array.isArray(obj)) {
+        if (obj.length > 0 && typeof obj[0] === 'object' && obj[0] !== null) {
+          fields = fields.concat(extractFields(obj[0], prefix));
+        }
+      } else if (typeof obj === 'object' && obj !== null) {
+        Object.keys(obj).forEach(key => {
+          const val = obj[key];
+          const newPrefix = prefix ? `${prefix}.${key}` : key;
+          
+          fields.push({
+            key: newPrefix,
+            val: val
+          });
+          
+          if (typeof val === 'object' && val !== null) {
+            if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'object' && val[0] !== null) {
+               fields = fields.concat(extractFields(val[0], newPrefix));
+            } else if (!Array.isArray(val)) {
+               fields = fields.concat(extractFields(val, newPrefix));
+            }
+          }
+        });
+      }
+      return fields;
+    };
+
     const detected = [];
-    Object.keys(sampleItem).forEach(key => {
-      const val = sampleItem[key];
+    const extracted = extractFields(sampleItem);
+
+    extracted.forEach(item => {
+      const { key, val } = item;
       const inferredType = inferFieldDataType(key, val);
 
       const existing = existingMap.get(key.toLowerCase().trim());
@@ -264,8 +294,8 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       const authConfig = authMode === 'static'
         ? { mode: 'static', token: bearerToken }
         : authMode === 'oauth2'
-        ? { mode: 'oauth2', token_url: tokenUrl, payload: { client_id: clientId, client_secret: clientSecret } }
-        : {};
+          ? { mode: 'oauth2', token_url: tokenUrl, payload: { client_id: clientId, client_secret: clientSecret } }
+          : {};
 
       const configPayload = {
         endpoint,
@@ -298,8 +328,8 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       const authConfig = authMode === 'static'
         ? { mode: 'static', token: bearerToken }
         : authMode === 'oauth2'
-        ? { mode: 'oauth2', token_url: tokenUrl, payload: { client_id: clientId, client_secret: clientSecret } }
-        : {};
+          ? { mode: 'oauth2', token_url: tokenUrl, payload: { client_id: clientId, client_secret: clientSecret } }
+          : {};
 
       const validParameters = isTool ? parameters.filter(p => p.name && p.name.trim() !== '') : [];
       const validFieldDefs = fieldDefinitions.filter(f => f.name && f.name.trim() !== '');
@@ -307,8 +337,8 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       const payload = {
         name,
         source_type: 'api',
-        description: isTool && toolDescription 
-          ? `[AI Tool] ${toolDescription}` 
+        description: isTool && toolDescription
+          ? `[AI Tool] ${toolDescription}`
           : `API Endpoint: ${endpoint}`,
         cache_ttl_minutes: isTool && cacheEnabled ? cacheTtlMinutes : null,
         config: {
@@ -347,8 +377,8 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       const authConfig = authMode === 'static'
         ? { mode: 'static', token: bearerToken }
         : authMode === 'oauth2'
-        ? { mode: 'oauth2', token_url: tokenUrl, payload: { client_id: clientId, client_secret: clientSecret } }
-        : {};
+          ? { mode: 'oauth2', token_url: tokenUrl, payload: { client_id: clientId, client_secret: clientSecret } }
+          : {};
 
       const validParameters = isTool ? parameters.filter(p => p.name && p.name.trim() !== '') : [];
       const validFieldDefs = fieldDefinitions.filter(f => f.name && f.name.trim() !== '');
@@ -359,8 +389,8 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
         name: copyName,
         source_type: 'api',
         cache_ttl_minutes: isTool && cacheEnabled ? cacheTtlMinutes : null,
-        description: isTool && toolDescription 
-          ? `[AI Tool] ${toolDescription}` 
+        description: isTool && toolDescription
+          ? `[AI Tool] ${toolDescription}`
           : `API Endpoint: ${endpoint}`,
         config: {
           endpoint,
@@ -390,14 +420,14 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
 
   return (
     <div className="modal-overlay">
-      <div 
-        className="modal-content" 
-        onClick={(e) => e.stopPropagation()} 
-        style={{ 
-          padding: '32px', 
-          maxWidth: '820px', 
-          maxHeight: '90vh', 
-          overflowY: 'auto' 
+      <div
+        className="modal-content"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          padding: '32px',
+          maxWidth: '820px',
+          maxHeight: '90vh',
+          overflowY: 'auto'
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -949,7 +979,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                       />
                       <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>menit</span>
                       <span style={{ fontSize: '11px', color: 'rgba(253, 230, 138, 0.7)', marginLeft: '4px' }}>
-                        ({cacheTtlMinutes >= 60 ? `${(cacheTtlMinutes/60).toFixed(1)} jam` : `${cacheTtlMinutes} mnt`})
+                        ({cacheTtlMinutes >= 60 ? `${(cacheTtlMinutes / 60).toFixed(1)} jam` : `${cacheTtlMinutes} mnt`})
                       </span>
                     </div>
                   )}
@@ -995,29 +1025,29 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                   (testResult?.result?.data && (Array.isArray(testResult.result.data) ? testResult.result.data.length > 0 : true)) ||
                   testResult?.data
                 ) && (
-                  <button
-                    type="button"
-                    onClick={handleAutoDetectFieldDefinitions}
-                    style={{
-                      background: 'rgba(16, 185, 129, 0.15)',
-                      border: '1px solid rgba(16, 185, 129, 0.4)',
-                      color: '#34d399',
-                      padding: '5px 10px',
-                      borderRadius: '6px',
-                      fontSize: '11px',
-                      fontWeight: '700',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                    title="Ekstrak nama field dan tipe data otomatis dari respons hasil test di bawah"
-                  >
-                    <Sparkles size={13} />
-                    <span>Deteksi Otomatis dari Test</span>
-                  </button>
-                )}
+                    <button
+                      type="button"
+                      onClick={handleAutoDetectFieldDefinitions}
+                      style={{
+                        background: 'rgba(16, 185, 129, 0.15)',
+                        border: '1px solid rgba(16, 185, 129, 0.4)',
+                        color: '#34d399',
+                        padding: '5px 10px',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                      title="Ekstrak nama field dan tipe data otomatis dari respons hasil test di bawah"
+                    >
+                      <Sparkles size={13} />
+                      <span>Deteksi Otomatis dari Test</span>
+                    </button>
+                  )}
 
                 {fieldDefinitions.length > 0 && (
                   <button
@@ -1195,6 +1225,18 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
             )}
           </div>
 
+          <div>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={handleTest}
+              disabled={testing}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              {testing ? 'Executing...' : (isTool ? '⚡ Test API Tool Call' : '⚡ Test Endpoint & Sample Data')}
+            </button>
+          </div>
+
           {/* Test Connection / Tool Output */}
           {testResult && (
             <div style={{
@@ -1257,25 +1299,16 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
               </button>
             ) : <div />}
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button 
-                type="button" 
-                className="btn-secondary" 
+              <button
+                type="button"
+                className="btn-secondary"
                 onClick={onClose}
               >
                 Cancel
               </button>
-              <button 
-                type="button" 
-                className="btn-secondary" 
-                onClick={handleTest} 
-                disabled={testing}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-              >
-                {testing ? 'Executing...' : (isTool ? '⚡ Test API Tool Call' : '⚡ Test Endpoint & Sample Data')}
-              </button>
-              <button 
-                type="submit" 
-                className="btn-primary" 
+              <button
+                type="submit"
+                className="btn-primary"
                 disabled={submitting}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
               >
