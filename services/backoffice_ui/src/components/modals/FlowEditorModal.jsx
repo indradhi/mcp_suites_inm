@@ -299,11 +299,11 @@ export default function FlowEditorModal({
                   const newMapping = { ...currentMapping, [paramName]: e.target.value };
                   handleStepChange(idx, 'parameters_mapping', newMapping);
                 }}
-                style={{ fontSize: '11px', padding: '4px 6px', flex: 1, minWidth: '150px', backgroundColor: 'rgba(0,0,0,0.2)', color: '#fff' }}
+                style={{ fontSize: '11px', padding: '4px 6px', flex: 1, minWidth: '150px', backgroundColor: '#1e293b', color: '#fff' }}
               >
-                <option value="">-- Manual / Dinamis dari Chat --</option>
+                <option value="" style={{ backgroundColor: '#1e293b', color: '#fff' }}>-- Manual / Dinamis dari Chat --</option>
                 {availableOutputs.map(out => (
-                  <option key={`${out.stepIdx}-${out.fieldName}`} value={`step_${out.stepIdx}.${out.fieldName}`}>
+                  <option key={`${out.stepIdx}-${out.fieldName}`} value={`step_${out.stepIdx}.${out.fieldName}`} style={{ backgroundColor: '#1e293b', color: '#fff' }}>
                     {out.label}
                   </option>
                 ))}
