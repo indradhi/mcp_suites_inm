@@ -848,7 +848,9 @@ export default function DataOrchestrator() {
               </div>
 
               {flowTestResult.error ? (
-                <div style={{ color: '#f87171', fontSize: '13px' }}>{flowTestResult.error}</div>
+                <div style={{ color: '#f87171', fontSize: '13px' }}>
+                  {typeof flowTestResult.error === 'string' ? flowTestResult.error : JSON.stringify(flowTestResult.error)}
+                </div>
               ) : (() => {
                 const stepsList = flowTestResult.result?.steps || flowTestResult.steps || flowTestResult.execution_log || [];
                 const totalSteps = flowTestResult.result?.total_steps || flowTestResult.total_steps || stepsList.length;
