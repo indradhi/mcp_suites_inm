@@ -44,7 +44,8 @@ import { ValidityBadge } from '../components/common/ValidityTierSelector';
 const renderMarkdown = (text) => {
   if (!text) return null;
   
-  const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+  // Allow optional whitespace/newlines between ] and (
+  const imageRegex = /!\[([^\]]*)\]\s*\(([^)]+)\)/g;
   const parts = [];
   let lastIndex = 0;
   let match;
@@ -53,7 +54,8 @@ const renderMarkdown = (text) => {
     if (match.index > lastIndex) {
       parts.push({ type: 'text', content: text.substring(lastIndex, match.index) });
     }
-    parts.push({ type: 'image', alt: match[1], src: match[2] });
+    // Clean the src by removing all whitespaces and newlines that LLM might have added
+    parts.push({ type: 'image', alt: match[1], src: match[2].replace(/\s+/g, '') });
     lastIndex = imageRegex.lastIndex;
   }
   
