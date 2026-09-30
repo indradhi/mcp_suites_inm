@@ -8,7 +8,7 @@ class OrchestrationFlow(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(150), nullable=False)
     description = Column(Text, nullable=True)
-    prompt_pattern = Column(String(255), nullable=False) # e.g. "Cari aset dan profil NIK *" or regex
+    prompt_pattern = Column(Text, nullable=False) # e.g. "Cari aset dan profil NIK *" or regex
     intent_category = Column(String(50), default="profiling") # profiling, aset, relasi, regulasi, umum
     trigger_keywords = Column(JSON, nullable=False, default=list) # ["nik", "dukcapil", "profil", "ktp"]
     

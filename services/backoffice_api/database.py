@@ -26,7 +26,8 @@ def run_migrations():
     migrations = [
         "ALTER TABLE knowledge_sources ADD COLUMN cache_ttl_minutes INTEGER",
         "ALTER TABLE api_keys ADD COLUMN allowed_tools TEXT NULL",
-        "ALTER TABLE api_keys ADD COLUMN allowed_kbs TEXT NULL"
+        "ALTER TABLE api_keys ADD COLUMN allowed_kbs TEXT NULL",
+        "ALTER TABLE orchestration_flows MODIFY COLUMN prompt_pattern TEXT"
     ]
     with engine.connect() as conn:
         for stmt in migrations:
