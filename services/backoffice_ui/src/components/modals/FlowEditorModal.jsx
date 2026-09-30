@@ -74,7 +74,8 @@ export default function FlowEditorModal({
           description: s.description || s.title || '',
           required: s.required !== undefined 
             ? s.required 
-            : (s.priority === 'MANDATORY' || s.priority === 'REQUIRED' || s.priority !== 'OPTIONAL')
+            : (s.priority === 'MANDATORY' || s.priority === 'REQUIRED' || s.priority !== 'OPTIONAL'),
+          parameters_mapping: s.parameters_mapping || {}
         }));
         setSteps(normalized);
       } else {
@@ -199,7 +200,8 @@ export default function FlowEditorModal({
         action: s.action || 'tool_call',
         target: s.target || '',
         priority: s.required !== false ? 'MANDATORY' : 'OPTIONAL',
-        required: s.required !== false
+        required: s.required !== false,
+        parameters_mapping: s.parameters_mapping || {}
       }));
 
       const payload = {
@@ -228,6 +230,94 @@ export default function FlowEditorModal({
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const renderParameterMapping = (step, idx) => {
+    if (idx === 0 || step.action !== 'tool_call' || !step.target) return null;
+    
+    const currentTool = apiTools.find(t => t.name === step.target);
+    if (!currentTool) return null;
+
+    let inputParams = [];
+    if (currentTool.source_type === 'mcp' && currentTool.input_schema?.properties) {
+      inputParams = Object.keys(currentTool.input_schema.properties).map(k => ({
+        name: k,
+        type: currentTool.input_schema.properties[k].type || 'string'
+      }));
+    } else if (currentTool.parameters && currentTool.parameters.length > 0) {
+      inputParams = currentTool.parameters;
+    }
+
+    if (inputParams.length === 0) return null;
+
+    const availableOutputs = [];
+    for (let i = 0; i < idx; i++) {
+      const prevStep = steps[i];
+      if (prevStep.action === 'tool_call' && prevStep.target) {
+        const pTool = apiTools.find(t => t.name === prevStep.target);
+        if (pTool && pTool.field_definitions && pTool.field_definitions.length > 0) {
+          pTool.field_definitions.forEach(f => {
+            const fName = (typeof f === 'string') ? f : (f.name || f.field_name || f.key || 'unknown_field');
+            availableOutputs.push({
+              stepIdx: i,
+              toolName: pTool.name,
+              fieldName: fName,
+              label: `Langkah ${i + 1} (${pTool.title || pTool.name}): ${fName}`
+            });
+          });
+        } else if (pTool) {
+          availableOutputs.push({
+            stepIdx: i,
+            toolName: pTool.name,
+            fieldName: 'OUTPUT_DATA',
+            label: `Langkah ${i + 1} (${pTool.title || pTool.name}): Seluruh Output`
+          });
+        }
+      }
+    }
+
+    if (availableOutputs.length === 0) return null;
+
+    const currentMapping = step.parameters_mapping || {};
+
+    return (
+      <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }}>
+        <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '8px', color: '#94a3b8' }}>
+          Pemetaan Parameter (Ambil dari langkah sebelumnya):
+        </div>
+        {inputParams.map((param, pIdx) => {
+          const paramName = (typeof param === 'string') ? param : (param.name || param.key || param.field || param.parameter || `unknown_${pIdx}`);
+          return (
+            <div key={paramName} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+              <div style={{ fontSize: '11px', width: '120px', minWidth: '120px', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={paramName}>
+                {paramName}
+              </div>
+              <select
+                className="input-field font-mono"
+                value={currentMapping[paramName] || ''}
+                onChange={(e) => {
+                  const newMapping = { ...currentMapping, [paramName]: e.target.value };
+                  handleStepChange(idx, 'parameters_mapping', newMapping);
+                }}
+                style={{ fontSize: '11px', padding: '4px 6px', flex: 1, minWidth: '150px', backgroundColor: 'rgba(0,0,0,0.2)', color: '#fff' }}
+              >
+                <option value="">-- Manual / Dinamis dari Chat --</option>
+                {availableOutputs.map(out => (
+                  <option key={`${out.stepIdx}-${out.fieldName}`} value={`step_${out.stepIdx}.${out.fieldName}`}>
+                    {out.label}
+                  </option>
+                ))}
+              </select>
+              {currentMapping[paramName] && (
+                <div style={{ fontSize: '10px', color: '#10b981', marginLeft: '6px' }}>
+                  ✓ {currentMapping[paramName].split('.').pop()}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -563,7 +653,7 @@ export default function FlowEditorModal({
                             className="input-field font-mono"
                             value={step.target || ''}
                             onChange={(e) => handleStepChange(idx, 'target', e.target.value)}
-                            style={{ fontSize: '11px', padding: '6px 8px' }}
+                            style={{ fontSize: '11px', padding: '6px 8px', width: '100%' }}
                             required
                           >
                             <option value="">-- Pilih Tool --</option>
@@ -654,6 +744,7 @@ export default function FlowEditorModal({
                         />
                       </div>
                     </div>
+                    {renderParameterMapping(step, idx)}
                   </div>
                 );
               })}
