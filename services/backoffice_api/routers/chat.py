@@ -3,9 +3,10 @@ import logging
 import time
 import uuid
 from typing import List, Dict, Any, Optional, Union
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ConfigDict
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Request
 from fastapi.responses import StreamingResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -19,8 +20,18 @@ from models.api_key import ApiKey
 
 logger = logging.getLogger(__name__)
 
+# Security scheme for Swagger UI "Authorize" modal
+http_bearer = HTTPBearer(
+    auto_error=False,
+    description="Enter standard JWT Bearer token (from /api/auth/login) or 'mcp_<key>' API key"
+)
 
-async def get_user_flexible(request: Request, db: Session = Depends(get_db)):
+
+async def get_user_flexible(
+    request: Request,
+    auth_cred: Optional[HTTPAuthorizationCredentials] = Depends(http_bearer),
+    db: Session = Depends(get_db)
+):
     """
     Flexible auth for OpenAI-compatible endpoints.
     Accepts either:
@@ -28,16 +39,21 @@ async def get_user_flexible(request: Request, db: Session = Depends(get_db)):
       - mcp_<key> API key (same keys used by MCP clients)
     Returns a user or minimal user-like object with .id and .username.
     """
-    import hashlib
     from fastapi.security.utils import get_authorization_scheme_param
     from security import decode_token
     from datetime import datetime
 
-    authorization = request.headers.get("Authorization", "")
-    scheme, credentials = get_authorization_scheme_param(authorization)
+    credentials = auth_cred.credentials if (auth_cred and auth_cred.credentials) else None
+    if not credentials:
+        authorization = request.headers.get("Authorization", "")
+        scheme, credentials = get_authorization_scheme_param(authorization)
 
     if not credentials:
-        raise HTTPException(status_code=401, detail="Authorization header required")
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization header required (Bearer JWT token or mcp_<key> API key)",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
 
     # ── mcp_ API key path ────────────────────────────────────────────────────
     if credentials.startswith("mcp_"):
@@ -92,6 +108,105 @@ async def get_user_flexible(request: Request, db: Session = Depends(get_db)):
 
 router = APIRouter(prefix="/chat", tags=["AI Knowledge Chat"])
 openai_router = APIRouter(prefix="/v1", tags=["OpenAI Compatible API"])
+
+
+# ── OpenAI Compatible API Request & Response Schemas ────────────────────────
+
+class OpenAIMessage(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    role: str = Field(..., description="Role of the message author: 'developer', 'system', 'user', or 'assistant'")
+    content: Union[str, List[Dict[str, Any]]] = Field(..., description="The contents of the message (text string or multimodal content parts)")
+    name: Optional[str] = Field(None, description="An optional name for the participant")
+
+
+class OpenAIResponseFormat(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    type: str = Field("text", description="Output format type: 'text', 'json_object', or 'json_schema'")
+    json_schema: Optional[Dict[str, Any]] = Field(None, description="JSON Schema object when type is 'json_schema'")
+
+
+class OpenAIChatCompletionRequest(BaseModel):
+    model_config = ConfigDict(
+        extra="allow",
+        json_schema_extra={
+            "example": {
+                "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+                "messages": [
+                    {"role": "developer", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": "Who won the world series in 2020?"},
+                    {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
+                    {"role": "user", "content": "Where was it played?"}
+                ],
+                "temperature": 0.0,
+                "stream": False
+            }
+        }
+    )
+    messages: List[OpenAIMessage] = Field(..., description="A list of messages comprising the conversation so far.")
+    model: Optional[str] = Field("Qwen/Qwen3.6-35B-A3B-FP8", description="ID of the model to use. Query GET /v1/models for available models.")
+    stream: Optional[bool] = Field(False, description="If True, partial message deltas will be sent via Server-Sent Events (SSE) data-only stream.")
+    temperature: Optional[float] = Field(None, ge=0.0, le=2.0, description="Sampling temperature between 0 and 2. Lower values mean more deterministic responses.")
+    top_p: Optional[float] = Field(None, ge=0.0, le=1.0, description="Nucleus sampling probability alternative to temperature.")
+    n: Optional[int] = Field(1, description="How many chat completion choices to generate for each input message.")
+    max_tokens: Optional[int] = Field(None, description="Maximum number of tokens that can be generated in the chat completion.")
+    max_completion_tokens: Optional[int] = Field(None, description="Upper bound for tokens generated, supported by reasoning models (o1/o3).")
+    presence_penalty: Optional[float] = Field(None, ge=-2.0, le=2.0, description="Penalizes new tokens based on whether they appear in the text so far.")
+    frequency_penalty: Optional[float] = Field(None, ge=-2.0, le=2.0, description="Penalizes new tokens based on their existing frequency in the text so far.")
+    seed: Optional[int] = Field(None, description="Integer seed for deterministic sampling.")
+    stop: Optional[Union[str, List[str]]] = Field(None, description="Up to 4 sequences where the API will stop generating further tokens.")
+    response_format: Optional[OpenAIResponseFormat] = Field(None, description="An object specifying the format that the model must output (e.g. {'type': 'json_object'}).")
+    reasoning_effort: Optional[str] = Field(None, description="Constrains effort on reasoning for reasoning models ('low', 'medium', 'high').")
+    tools: Optional[List[Dict[str, Any]]] = Field(None, description="A list of tools the model may call.")
+    tool_choice: Optional[Union[str, Dict[str, Any]]] = Field(None, description="Controls which (if any) tool is called by the model.")
+    user: Optional[str] = Field(None, description="A unique identifier representing your end-user for monitoring.")
+
+
+class OpenAIUsage(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    prompt_tokens: int = Field(0, description="Number of tokens in the prompt")
+    completion_tokens: int = Field(0, description="Number of tokens in the generated completion")
+    total_tokens: int = Field(0, description="Total number of tokens used in the request")
+
+
+class OpenAIChoiceMessage(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    role: str = Field("assistant", description="The role of the author of this message")
+    content: Optional[str] = Field("", description="The contents of the message")
+
+
+class OpenAIChoice(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    index: int = Field(0, description="The index of the choice in the list of choices")
+    message: OpenAIChoiceMessage = Field(..., description="A chat completion message generated by the model")
+    finish_reason: Optional[str] = Field("stop", description="The reason the model stopped generating tokens ('stop', 'length', etc.)")
+    logprobs: Optional[Any] = Field(None, description="Log probability information for the choice")
+
+
+class OpenAIChatCompletionResponse(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+    id: str = Field(..., description="A unique identifier for the chat completion (e.g. chatcmpl-...)")
+    object: str = Field("chat.completion", description="The object type, which is always 'chat.completion'")
+    created: int = Field(..., description="The Unix timestamp (in seconds) of when the chat completion was created")
+    model: str = Field(..., description="The model used for the chat completion")
+    choices: List[OpenAIChoice] = Field(..., description="A list of chat completion choices")
+    usage: Optional[OpenAIUsage] = Field(None, description="Usage statistics for the completion request")
+    system_fingerprint: Optional[str] = Field(None, description="Backend system fingerprint")
+    knowledge: Optional[Dict[str, Any]] = Field(None, alias="_knowledge", description="Extended metadata from internal Knowledge Base / Graph RAG")
+
+
+class OpenAIModelItem(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+    id: str = Field(..., description="Model identifier", example="Qwen/Qwen3.6-35B-A3B-FP8")
+    object: str = Field("model", description="The object type, which is always 'model'")
+    created: int = Field(..., description="Unix timestamp of model creation/registration")
+    owned_by: str = Field(..., description="Owner or server name hosting this model", example="Primary vLLM Server")
+    backend: Optional[Dict[str, Any]] = Field(None, alias="_backend", description="Internal backend details (ID and API base)")
+
+
+class OpenAIModelListResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    object: str = Field("list", description="The object type, which is always 'list'")
+    data: List[OpenAIModelItem] = Field(..., description="List of available models")
 
 
 class ChatMessageItem(BaseModel):
@@ -445,42 +560,68 @@ async def chat_stream_endpoint(
     )
 
 
-@openai_router.post("/chat/completions")
+@openai_router.post(
+    "/chat/completions",
+    summary="Create Chat Completion (OpenAI Compatible)",
+    description=(
+        "Standard **OpenAI Chat Completions** endpoint (`POST /v1/chat/completions`).\n\n"
+        "Fully compliant with the OpenAI API specification and drop-in compatible with official OpenAI SDKs "
+        "(`openai-python`, `openai-node`), LangChain, LlamaIndex, OpenWebUI, Cursor, and Continue.\n\n"
+        "### 🚀 Key Capabilities:\n"
+        "- **Dual Authentication**: Accepts either a Backoffice JWT Bearer token or an `mcp_<key>` API key in `Authorization: Bearer <token_or_key>`.\n"
+        "- **Server-Sent Events (SSE) Streaming**: Set `\"stream\": true` to stream completion tokens chunk-by-chunk in real time.\n"
+        "- **Hybrid RAG Grounding**: Queries ChromaDB vector embeddings and Neo4j relational graph to synthesize accurate, factual, and verified answers.\n"
+        "- **Structured Outputs**: Fully supports `response_format: {\"type\": \"json_object\"}` or `json_schema`.\n"
+        "- **Reasoning Models**: Supports `reasoning_effort` and `max_completion_tokens` for o1/o3-class models.\n"
+        "- **Advanced Controls**: `temperature`, `top_p`, `presence_penalty`, `frequency_penalty`, `seed`, `stop`, `user`."
+    ),
+    response_model=OpenAIChatCompletionResponse,
+    responses={
+        200: {
+            "description": "Successful completion. Returns standard JSON completion or an SSE event-stream if stream=true.",
+            "content": {
+                "application/json": {
+                    "schema": {"$ref": "#/components/schemas/OpenAIChatCompletionResponse"}
+                },
+                "text/event-stream": {
+                    "schema": {
+                        "type": "string",
+                        "example": "data: {\"id\":\"chatcmpl-...\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"delta\":{\"content\":\"Hello\"}}]}\n\ndata: [DONE]\n\n"
+                    }
+                }
+            }
+        },
+        400: {"description": "Bad Request - Invalid JSON or parameter validation failed"},
+        401: {"description": "Unauthorized - Missing or invalid Bearer token / MCP API key"}
+    }
+)
 async def openai_chat_completions(
-    request: Request,
+    payload: OpenAIChatCompletionRequest,
     db: Session = Depends(get_db),
     user=Depends(get_user_flexible)
 ):
-    """
-    OpenAI-compatible /v1/chat/completions endpoint.
-    Accepts standard OpenAI request format and routes to the knowledge chat service.
-    Supports both regular JSON and streaming (stream=true) responses.
-    """
-    try:
-        body = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON body")
-
-    # Extract OpenAI standard fields
-    messages = body.get("messages", [])
-    model = body.get("model")
-    stream = body.get("stream", False)
-    temperature = body.get("temperature")
-    max_tokens = body.get("max_tokens")
-    max_completion_tokens = body.get("max_completion_tokens")
-    top_p = body.get("top_p")
-    presence_penalty = body.get("presence_penalty")
-    frequency_penalty = body.get("frequency_penalty")
-    seed = body.get("seed")
-    stop = body.get("stop")
-    response_format = body.get("response_format")
-    reasoning_effort = body.get("reasoning_effort")
-    tools = body.get("tools")
-    tool_choice = body.get("tool_choice")
-    user_id = body.get("user")
-    n = body.get("n", 1)
-    logprobs = body.get("logprobs")
-    top_logprobs = body.get("top_logprobs")
+    # Extract OpenAI standard fields from validated payload
+    messages = [m.model_dump() if hasattr(m, 'model_dump') else m for m in payload.messages]
+    model = payload.model
+    stream = payload.stream or False
+    temperature = payload.temperature
+    max_tokens = payload.max_tokens
+    max_completion_tokens = payload.max_completion_tokens
+    top_p = payload.top_p
+    presence_penalty = payload.presence_penalty
+    frequency_penalty = payload.frequency_penalty
+    seed = payload.seed
+    stop = payload.stop
+    response_format = payload.response_format.model_dump() if payload.response_format else None
+    reasoning_effort = payload.reasoning_effort
+    tools = payload.tools
+    tool_choice = payload.tool_choice
+    user_id = payload.user
+    n = payload.n or 1
+    # Check for any extra params sent via extra="allow"
+    extra_fields = getattr(payload, '__pydantic_extra__', {}) or {}
+    logprobs = getattr(payload, 'logprobs', None) or extra_fields.get("logprobs")
+    top_logprobs = getattr(payload, 'top_logprobs', None) or extra_fields.get("top_logprobs")
 
     # Extract user message (last user message in the conversation)
     user_message = ""
@@ -605,6 +746,41 @@ async def openai_chat_completions(
             "metrics": result.get("metrics", {})
         }
     }
+
+
+@openai_router.get(
+    "/models",
+    summary="List Available Models (OpenAI Compatible)",
+    description=(
+        "Standard **OpenAI Models** endpoint (`GET /v1/models`).\n\n"
+        "Lists all currently available LLM backends (local vLLM, Ollama, DeepSeek Cloud, OpenAI, etc.) "
+        "as OpenAI model objects. Compatible with `client.models.list()` in the OpenAI SDK.\n\n"
+        "### 🔐 Authentication:\n"
+        "Accepts either standard JWT Bearer token or `mcp_<key>` API key in `Authorization: Bearer <token_or_key>`."
+    ),
+    response_model=OpenAIModelListResponse,
+    responses={
+        200: {"description": "List of available models."},
+        401: {"description": "Unauthorized - Missing or invalid Bearer token / MCP API key."}
+    }
+)
+def list_openai_models(
+    db: Session = Depends(get_db),
+    user=Depends(get_user_flexible)
+):
+    from models.llm_backend import LLMBackend
+    backends = db.query(LLMBackend).filter(LLMBackend.is_active == True).all()
+    model_objects = []
+    for be in backends:
+        for m in (be.available_models or []):
+            model_objects.append({
+                "id": m,
+                "object": "model",
+                "created": int(be.created_at.timestamp()) if getattr(be, 'created_at', None) else int(time.time()),
+                "owned_by": be.name,
+                "_backend": {"id": be.id, "api_base": be.api_base}
+            })
+    return {"object": "list", "data": model_objects}
 
 
 @router.get("/sources")

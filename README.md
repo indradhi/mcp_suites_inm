@@ -201,7 +201,7 @@ Default admin credentials: **`admin`** / **`admin123`**
 | **Backoffice UI** | [http://localhost:5173](http://localhost:5173) | `http://<server-ip>/` (or `:8092`) | Full management dashboard |
 | **OpenAI-compat API (via UI Proxy)** | [http://localhost:5173/v1](http://localhost:5173/v1) | — | OpenAI API proxied through Vite dev server |
 | **OpenAI-compat API (Direct)** | [http://localhost:8002/v1](http://localhost:8002/v1) | `http://<server-ip>/v1` (or `:8092/v1`) | Full OpenAI Chat Completions & Models API |
-| **Backoffice API Docs** | [http://localhost:8002/docs](http://localhost:8002/docs) | `http://<server-ip>/docs` | Interactive Swagger UI |
+| **Backoffice & OpenAI API Docs** | [http://localhost:5173/docs](http://localhost:5173/docs) or [http://localhost:8002/docs](http://localhost:8002/docs) | `http://<server-ip>/docs` | Interactive Swagger UI with full `/v1/*` OpenAI API schemas & interactive testing |
 | **MCP SSE Endpoint** | [http://localhost:8001/sse](http://localhost:8001/sse) | `http://<server-ip>/sse` | OpenWebUI / MCP clients |
 | **Neo4j Browser** | [http://localhost:7474](http://localhost:7474) | `http://<server-ip>:7474` | Graph explorer |
 
