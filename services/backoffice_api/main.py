@@ -15,6 +15,7 @@ from models.api_key import ApiKey
 from security import get_current_user
 
 from routers import auth, users, knowledge, jobs, graph, llm_backends, chat, face, personality, orchestrator, api_keys, database_settings
+from routers.chat import openai_router
 from models.orchestration_flow import OrchestrationFlow
 from services.flow_orchestrator import flow_orchestrator
 
@@ -85,6 +86,35 @@ app.include_router(personality.router, prefix="/api")
 app.include_router(orchestrator.router, prefix="/api")
 app.include_router(api_keys.router, prefix="/api")
 app.include_router(database_settings.router, prefix="/api")
+
+# ── OpenAI-Compatible API (/v1/...) ──────────────────────────────────────────
+# This enables the backoffice API to accept standard OpenAI client requests at
+# POST /v1/chat/completions  (standard + streaming)
+# GET  /v1/models             (list available backends as model objects)
+app.include_router(openai_router)
+
+
+@app.get("/v1/models", tags=["OpenAI Compatible API"])
+def list_openai_models(db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """
+    OpenAI-compatible GET /v1/models — returns available LLM backends as model objects.
+    Compatible with any OpenAI SDK client.
+    """
+    from models.llm_backend import LLMBackend
+    import time
+    backends = db.query(LLMBackend).filter(LLMBackend.is_active == True).all()
+    model_objects = []
+    for be in backends:
+        for m in (be.available_models or []):
+            model_objects.append({
+                "id": m,
+                "object": "model",
+                "created": int(be.created_at.timestamp()) if getattr(be, 'created_at', None) else int(time.time()),
+                "owned_by": be.name,
+                "_backend": {"id": be.id, "api_base": be.api_base}
+            })
+    return {"object": "list", "data": model_objects}
+
 
 @app.get("/health")
 def health():

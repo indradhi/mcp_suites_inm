@@ -1,7 +1,11 @@
+import json
 import logging
-from typing import List, Dict, Any, Optional
+import time
+import uuid
+from typing import List, Dict, Any, Optional, Union
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -15,14 +19,22 @@ from services.document_parser import document_parser
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/chat", tags=["AI Knowledge Chat"])
+openai_router = APIRouter(prefix="/v1", tags=["OpenAI Compatible API"])
 
 
 class ChatMessageItem(BaseModel):
     role: str
-    content: str
+    content: Union[str, List[Dict[str, Any]]]  # Support multimodal content (text + image_url)
+
+
+class ResponseFormat(BaseModel):
+    """OpenAI-standard response_format for structured output."""
+    type: str = "text"  # "text", "json_object", or "json_schema"
+    json_schema: Optional[Dict[str, Any]] = None  # Used when type="json_schema"
 
 
 class ChatRequest(BaseModel):
+    # ── Core fields ──────────────────────────────────────────────────
     message: Optional[str] = ""
     image_base64: Optional[str] = None
     doc_id: Optional[str] = None
@@ -35,10 +47,32 @@ class ChatRequest(BaseModel):
     include_graph: Optional[bool] = True
     top_k: Optional[int] = 20
     strict_mode: Optional[bool] = True
+    # ── OpenAI standard sampling parameters ──────────────────────────
     temperature: Optional[float] = None
+    top_p: Optional[float] = None          # Nucleus sampling (0-1)
+    n: Optional[int] = 1                   # Number of completions to generate
+    max_tokens: Optional[int] = None       # Max tokens in the completion
+    max_completion_tokens: Optional[int] = None  # For o1/o3 reasoning models
+    presence_penalty: Optional[float] = None     # -2.0 to 2.0
+    frequency_penalty: Optional[float] = None    # -2.0 to 2.0
+    seed: Optional[int] = None             # Deterministic sampling seed
+    stop: Optional[Union[str, List[str]]] = None  # Stop sequences
+    logprobs: Optional[bool] = None        # Return log probabilities
+    top_logprobs: Optional[int] = None     # Number of top logprobs to return
+    # ── Structured output ─────────────────────────────────────────────
+    response_format: Optional[ResponseFormat] = None  # json_object | json_schema
+    # ── Reasoning model support (o1, o3) ─────────────────────────────
+    reasoning_effort: Optional[str] = None  # "low", "medium", "high"
+    # ── User tracking ─────────────────────────────────────────────────
+    user: Optional[str] = None             # End-user identifier for abuse tracking
+    # ── Streaming ─────────────────────────────────────────────────────
+    stream: Optional[bool] = False
 
 
 class ChatResponse(BaseModel):
+    # ── Response ID (OpenAI standard) ────────────────────────────────
+    id: Optional[str] = None
+    # ── Answer & knowledge fields ─────────────────────────────────────
     answer: str
     sources: List[Dict[str, Any]]
     entities: List[Dict[str, Any]]
@@ -50,6 +84,9 @@ class ChatResponse(BaseModel):
     thinking: Optional[str] = None
     strict_mode: Optional[bool] = True
     temperature: Optional[float] = None
+    # ── OpenAI standard usage tracking ───────────────────────────────
+    usage: Optional[Dict[str, Any]] = None  # prompt_tokens, completion_tokens, total_tokens
+    finish_reason: Optional[str] = None    # "stop", "tool_calls", "length", "content_filter"
 
 
 class FeedbackRequest(BaseModel):
@@ -187,13 +224,315 @@ def chat_with_knowledge_endpoint(
         include_graph=req.include_graph if req.include_graph is not None else True,
         top_k=req.top_k or 20,
         db=db,
-        liked_examples=liked_examples,  # few-shot context injection
-        dislike_notes=dislike_notes,    # negative feedback correction injection
+        liked_examples=liked_examples,
+        dislike_notes=dislike_notes,
         strict_mode=req.strict_mode if req.strict_mode is not None else True,
-        temperature=req.temperature
+        temperature=req.temperature,
+        # OpenAI standard parameters
+        top_p=req.top_p,
+        presence_penalty=req.presence_penalty,
+        frequency_penalty=req.frequency_penalty,
+        seed=req.seed,
+        stop=req.stop,
+        max_tokens=req.max_tokens,
+        max_completion_tokens=req.max_completion_tokens,
+        logprobs=req.logprobs,
+        top_logprobs=req.top_logprobs,
+        response_format=req.response_format.model_dump() if req.response_format else None,
+        reasoning_effort=req.reasoning_effort,
+        user=req.user or (str(user.id) if user else None),
+        n=req.n,
     )
 
+    # Attach response ID for OpenAI compatibility
+    if not result.get("id"):
+        result["id"] = f"chatcmpl-{uuid.uuid4().hex[:24]}"
+
     return result
+
+
+@router.post("/stream")
+async def chat_stream_endpoint(
+    req: ChatRequest,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user)
+):
+    """
+    OpenAI-compatible streaming chat endpoint.
+    Returns Server-Sent Events (SSE) with `data: {...}` chunks ending in `data: [DONE]`.
+    """
+    has_message = bool(req.message and req.message.strip())
+    if not has_message and not req.image_base64 and not req.doc_id and not req.document_data:
+        raise HTTPException(status_code=400, detail="Pesan, gambar, atau dokumen tidak boleh kosong.")
+
+    # Get the full (non-streaming) result from the chat service
+    uploaded_doc = None
+    if req.doc_id:
+        uploaded_doc = document_parser.get_document(req.doc_id)
+    if not uploaded_doc and req.document_data:
+        uploaded_doc = req.document_data
+
+    effective_message = req.message.strip() if has_message else (
+        f"Analisis isi dokumen '{uploaded_doc.get('file_name', 'terlampir')}'." if uploaded_doc else
+        "Analisis foto ini dan identifikasi orang dalam foto." if req.image_base64 else
+        "Analisis data yang disediakan."
+    )
+    history_dicts = [{"role": h.role, "content": h.content} for h in req.history or []]
+    effective_source_ids = []
+    if req.source_ids:
+        effective_source_ids = [int(sid) for sid in req.source_ids if sid is not None]
+    elif req.source_id is not None:
+        effective_source_ids = [int(req.source_id)]
+
+    async def stream_generator():
+        chat_id = f"chatcmpl-{uuid.uuid4().hex[:24]}"
+        created_ts = int(time.time())
+        model_name = req.model_name or "default"
+
+        # Initial SSE chunk (role)
+        initial_chunk = {
+            "id": chat_id,
+            "object": "chat.completion.chunk",
+            "created": created_ts,
+            "model": model_name,
+            "choices": [{"index": 0, "delta": {"role": "assistant", "content": ""}, "finish_reason": None}]
+        }
+        yield f"data: {json.dumps(initial_chunk, ensure_ascii=False)}\n\n"
+
+        try:
+            result = chat_service.chat_with_knowledge(
+                message=effective_message,
+                image_base64=req.image_base64,
+                uploaded_document=uploaded_doc,
+                history=history_dicts,
+                source_id=effective_source_ids[0] if len(effective_source_ids) == 1 else None,
+                source_ids=effective_source_ids if effective_source_ids else None,
+                backend_id=req.backend_id,
+                model_name=req.model_name,
+                include_graph=req.include_graph if req.include_graph is not None else True,
+                top_k=req.top_k or 20,
+                db=db,
+                liked_examples=[],
+                dislike_notes=[],
+                strict_mode=req.strict_mode if req.strict_mode is not None else True,
+                temperature=req.temperature,
+                top_p=req.top_p,
+                presence_penalty=req.presence_penalty,
+                frequency_penalty=req.frequency_penalty,
+                seed=req.seed,
+                stop=req.stop,
+                max_tokens=req.max_tokens,
+                max_completion_tokens=req.max_completion_tokens,
+                response_format=req.response_format.model_dump() if req.response_format else None,
+                reasoning_effort=req.reasoning_effort,
+                user=req.user or (str(user.id) if user else None),
+            )
+            full_answer = result.get("answer", "")
+            model_used = result.get("model_used", model_name)
+
+            # Stream answer in chunks of ~30 characters for smooth UX
+            CHUNK_SIZE = 30
+            for i in range(0, len(full_answer), CHUNK_SIZE):
+                chunk_text = full_answer[i:i + CHUNK_SIZE]
+                content_chunk = {
+                    "id": chat_id,
+                    "object": "chat.completion.chunk",
+                    "created": created_ts,
+                    "model": model_used,
+                    "choices": [{"index": 0, "delta": {"content": chunk_text}, "finish_reason": None}]
+                }
+                yield f"data: {json.dumps(content_chunk, ensure_ascii=False)}\n\n"
+
+            # Final chunk with finish_reason and usage
+            final_chunk = {
+                "id": chat_id,
+                "object": "chat.completion.chunk",
+                "created": created_ts,
+                "model": model_used,
+                "choices": [{"index": 0, "delta": {}, "finish_reason": result.get("finish_reason", "stop")}],
+                "usage": result.get("usage")
+            }
+            yield f"data: {json.dumps(final_chunk, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            error_chunk = {
+                "error": {"message": str(e), "type": "server_error"},
+                "choices": [{"index": 0, "delta": {"content": f"\n\n[Error: {str(e)}]"}, "finish_reason": "error"}]
+            }
+            yield f"data: {json.dumps(error_chunk, ensure_ascii=False)}\n\n"
+
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        stream_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        }
+    )
+
+
+@openai_router.post("/chat/completions")
+async def openai_chat_completions(
+    request: Request,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user)
+):
+    """
+    OpenAI-compatible /v1/chat/completions endpoint.
+    Accepts standard OpenAI request format and routes to the knowledge chat service.
+    Supports both regular JSON and streaming (stream=true) responses.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    # Extract OpenAI standard fields
+    messages = body.get("messages", [])
+    model = body.get("model")
+    stream = body.get("stream", False)
+    temperature = body.get("temperature")
+    max_tokens = body.get("max_tokens")
+    max_completion_tokens = body.get("max_completion_tokens")
+    top_p = body.get("top_p")
+    presence_penalty = body.get("presence_penalty")
+    frequency_penalty = body.get("frequency_penalty")
+    seed = body.get("seed")
+    stop = body.get("stop")
+    response_format = body.get("response_format")
+    reasoning_effort = body.get("reasoning_effort")
+    tools = body.get("tools")
+    tool_choice = body.get("tool_choice")
+    user_id = body.get("user")
+    n = body.get("n", 1)
+    logprobs = body.get("logprobs")
+    top_logprobs = body.get("top_logprobs")
+
+    # Extract user message (last user message in the conversation)
+    user_message = ""
+    history = []
+    for msg in messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        if isinstance(content, list):  # multimodal content
+            content = " ".join(p.get("text", "") for p in content if p.get("type") == "text")
+        if role in ("system", "developer"):
+            continue  # system prompt is handled by personality service
+        elif role == "user":
+            user_message = content  # last user message wins
+            if history:  # add previous user messages to history
+                pass
+        history.append({"role": role, "content": content})
+
+    if not user_message and history:
+        # Fallback: last message regardless of role
+        user_message = history[-1].get("content", "")
+
+    # Build the chat request
+    chat_req = ChatRequest(
+        message=user_message,
+        history=[ChatMessageItem(role=h["role"], content=h["content"]) for h in history[:-1]],
+        model_name=model,
+        temperature=temperature,
+        top_p=top_p,
+        presence_penalty=presence_penalty,
+        frequency_penalty=frequency_penalty,
+        seed=seed,
+        stop=stop,
+        max_tokens=max_tokens,
+        max_completion_tokens=max_completion_tokens,
+        logprobs=logprobs,
+        top_logprobs=top_logprobs,
+        response_format=ResponseFormat(**response_format) if response_format else None,
+        reasoning_effort=reasoning_effort,
+        user=user_id,
+        n=n,
+        stream=stream,
+    )
+
+    result = chat_service.chat_with_knowledge(
+        message=user_message,
+        history=[{"role": h["role"], "content": h["content"]} for h in history[:-1]],
+        model_name=model,
+        db=db,
+        liked_examples=[],
+        dislike_notes=[],
+        temperature=temperature,
+        top_p=top_p,
+        presence_penalty=presence_penalty,
+        frequency_penalty=frequency_penalty,
+        seed=seed,
+        stop=stop,
+        max_tokens=max_tokens,
+        max_completion_tokens=max_completion_tokens,
+        response_format=response_format,
+        reasoning_effort=reasoning_effort,
+        user=user_id,
+    )
+
+    chat_id = result.get("id") or f"chatcmpl-{uuid.uuid4().hex[:24]}"
+    created_ts = int(time.time())
+    model_used = result.get("model_used", model or "default")
+    answer = result.get("answer", "")
+    finish_reason = result.get("finish_reason", "stop")
+    usage = result.get("usage") or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
+    if stream:
+        async def sse_stream():
+            initial = {
+                "id": chat_id, "object": "chat.completion.chunk",
+                "created": created_ts, "model": model_used,
+                "choices": [{"index": 0, "delta": {"role": "assistant", "content": ""}, "finish_reason": None}]
+            }
+            yield f"data: {json.dumps(initial)}\n\n"
+            CHUNK_SIZE = 30
+            for i in range(0, len(answer), CHUNK_SIZE):
+                chunk = {
+                    "id": chat_id, "object": "chat.completion.chunk",
+                    "created": created_ts, "model": model_used,
+                    "choices": [{"index": 0, "delta": {"content": answer[i:i+CHUNK_SIZE]}, "finish_reason": None}]
+                }
+                yield f"data: {json.dumps(chunk)}\n\n"
+            final = {
+                "id": chat_id, "object": "chat.completion.chunk",
+                "created": created_ts, "model": model_used,
+                "choices": [{"index": 0, "delta": {}, "finish_reason": finish_reason}],
+                "usage": usage
+            }
+            yield f"data: {json.dumps(final)}\n\n"
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(sse_stream(), media_type="text/event-stream",
+                                  headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+    # Standard JSON response in OpenAI format
+    return {
+        "id": chat_id,
+        "object": "chat.completion",
+        "created": created_ts,
+        "model": model_used,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": answer},
+                "finish_reason": finish_reason,
+                "logprobs": None
+            }
+        ],
+        "usage": usage,
+        "system_fingerprint": None,
+        # Extended fields (non-OpenAI, for rich clients)
+        "_knowledge": {
+            "sources": result.get("sources", []),
+            "entities": result.get("entities", []),
+            "tools_executed": result.get("tools_executed", []),
+            "thinking": result.get("thinking"),
+            "backend_name": result.get("backend_name", ""),
+            "metrics": result.get("metrics", {})
+        }
+    }
 
 
 @router.get("/sources")

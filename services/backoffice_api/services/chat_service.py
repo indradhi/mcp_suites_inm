@@ -75,7 +75,21 @@ class ChatService:
         liked_examples: Optional[List[Dict[str, str]]] = None,
         dislike_notes: Optional[List[str]] = None,
         strict_mode: bool = True,
-        temperature: Optional[float] = None
+        temperature: Optional[float] = None,
+        # ── OpenAI standard parameters ──────────────────────────────
+        top_p: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
+        frequency_penalty: Optional[float] = None,
+        seed: Optional[int] = None,
+        stop: Optional[Any] = None,
+        max_tokens: Optional[int] = None,
+        max_completion_tokens: Optional[int] = None,
+        logprobs: Optional[bool] = None,
+        top_logprobs: Optional[int] = None,
+        response_format: Optional[Dict[str, Any]] = None,
+        reasoning_effort: Optional[str] = None,
+        user: Optional[str] = None,
+        n: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Executes hybrid RAG:
@@ -664,11 +678,20 @@ class ChatService:
             except Exception as tool_disc_err:
                 logger.warning(f"Error discovering dynamic tools for chat: {tool_disc_err}")
 
+        # Detect if this is a reasoning model (o1/o3 family)
+        is_reasoning_model = bool(model and any(model.lower().startswith(p) for p in [
+            "o1", "o3", "openai/o1", "openai/o3"
+        ]))
+
         # Resolve effective temperature (0.0 for strict mode to guarantee zero-hallucination greedy decoding)
         if temperature is not None:
-            effective_temperature = max(0.0, min(1.0, float(temperature)))
+            effective_temperature = max(0.0, min(2.0, float(temperature)))
         else:
             effective_temperature = 0.0 if strict_mode else 0.3
+
+        # Reasoning models do not support temperature
+        if is_reasoning_model:
+            effective_temperature = None
 
         # 6. Build LLM Prompt with Configured MCP Personality & Matched Flow Memory
         matched_flow_res = None
@@ -787,6 +810,8 @@ Patuhi aturan:
         messages.append({"role": "user", "content": prompt_content})
 
         # 7. Execute LLM Completion (with dynamic Tool Calling support)
+        import uuid as _uuid
+        chat_id = f"chatcmpl-{_uuid.uuid4().hex[:24]}"
         executed_tools_info = []
         is_cloud = any(domain in (api_base or "").lower() for domain in [
             "openrouter.ai", "api.openai.com", "api.deepseek.com",
@@ -800,12 +825,45 @@ Patuhi aturan:
         client = llm_service.get_client(api_base, api_key, timeout=active_llm_timeout)
         thinking_process = None
         try:
+            # ── Build kwargs compliant with OpenAI Chat Completions API ──────────
             kwargs = {
                 "model": model,
                 "messages": messages,
-                "temperature": effective_temperature,
-                "max_tokens": 4500
             }
+            # Reasoning models (o1/o3): use max_completion_tokens, omit temperature
+            if is_reasoning_model:
+                _max_c = max_completion_tokens or max_tokens or 4500
+                kwargs["max_completion_tokens"] = _max_c
+                if reasoning_effort:
+                    kwargs["reasoning_effort"] = reasoning_effort
+            else:
+                if effective_temperature is not None:
+                    kwargs["temperature"] = effective_temperature
+                kwargs["max_tokens"] = max_tokens or 4500
+                if top_p is not None:
+                    kwargs["top_p"] = top_p
+                if presence_penalty is not None:
+                    kwargs["presence_penalty"] = presence_penalty
+                if frequency_penalty is not None:
+                    kwargs["frequency_penalty"] = frequency_penalty
+            # Common optional params
+            if seed is not None:
+                kwargs["seed"] = seed
+            if stop is not None:
+                kwargs["stop"] = stop
+            if logprobs is not None:
+                kwargs["logprobs"] = logprobs
+                if top_logprobs is not None and logprobs:
+                    kwargs["top_logprobs"] = top_logprobs
+            if user:
+                kwargs["user"] = user
+            if n and n > 1:
+                kwargs["n"] = n
+            # Structured output (response_format)
+            if response_format and isinstance(response_format, dict):
+                fmt_type = response_format.get("type", "text")
+                if fmt_type in ("json_object", "json_schema"):
+                    kwargs["response_format"] = response_format
             if tools:
                 kwargs["tools"] = tools
                 if is_single_tool_selected and single_selected_tool_name:
@@ -1448,7 +1506,41 @@ Patuhi aturan:
 
         elapsed_ms = int((time.time() - start_time) * 1000)
 
+        # ── OpenAI-standard usage estimation ─────────────────────────────────
+        # Estimate token counts (approx 4 chars per token) when backend doesn't return them
+        try:
+            _resp_obj = response if 'response' in dir() else None
+            _usage = getattr(_resp_obj, 'usage', None) if _resp_obj else None
+            if _usage:
+                usage_dict = {
+                    "prompt_tokens": getattr(_usage, 'prompt_tokens', 0) or 0,
+                    "completion_tokens": getattr(_usage, 'completion_tokens', 0) or 0,
+                    "total_tokens": getattr(_usage, 'total_tokens', 0) or 0,
+                }
+            else:
+                prompt_chars = sum(len(str(m.get("content", ""))) for m in messages)
+                completion_chars = len(clean_answer)
+                usage_dict = {
+                    "prompt_tokens": prompt_chars // 4,
+                    "completion_tokens": completion_chars // 4,
+                    "total_tokens": (prompt_chars + completion_chars) // 4,
+                }
+        except Exception:
+            usage_dict = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
+        # Determine finish_reason
+        _finish_reason = "stop"
+        if executed_tools_info:
+            _finish_reason = "tool_calls"
+        elif max_tokens and usage_dict.get("completion_tokens", 0) >= (max_tokens - 10):
+            _finish_reason = "length"
+
         return {
+            # ── OpenAI standard fields ──────────────────────────────────────
+            "id": chat_id,
+            "usage": usage_dict,
+            "finish_reason": _finish_reason,
+            # ── Knowledge & RAG fields ──────────────────────────────────────
             "answer": clean_answer,
             "sources": clean_sources,
             "entities": graph_entities,
