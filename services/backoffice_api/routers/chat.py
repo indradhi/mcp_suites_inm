@@ -819,9 +819,9 @@ def list_chat_tools(
     db: Session = Depends(get_db),
     user=Depends(get_current_user)
 ):
-    """Returns active API tools that can be dynamically invoked by the AI during chat."""
+    """Returns active API and MCP tools that can be dynamically invoked by the AI during chat."""
     sources = db.query(KnowledgeSource).filter(
-        KnowledgeSource.source_type.in_(["api", "database"]),
+        KnowledgeSource.source_type.in_(["api", "database", "mcp", "mcp_server"]),
         KnowledgeSource.is_active == True
     ).all()
 
@@ -850,7 +850,36 @@ def list_chat_tools(
     ]
     for s in sources:
         conf = s.config or {}
-        if conf.get("is_tool") or conf.get("parameters"):
+        if s.source_type in ["mcp", "mcp_server"]:
+            mcp_tools = conf.get("tools") or []
+            prefix = f"mcp_{s.name.replace(' ', '_').lower()}_"
+            for t in mcp_tools:
+                if not t.get("enabled", True):
+                    continue
+                raw_name = t.get("name", "tool")
+                clean_name = "".join(c if c.isalnum() or c == "_" else "_" for c in f"{prefix}{raw_name}").lower()
+                params = []
+                if t.get("input_schema") and isinstance(t["input_schema"], dict):
+                    props = t["input_schema"].get("properties", {})
+                    reqs = set(t["input_schema"].get("required", []))
+                    for pname, pinfo in props.items():
+                        params.append({
+                            "name": pname,
+                            "type": pinfo.get("type", "string"),
+                            "description": pinfo.get("description", ""),
+                            "required": pname in reqs
+                        })
+                elif t.get("parameters"):
+                    params = t.get("parameters", [])
+                tools.append({
+                    "source_id": s.id,
+                    "source_type": "mcp_server",
+                    "name": clean_name,
+                    "title": f"{s.name}: {raw_name}",
+                    "description": t.get("description") or f"Remote MCP tool '{raw_name}' from {s.name}",
+                    "parameters": params
+                })
+        elif conf.get("is_tool") or conf.get("parameters"):
             prefix = "db_" if s.source_type == "database" else "api_"
             tool_name = conf.get("tool_name") or f"{prefix}{s.name.replace(' ', '_').lower()}"
             clean_name = "".join(c if c.isalnum() or c == "_" else "_" for c in tool_name).lower()

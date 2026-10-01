@@ -105,7 +105,24 @@ Ingestion is fully async via **Celery** + **Redis** workers with real-time job s
 - **Configurable timeouts**: `CLOUD_LLM_TIMEOUT` (default 60s) and `LOCAL_LLM_TIMEOUT` (default 600s).
 - Live model listing via `/v1/models` or the Backoffice UI **LLM Management** page.
 
-### 11. 💬 Advanced Chat Features
+### 11. 💬 Advanced Chat Features & OpenAI Standard UI
+- **OpenAI Standard Chat History & Session Management**:
+  - Full local conversation persistence (`localStorage`), multiple concurrent sessions, inline session renaming, deletion, and message counters.
+  - Chronological time grouping: *Hari Ini* (Today), *Kemarin* (Yesterday), *7 Hari Terakhir* (Last 7 Days), *Lebih Lama* (Older).
+  - **1-Click Export as OpenAI JSON**: generates standard `{ "model": "...", "messages": [...] }` payload ready for copy or file download (`.json`).
+  - **1-Click Import OpenAI JSON**: loads standard OpenAI Chat Completion JSON traces into a new session seamlessly.
+- **OpenAI o1 / DeepSeek R1 Reasoning Display**:
+  - Interactive collapsible **Reasoning Card** with thought duration in seconds, token and character count approximations.
+  - Dark glass monospace container with 1-click clipboard copy.
+  - **Reasoning Effort Control**: configurable parameter (`auto`, `low`, `medium`, `high`) integrated directly into the chat settings bar and forwarded to `/chat` and `/v1/chat/completions`.
+- **Intelligent Recommendations**:
+  - **Categorized Starter Prompts**: organized by operational domains (Kependudukan & Profiling, Pertanahan & Geospasial, Knowledge Graph & Relasi, Audit & Verifikasi Terpadu) to guide users on fresh chats.
+  - **Contextual Follow-up Chips**: dynamically generated chips under assistant answers based on detected subjects, executed tools (e.g. Dukcapil NIK, BPN persil, SIKAP vendor), and Neo4j relations.
+- **Interactive Tool Explorer Catalog**:
+  - Searchable catalog modal of all registered AI tools with category tabs (*All*, *Databases*, *APIs*, *MCP Remote*).
+  - Detailed parameter schema breakdown (data types, required/optional status, descriptions).
+  - **Use in Chat**: 1-click prompt generation inserting realistic example questions into chat.
+  - **Copy Function Schema**: 1-click export of OpenAI standard Function Calling JSON Schema.
 - **Few-shot auto-tuning**: user "👍 liked" responses are injected as style examples for future answers.
 - **Negative feedback correction**: user "👎 disliked" notes are injected to prevent repeated mistakes.
 - **Strict / Hallucination-free mode**: temperature=0, grounded exclusively on retrieved context.

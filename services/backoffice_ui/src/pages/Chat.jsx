@@ -42,8 +42,10 @@ import {
   ThumbsDown,
   MessageSquare,
   Paperclip,
-  FileSpreadsheet,
-  Workflow
+  Workflow,
+  History,
+  BrainCircuit,
+  FileJson
 } from 'lucide-react';
 import api from '../api/client';
 import { formatTimeWIB } from '../utils/dateUtils';
@@ -51,6 +53,10 @@ import CytoscapeGraph from '../components/graph/CytoscapeGraph';
 import { ValidityBadge } from '../components/common/ValidityTierSelector';
 import GeoJsonMapViewer, { extractPolygonsFromData } from '../components/common/GeoJsonMapViewer';
 import GeoJsonMapModal from '../components/modals/GeoJsonMapModal';
+import ReasoningCard from '../components/chat/ReasoningCard';
+import RecommendationChips, { generateContextualRecommendations } from '../components/chat/RecommendationChips';
+import ExploreToolsModal from '../components/chat/ExploreToolsModal';
+import ChatHistoryDrawer from '../components/chat/ChatHistoryDrawer';
 
 /**
  * Normalizes any image source string into a valid browser image src.
@@ -135,18 +141,76 @@ const extractImagesFromData = (data, maxImages = 8) => {
   return images;
 };
 
+const SESSIONS_STORAGE_KEY = 'mcp_chat_sessions_v1';
+const DEFAULT_WELCOME_MESSAGE = {
+  id: 'welcome-msg',
+  role: 'assistant',
+  content: '👋 **Welcome to the AI Knowledge Chat Playground!**\n\nYou can ask questions about your connected databases, uploaded documents, APIs, and websites. I will retrieve the most relevant knowledge chunks from **ChromaDB**, inspect relationships in **Neo4j**, and generate grounded answers using your configured LLM.',
+  sources: [],
+  entities: [],
+  tools_executed: [],
+  metrics: null
+};
+
 export default function Chat() {
-  const [messages, setMessages] = useState([
-    {
-      id: 'welcome-msg',
-      role: 'assistant',
-      content: '👋 **Welcome to the AI Knowledge Chat Playground!**\n\nYou can ask questions about your connected databases, uploaded documents, APIs, and websites. I will retrieve the most relevant knowledge chunks from **ChromaDB**, inspect relationships in **Neo4j**, and generate grounded answers using your configured LLM.',
-      sources: [],
-      entities: [],
-      tools_executed: [],
-      metrics: null
+  const [sessions, setSessions] = useState(() => {
+    try {
+      const saved = localStorage.getItem(SESSIONS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load chat sessions:', e);
     }
-  ]);
+    const defaultSession = {
+      id: `session-${Date.now()}`,
+      title: 'Obrolan Baru',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      model: '',
+      messages: [DEFAULT_WELCOME_MESSAGE]
+    };
+    return [defaultSession];
+  });
+
+  const [activeSessionId, setActiveSessionId] = useState(() => {
+    try {
+      const lastActive = localStorage.getItem('mcp_active_session_id');
+      if (lastActive) return lastActive;
+    } catch (e) {}
+    return 'default';
+  });
+
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = localStorage.getItem(SESSIONS_STORAGE_KEY);
+      const lastActive = localStorage.getItem('mcp_active_session_id');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const found = parsed.find(s => s.id === lastActive) || parsed[0];
+          if (found && found.messages && found.messages.length > 0) {
+            return found.messages;
+          }
+        }
+      }
+    } catch (e) {}
+    return [DEFAULT_WELCOME_MESSAGE];
+  });
+
+  const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
+  const [isExploreToolsModalOpen, setIsExploreToolsModalOpen] = useState(false);
+  const [reasoningEffort, setReasoningEffort] = useState(() => {
+    return localStorage.getItem('chat_reasoning_effort') || 'auto';
+  });
+
+  const handleReasoningEffortChange = (val) => {
+    setReasoningEffort(val);
+    localStorage.setItem('chat_reasoning_effort', val);
+  };
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [sourcesList, setSourcesList] = useState([]);
@@ -223,6 +287,135 @@ export default function Chat() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Ensure activeSessionId matches an actual session
+  useEffect(() => {
+    if (!sessions.some(s => s.id === activeSessionId)) {
+      if (sessions.length > 0) {
+        setActiveSessionId(sessions[0].id);
+      }
+    }
+  }, [sessions, activeSessionId]);
+
+  // Synchronize messages with sessions in localStorage
+  useEffect(() => {
+    if (!activeSessionId) return;
+
+    setSessions(prevSessions => {
+      const idx = prevSessions.findIndex(s => s.id === activeSessionId);
+      if (idx === -1) return prevSessions;
+
+      const current = prevSessions[idx];
+      let title = current.title;
+      if (!title || title === 'Obrolan Baru' || title === 'New Chat') {
+        const firstUserMsg = messages.find(m => m.role === 'user');
+        if (firstUserMsg && firstUserMsg.content) {
+          title = firstUserMsg.content.slice(0, 36) + (firstUserMsg.content.length > 36 ? '...' : '');
+        }
+      }
+
+      const updated = [...prevSessions];
+      updated[idx] = {
+        ...current,
+        title,
+        updated_at: new Date().toISOString(),
+        model: selectedModelName || current.model,
+        messages
+      };
+
+      try {
+        localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(updated));
+        localStorage.setItem('mcp_active_session_id', activeSessionId);
+      } catch (err) {
+        console.warn('LocalStorage save error:', err);
+      }
+      return updated;
+    });
+  }, [messages, activeSessionId, selectedModelName]);
+
+  const handleSelectSession = (sessionId) => {
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) return;
+    setActiveSessionId(sessionId);
+    setMessages(session.messages || [DEFAULT_WELCOME_MESSAGE]);
+    if (session.model) {
+      setSelectedModelName(session.model);
+    }
+    localStorage.setItem('mcp_active_session_id', sessionId);
+  };
+
+  const handleNewChat = () => {
+    const newSession = {
+      id: `session-${Date.now()}`,
+      title: 'Obrolan Baru',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      model: selectedModelName || '',
+      messages: [DEFAULT_WELCOME_MESSAGE]
+    };
+    const updated = [newSession, ...sessions];
+    setSessions(updated);
+    setActiveSessionId(newSession.id);
+    setMessages([DEFAULT_WELCOME_MESSAGE]);
+    try {
+      localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(updated));
+      localStorage.setItem('mcp_active_session_id', newSession.id);
+    } catch (e) {}
+  };
+
+  const handleDeleteSession = (sessionId) => {
+    const remaining = sessions.filter(s => s.id !== sessionId);
+    if (remaining.length === 0) {
+      const fresh = {
+        id: `session-${Date.now()}`,
+        title: 'Obrolan Baru',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        model: selectedModelName || '',
+        messages: [DEFAULT_WELCOME_MESSAGE]
+      };
+      setSessions([fresh]);
+      setActiveSessionId(fresh.id);
+      setMessages([DEFAULT_WELCOME_MESSAGE]);
+      localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify([fresh]));
+      localStorage.setItem('mcp_active_session_id', fresh.id);
+    } else {
+      setSessions(remaining);
+      localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(remaining));
+      if (activeSessionId === sessionId) {
+        const next = remaining[0];
+        setActiveSessionId(next.id);
+        setMessages(next.messages || [DEFAULT_WELCOME_MESSAGE]);
+        localStorage.setItem('mcp_active_session_id', next.id);
+      }
+    }
+  };
+
+  const handleRenameSession = (sessionId, newTitle) => {
+    const updated = sessions.map(s => s.id === sessionId ? { ...s, title: newTitle, updated_at: new Date().toISOString() } : s);
+    setSessions(updated);
+    localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(updated));
+  };
+
+  const handleImportOpenAI = (importedData) => {
+    const newSession = {
+      id: `session-${Date.now()}`,
+      title: importedData.title || 'Imported OpenAI Chat',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      model: importedData.model || selectedModelName || '',
+      messages: importedData.messages || [DEFAULT_WELCOME_MESSAGE]
+    };
+    const updated = [newSession, ...sessions];
+    setSessions(updated);
+    setActiveSessionId(newSession.id);
+    setMessages(newSession.messages);
+    if (importedData.model) {
+      setSelectedModelName(importedData.model);
+    }
+    localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(updated));
+    localStorage.setItem('mcp_active_session_id', newSession.id);
+  };
 
   const toggleSourceSelection = (sourceId) => {
     setSelectedSources(prev => {
@@ -506,7 +699,8 @@ export default function Chat() {
         doc_id: currentAttachedDoc?.doc_id || null,
         document_data: currentAttachedDoc || null,
         strict_mode: strictMode,
-        temperature: temperature
+        temperature: temperature,
+        reasoning_effort: reasoningEffort !== 'auto' ? reasoningEffort : undefined
       }, {
         timeout: 600000 // 10 minutes timeout for local AI compute & multi-turn tool calling
       });
@@ -606,16 +800,7 @@ export default function Chat() {
   };
 
   const handleClear = () => {
-    setMessages([
-      {
-        id: 'welcome-msg',
-        role: 'assistant',
-        content: 'Conversation reset. Ask any question about your indexed knowledge base!',
-        sources: [],
-        entities: [],
-        metrics: null
-      }
-    ]);
+    handleNewChat();
   };
 
   const samplePrompts = [
@@ -1931,6 +2116,75 @@ export default function Chat() {
 
           {/* Right: Quick actions & Expand Button */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Chat History Button */}
+            <button
+              type="button"
+              onClick={() => setIsHistoryDrawerOpen(true)}
+              title="Buka Riwayat Percakapan (OpenAI Standard Sessions)"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '5px 10px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: '600',
+                border: '1px solid rgba(99, 102, 241, 0.35)',
+                background: 'rgba(99, 102, 241, 0.12)',
+                color: '#c7d2fe',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(99, 102, 241, 0.25)';
+                e.currentTarget.style.color = '#ffffff';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(99, 102, 241, 0.12)';
+                e.currentTarget.style.color = '#c7d2fe';
+              }}
+            >
+              <History size={13} />
+              <span>History</span>
+              {sessions.length > 0 && (
+                <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.3)', color: '#ffffff' }}>
+                  {sessions.length}
+                </span>
+              )}
+            </button>
+
+            {/* Explore Tools Button */}
+            <button
+              type="button"
+              onClick={() => setIsExploreToolsModalOpen(true)}
+              title="Katalog Lengkap Tools & Parameter Schema"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '5px 10px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: '600',
+                border: '1px solid rgba(6, 182, 212, 0.35)',
+                background: 'rgba(6, 182, 212, 0.12)',
+                color: 'var(--accent-cyan)',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(6, 182, 212, 0.25)';
+                e.currentTarget.style.color = '#ffffff';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(6, 182, 212, 0.12)';
+                e.currentTarget.style.color = 'var(--accent-cyan)';
+              }}
+            >
+              <Zap size={13} />
+              <span>Explore Tools</span>
+            </button>
+
             {/* Reset button */}
             <button
               onClick={handleClear}
@@ -2695,6 +2949,105 @@ export default function Chat() {
             </select>
           </div>
 
+          {/* Reasoning Effort Selector (OpenAI Standard o1/o3/DeepSeek) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '12px', color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <BrainCircuit size={13} color="#fbbf24" />
+              Reasoning:
+            </span>
+            <select
+              value={reasoningEffort}
+              onChange={(e) => handleReasoningEffortChange(e.target.value)}
+              title="OpenAI Reasoning Effort parameter ('low', 'medium', 'high', 'auto')"
+              style={{
+                background: 'rgba(15, 23, 42, 0.8)',
+                border: '1px solid rgba(245, 158, 11, 0.4)',
+                color: '#fcd34d',
+                padding: '8px 8px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: '600',
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="auto">Auto (Default)</option>
+              <option value="low">Low (Cepat / Hemat)</option>
+              <option value="medium">Medium (Standar)</option>
+              <option value="high">High (Mendalam / Riset)</option>
+            </select>
+          </div>
+
+          {/* Explore Tools Catalog Button */}
+          <button
+            type="button"
+            onClick={() => setIsExploreToolsModalOpen(true)}
+            title="Buka katalog interaktif tools dan schema parameter"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 12px',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: '600',
+              border: '1px solid rgba(6, 182, 212, 0.4)',
+              background: 'rgba(6, 182, 212, 0.12)',
+              color: 'var(--accent-cyan)',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            <Zap size={14} />
+            <span>Explore Tools</span>
+            {activeTools.length > 0 && (
+              <span style={{
+                background: 'rgba(6, 182, 212, 0.25)',
+                color: '#ffffff',
+                fontSize: '11px',
+                padding: '1px 6px',
+                borderRadius: '10px'
+              }}>
+                {activeTools.length}
+              </span>
+            )}
+          </button>
+
+          {/* Chat History Button */}
+          <button
+            type="button"
+            onClick={() => setIsHistoryDrawerOpen(true)}
+            title="Buka Riwayat Percakapan (OpenAI Standard Sessions)"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 12px',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: '600',
+              border: '1px solid rgba(99, 102, 241, 0.4)',
+              background: 'rgba(99, 102, 241, 0.12)',
+              color: '#c7d2fe',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            <History size={14} />
+            <span>History</span>
+            {sessions.length > 0 && (
+              <span style={{
+                background: 'rgba(99, 102, 241, 0.3)',
+                color: '#ffffff',
+                fontSize: '11px',
+                padding: '1px 6px',
+                borderRadius: '10px'
+              }}>
+                {sessions.length}
+              </span>
+            )}
+          </button>
+
           {/* Clear Button */}
           <button
             onClick={handleClear}
@@ -3038,67 +3391,27 @@ export default function Chat() {
                     </div>
                   )}
 
-                  {/* Collapsible Thinking Process Drawer (Assistant only) */}
+                  {/* OpenAI Standard Reasoning Card (Collapsible, stats, copy) */}
                   {isAssistant && msg.thinking && (
-                    <div style={{
-                      marginBottom: '14px',
-                      borderRadius: '10px',
-                      border: '1px solid rgba(245, 158, 11, 0.25)',
-                      background: 'rgba(15, 23, 42, 0.65)',
-                      overflow: 'hidden'
-                    }}>
-                      <button
-                        onClick={() => toggleThinking(msg.id)}
-                        style={{
-                          width: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '8px 14px',
-                          background: 'rgba(30, 41, 59, 0.5)',
-                          border: 'none',
-                          color: '#fbbf24',
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          cursor: 'pointer',
-                          transition: 'background 0.2s'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(30, 41, 59, 0.8)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(30, 41, 59, 0.5)'}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <Lightbulb size={15} color="#f59e0b" />
-                          <span>Thought Process / Reasoning</span>
-                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 'normal' }}>
-                            ({msg.thinking.length} chars)
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#94a3b8' }}>
-                          <span>{expandedThinking[msg.id] ? 'Hide' : 'Show'}</span>
-                          {expandedThinking[msg.id] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                        </div>
-                      </button>
-
-                      {expandedThinking[msg.id] && (
-                        <div style={{
-                          padding: '12px 14px',
-                          fontSize: '12px',
-                          lineHeight: '1.6',
-                          color: '#94a3b8',
-                          fontFamily: 'JetBrains Mono, monospace',
-                          whiteSpace: 'pre-wrap',
-                          maxHeight: '260px',
-                          overflowY: 'auto',
-                          borderTop: '1px solid rgba(245, 158, 11, 0.15)',
-                          background: 'rgba(10, 15, 29, 0.6)'
-                        }}>
-                          {msg.thinking}
-                        </div>
-                      )}
-                    </div>
+                    <ReasoningCard
+                      thinking={msg.thinking}
+                      isLoading={false}
+                      duration={msg.metrics?.total_time ? Number(msg.metrics.total_time).toFixed(1) : null}
+                      isExpanded={Boolean(expandedThinking[msg.id])}
+                      onToggle={() => toggleThinking(msg.id)}
+                    />
                   )}
 
                   {renderFormattedContent(msg.content)}
+
+                  {/* Starter recommendations for new conversation (Welcome state) */}
+                  {msg.id === 'welcome-msg' && messages.length === 1 && (
+                    <RecommendationChips
+                      variant="starter"
+                      disabled={loading}
+                      onSelectPrompt={(p) => handleSend(p)}
+                    />
+                  )}
 
                   {/* Biometric Face Recognition Result Card (Assistant only) */}
                   {isAssistant && msg.face_recognition && (() => {
@@ -4050,6 +4363,14 @@ export default function Chat() {
                         </div>
                       </div>
                     )}
+
+                    {/* Contextual Recommendation Chips */}
+                    <RecommendationChips
+                      variant="contextual"
+                      suggestions={generateContextualRecommendations(msg)}
+                      disabled={loading}
+                      onSelectPrompt={(p) => handleSend(p)}
+                    />
                   </div>
                 )}
 
@@ -4827,6 +5148,33 @@ export default function Chat() {
         isOpen={Boolean(geoJsonModalData)}
         onClose={() => setGeoJsonModalData(null)}
         modalData={geoJsonModalData}
+      />
+
+      {/* OpenAI Standard Chat History Drawer */}
+      <ChatHistoryDrawer
+        isOpen={isHistoryDrawerOpen}
+        onClose={() => setIsHistoryDrawerOpen(false)}
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        onSelectSession={handleSelectSession}
+        onNewChat={handleNewChat}
+        onDeleteSession={handleDeleteSession}
+        onRenameSession={handleRenameSession}
+        onImportOpenAI={handleImportOpenAI}
+        currentModel={selectedModelName || 'Qwen/Qwen3.6-35B-A3B-FP8'}
+      />
+
+      {/* Explore Tools Catalog Modal */}
+      <ExploreToolsModal
+        isOpen={isExploreToolsModalOpen}
+        onClose={() => setIsExploreToolsModalOpen(false)}
+        tools={activeTools}
+        onUsePrompt={(prompt) => {
+          setInput(prompt);
+          if (textareaRef.current) {
+            textareaRef.current.focus();
+          }
+        }}
       />
     </div>
   );
