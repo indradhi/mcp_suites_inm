@@ -15,8 +15,80 @@ from models.knowledge_source import KnowledgeSource
 from models.chat_feedback import ChatFeedback
 from services.chat_service import chat_service
 from services.document_parser import document_parser
+from models.api_key import ApiKey
 
 logger = logging.getLogger(__name__)
+
+
+async def get_user_flexible(request: Request, db: Session = Depends(get_db)):
+    """
+    Flexible auth for OpenAI-compatible endpoints.
+    Accepts either:
+      - Standard JWT Bearer token (backoffice users)
+      - mcp_<key> API key (same keys used by MCP clients)
+    Returns a user or minimal user-like object with .id and .username.
+    """
+    import hashlib
+    from fastapi.security.utils import get_authorization_scheme_param
+    from security import decode_token
+    from datetime import datetime
+
+    authorization = request.headers.get("Authorization", "")
+    scheme, credentials = get_authorization_scheme_param(authorization)
+
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Authorization header required")
+
+    # ── mcp_ API key path ────────────────────────────────────────────────────
+    if credentials.startswith("mcp_"):
+        from security import verify_password
+        key_prefix = credentials[:8]
+        candidates = db.query(ApiKey).filter(
+            ApiKey.key_prefix == key_prefix,
+            ApiKey.is_active == True
+        ).all()
+        if not candidates:
+            candidates = db.query(ApiKey).filter(ApiKey.is_active == True).all()
+
+        api_key_obj = None
+        for ak in candidates:
+            if verify_password(credentials, ak.key_hash):
+                api_key_obj = ak
+                break
+
+        if not api_key_obj:
+            raise HTTPException(status_code=401, detail="Invalid or revoked MCP API key")
+        if api_key_obj.expires_at and api_key_obj.expires_at < datetime.utcnow():
+            raise HTTPException(status_code=401, detail="MCP API key has expired")
+        # Update last_used_at
+        try:
+            api_key_obj.last_used_at = datetime.utcnow()
+            db.commit()
+        except Exception:
+            db.rollback()
+
+        class _ApiKeyUser:
+            id = api_key_obj.id
+            username = api_key_obj.name or "api_key_user"
+            role = "editor"
+        return _ApiKeyUser()
+
+    # ── JWT Bearer token path ────────────────────────────────────────────────
+    try:
+        payload = decode_token(credentials)
+        username = payload.get("sub")
+        if not username or payload.get("type") != "access":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+        from models.user import User
+        user = db.query(User).filter(User.username == username, User.is_active == True).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found or disabled")
+        return user
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token or API key")
+
 
 router = APIRouter(prefix="/chat", tags=["AI Knowledge Chat"])
 openai_router = APIRouter(prefix="/v1", tags=["OpenAI Compatible API"])
@@ -377,7 +449,7 @@ async def chat_stream_endpoint(
 async def openai_chat_completions(
     request: Request,
     db: Session = Depends(get_db),
-    user=Depends(get_current_user)
+    user=Depends(get_user_flexible)
 ):
     """
     OpenAI-compatible /v1/chat/completions endpoint.

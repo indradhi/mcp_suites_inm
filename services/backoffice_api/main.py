@@ -15,7 +15,7 @@ from models.api_key import ApiKey
 from security import get_current_user
 
 from routers import auth, users, knowledge, jobs, graph, llm_backends, chat, face, personality, orchestrator, api_keys, database_settings
-from routers.chat import openai_router
+from routers.chat import openai_router, get_user_flexible
 from models.orchestration_flow import OrchestrationFlow
 from services.flow_orchestrator import flow_orchestrator
 
@@ -95,7 +95,7 @@ app.include_router(openai_router)
 
 
 @app.get("/v1/models", tags=["OpenAI Compatible API"])
-def list_openai_models(db: Session = Depends(get_db), user=Depends(get_current_user)):
+def list_openai_models(db: Session = Depends(get_db), user=Depends(get_user_flexible)):
     """
     OpenAI-compatible GET /v1/models — returns available LLM backends as model objects.
     Compatible with any OpenAI SDK client.

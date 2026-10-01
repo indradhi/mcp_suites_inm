@@ -198,11 +198,15 @@ Default admin credentials: **`admin`** / **`admin123`**
 
 | Service | Dev URL | Production URL | Description |
 |---|---|---|---|
-| **Backoffice UI** | [http://localhost:5173](http://localhost:5173) | `http://<server-ip>/` | Full management dashboard |
+| **Backoffice UI** | [http://localhost:5173](http://localhost:5173) | `http://<server-ip>/` (or `:8092`) | Full management dashboard |
+| **OpenAI-compat API (via UI Proxy)** | [http://localhost:5173/v1](http://localhost:5173/v1) | — | OpenAI API proxied through Vite dev server |
+| **OpenAI-compat API (Direct)** | [http://localhost:8002/v1](http://localhost:8002/v1) | `http://<server-ip>/v1` (or `:8092/v1`) | Full OpenAI Chat Completions & Models API |
 | **Backoffice API Docs** | [http://localhost:8002/docs](http://localhost:8002/docs) | `http://<server-ip>/docs` | Interactive Swagger UI |
 | **MCP SSE Endpoint** | [http://localhost:8001/sse](http://localhost:8001/sse) | `http://<server-ip>/sse` | OpenWebUI / MCP clients |
-| **OpenAI-compat API** | [http://localhost:8002/v1](http://localhost:8002/v1) | `http://<server-ip>/v1` | Any OpenAI SDK client |
 | **Neo4j Browser** | [http://localhost:7474](http://localhost:7474) | `http://<server-ip>:7474` | Graph explorer |
+
+> **Authentication Note for `/v1/*` endpoints**:
+> Both standard **JWT Bearer tokens** and **`mcp_<key>` API keys** (created in Backoffice API Keys page) are accepted in the `Authorization: Bearer <token_or_key>` header!
 
 ---
 
@@ -217,38 +221,79 @@ Default admin credentials: **`admin`** / **`admin123`**
 3. **Save & Test** — discovered tools appear automatically.
 
 ### OpenAI SDK Client
+Works with standard Python or TypeScript `openai` library using either a Backoffice JWT token or an `mcp_<key>` API key:
+
 ```python
 from openai import OpenAI
 
 client = OpenAI(
-    base_url="http://<server-ip>:8002/",
-    api_key="<backoffice-jwt-token>"
+    base_url="http://localhost:5173/v1",  # Or http://localhost:8002/v1
+    api_key="mcp_02caa26affbe30263fe91f894a3a16a82fdb3e8e5d8efd80665b73f9fa54af9f"  # MCP API Key or JWT token
 )
 
-# Standard chat — fully OpenAI-compatible
+# Standard chat completion — fully OpenAI-compatible
 response = client.chat.completions.create(
-    model="Qwen/Qwen3-35B-A22B",
-    messages=[{"role": "user", "content": "Siapa kepala daerah Kota X?"}],
-    temperature=0.3,
-    stream=True,                              # ✅ Streaming
-    response_format={"type": "json_object"},  # ✅ Structured output
+    model="Qwen/Qwen3.6-35B-A3B-FP8",
+    messages=[
+        {"role": "developer", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Who won the world series in 2020?"},
+        {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
+        {"role": "user", "content": "Where was it played?"}
+    ],
+    temperature=0.0
 )
+print(response.choices[0].message.content)
+
+# Streaming completion
+stream = client.chat.completions.create(
+    model="Qwen/Qwen3.6-35B-A3B-FP8",
+    messages=[{"role": "user", "content": "Explain hybrid RAG in two sentences."}],
+    stream=True
+)
+for chunk in stream:
+    if chunk.choices[0].delta.content:
+        print(chunk.choices[0].delta.content, end="", flush=True)
 
 # List available models
 models = client.models.list()
+for m in models.data:
+    print(m.id, "-", m.owned_by)
 ```
 
-### curl Example (Streaming)
+### curl Examples
+
+#### 1. Standard Chat Completion (Non-Streaming)
 ```bash
-curl -N http://localhost:8002/v1/chat/completions \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "Qwen/Qwen3-35B-A22B",
-    "messages": [{"role": "user", "content": "Cari data NIK 3273011234560001"}],
-    "stream": true,
-    "temperature": 0.0
+curl --location 'http://localhost:5173/v1/chat/completions' \
+  --header 'Content-Type: application/json' \
+  --header 'Authorization: Bearer mcp_02caa26affbe30263fe91f894a3a16a82fdb3e8e5d8efd80665b73f9fa54af9f' \
+  --data '{
+    "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+    "messages": [
+      {"role": "developer", "content": "You are a helpful assistant."},
+      {"role": "user", "content": "Who won the world series in 2020?"},
+      {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
+      {"role": "user", "content": "Where was it played?"}
+    ]
   }'
+```
+
+#### 2. Streaming Chat Completion (SSE)
+```bash
+curl -N --location 'http://localhost:5173/v1/chat/completions' \
+  --header 'Content-Type: application/json' \
+  --header 'Authorization: Bearer mcp_02caa26affbe30263fe91f894a3a16a82fdb3e8e5d8efd80665b73f9fa54af9f' \
+  --data '{
+    "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+    "messages": [{"role": "user", "content": "Halo, sebutkan fitur utama MCP ini"}],
+    "stream": true
+  }'
+```
+
+#### 3. List Available Models
+```bash
+curl --location 'http://localhost:5173/v1/models' \
+  --header 'Authorization: Bearer mcp_02caa26affbe30263fe91f894a3a16a82fdb3e8e5d8efd80665b73f9fa54af9f'
 ```
 
 ---
