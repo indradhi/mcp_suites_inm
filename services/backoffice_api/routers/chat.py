@@ -234,6 +234,7 @@ class ChatRequest(BaseModel):
     include_graph: Optional[bool] = True
     top_k: Optional[int] = 20
     strict_mode: Optional[bool] = True
+    clear_prior_context: Optional[bool] = False  # Reset working context memory (Anti-Rot fresh topic)
     # ── OpenAI standard sampling parameters ──────────────────────────
     temperature: Optional[float] = None
     top_p: Optional[float] = None          # Nucleus sampling (0-1)
@@ -271,6 +272,7 @@ class ChatResponse(BaseModel):
     thinking: Optional[str] = None
     strict_mode: Optional[bool] = True
     temperature: Optional[float] = None
+    context_rot_guard: Optional[Dict[str, Any]] = None
     # ── OpenAI standard usage tracking ───────────────────────────────
     usage: Optional[Dict[str, Any]] = None  # prompt_tokens, completion_tokens, total_tokens
     finish_reason: Optional[str] = None    # "stop", "tool_calls", "length", "content_filter"
@@ -350,6 +352,8 @@ def chat_with_knowledge_endpoint(
         effective_message = "Analisis data yang disediakan."
 
     history_dicts = [{"role": h.role, "content": h.content} for h in req.history or []]
+    if req.clear_prior_context:
+        history_dicts = []
 
     # Consolidate source_ids and single source_id
     effective_source_ids = []
@@ -465,6 +469,8 @@ async def chat_stream_endpoint(
         "Analisis data yang disediakan."
     )
     history_dicts = [{"role": h.role, "content": h.content} for h in req.history or []]
+    if req.clear_prior_context:
+        history_dicts = []
     effective_source_ids = []
     if req.source_ids:
         effective_source_ids = [int(sid) for sid in req.source_ids if sid is not None]

@@ -8,6 +8,7 @@ from services.vector_store import vector_store
 from services.graph.neo4j_client import neo4j_client
 from services.llm_service import llm_service
 from services.personality_service import personality_service
+from services.context_rot_guard import context_rot_guard
 
 logger = logging.getLogger(__name__)
 
@@ -797,11 +798,23 @@ Patuhi aturan:
 4. PENCARIAN KARTU KELUARGA (KK): Jika pertanyaan menyangkut Kartu Keluarga (KK) atau Nomor KK, Anda WAJIB menampilkan SELURUH anggota keluarga yang terdaftar dalam KK tersebut (Kepala Keluarga, Istri/Pasangan, dan Anak/Famili Lain) secara berurutan dan lengkap (1, 2, 3, dst.). DILARANG BERHENTI setelah hanya menampilkan Kepala Keluarga jika konteks memuat anggota keluarga lainnya.
 5. FOTO PROFIL: Untuk setiap orang/anggota keluarga yang memiliki foto dalam basis data, sertakan tag Markdown: `![Foto Profil - NAMA_LENGKAP](foto_resmi)`. DILARANG KERAS menyalin atau menuliskan kode base64 mentah dalam teks jawaban."""
 
+        # ── ANTI-CONTEXT-ROT GUARD (Poisoning, Distraction, Confusion Prevention) ──
+        sanitized_history, rot_metrics = context_rot_guard.sanitize_and_compact_history(
+            current_message=message,
+            raw_history=history,
+            valid_tools=tools,
+            tool_dispatch_map=tool_dispatch_map
+        )
+        # Append anti-rot directive to system instruction
+        system_instruction += context_rot_guard.get_anti_rot_system_directive(
+            is_task_shift=rot_metrics.get("task_shift_detected", False)
+        )
+
         # Prepare messages
         messages = [{"role": "system", "content": system_instruction}]
         
-        # Add recent conversational history (up to last 6 turns)
-        for h in history[-6:]:
+        # Add sanitized & compacted conversational history (Anti-Rot Protected)
+        for h in sanitized_history:
             role = h.get("role", "user")
             content = h.get("content", "")
             if role in ["user", "assistant"] and content:
@@ -1552,6 +1565,7 @@ Patuhi aturan:
             "strict_mode": strict_mode,
             "temperature": effective_temperature,
             "matched_flow": matched_flow_res.get("flow") if (matched_flow_res and matched_flow_res.get("matched")) else None,
+            "context_rot_guard": rot_metrics,
             "metrics": {
                 "chunks_retrieved": len(retrieved_chunks),
                 "entities_retrieved": len(graph_entities),
@@ -1562,7 +1576,8 @@ Patuhi aturan:
                 "uploaded_document_name": uploaded_document.get("file_name") if uploaded_document else None,
                 "strict_mode": strict_mode,
                 "temperature": effective_temperature,
-                "latency_ms": elapsed_ms
+                "latency_ms": elapsed_ms,
+                "context_rot_guard": rot_metrics
             }
         }
 

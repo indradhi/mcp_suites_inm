@@ -45,7 +45,8 @@ import {
   Workflow,
   History,
   BrainCircuit,
-  FileJson
+  FileJson,
+  RotateCcw
 } from 'lucide-react';
 import api from '../api/client';
 import { formatTimeWIB } from '../utils/dateUtils';
@@ -203,6 +204,7 @@ export default function Chat() {
 
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
   const [isExploreToolsModalOpen, setIsExploreToolsModalOpen] = useState(false);
+  const [contextResetIndex, setContextResetIndex] = useState(0);
   const [reasoningEffort, setReasoningEffort] = useState(() => {
     return localStorage.getItem('chat_reasoning_effort') || 'auto';
   });
@@ -338,6 +340,7 @@ export default function Chat() {
     if (!session) return;
     setActiveSessionId(sessionId);
     setMessages(session.messages || [DEFAULT_WELCOME_MESSAGE]);
+    setContextResetIndex(0);
     if (session.model) {
       setSelectedModelName(session.model);
     }
@@ -357,10 +360,23 @@ export default function Chat() {
     setSessions(updated);
     setActiveSessionId(newSession.id);
     setMessages([DEFAULT_WELCOME_MESSAGE]);
+    setContextResetIndex(0);
     try {
       localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(updated));
       localStorage.setItem('mcp_active_session_id', newSession.id);
     } catch (e) {}
+  };
+
+  const handleNewTopic = () => {
+    const dividerId = `topic-divider-${Date.now()}`;
+    const dividerMsg = {
+      id: dividerId,
+      role: 'divider',
+      content: '🎯 Topik Baru Dimulai — Context & Working Memory Disegarkan (Anti-Rot Aktif)',
+      timestamp: formatTimeWIB(new Date())
+    };
+    setMessages(prev => [...prev, dividerMsg]);
+    setContextResetIndex(messages.length + 1);
   };
 
   const handleDeleteSession = (sessionId) => {
@@ -680,9 +696,10 @@ export default function Chat() {
     setAttachedDocument(null);
     setLoading(true);
 
-    // Prepare conversational history (exclude welcome message)
-    const historyPayload = newMessages
-      .filter(m => m.id !== 'welcome-msg')
+    // Prepare conversational history (respect context reset index & exclude dividers/welcome)
+    const historySlice = contextResetIndex > 0 ? newMessages.slice(contextResetIndex) : newMessages;
+    const historyPayload = historySlice
+      .filter(m => m.id !== 'welcome-msg' && m.role !== 'divider')
       .map(m => ({ role: m.role, content: m.content }));
 
     try {
@@ -729,6 +746,7 @@ export default function Chat() {
         model_used: res.data.model_used,
         backend_name: res.data.backend_name,
         metrics: res.data.metrics || null,
+        context_rot_guard: res.data.context_rot_guard || null,
         timestamp: formatTimeWIB(new Date())
       };
 
@@ -2185,6 +2203,38 @@ export default function Chat() {
               <span>Explore Tools</span>
             </button>
 
+            {/* New Topic / Fresh Context Button */}
+            <button
+              type="button"
+              onClick={handleNewTopic}
+              title="Mulai Topik Baru (Segarkan Working Memory & Hindari Context Rot tanpa menghapus pesan di layar)"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '5px 10px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: '600',
+                border: '1px solid rgba(16, 185, 129, 0.35)',
+                background: 'rgba(16, 185, 129, 0.12)',
+                color: '#34d399',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(16, 185, 129, 0.25)';
+                e.currentTarget.style.color = '#ffffff';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(16, 185, 129, 0.12)';
+                e.currentTarget.style.color = '#34d399';
+              }}
+            >
+              <RotateCcw size={13} />
+              <span>Topik Baru</span>
+            </button>
+
             {/* Reset button */}
             <button
               onClick={handleClear}
@@ -3048,6 +3098,38 @@ export default function Chat() {
             )}
           </button>
 
+          {/* New Topic / Fresh Context Button */}
+          <button
+            type="button"
+            onClick={handleNewTopic}
+            title="Mulai Topik Baru (Segarkan Working Memory & Hindari Context Rot tanpa menghapus pesan di layar)"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 12px',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: '600',
+              border: '1px solid rgba(16, 185, 129, 0.4)',
+              background: 'rgba(16, 185, 129, 0.12)',
+              color: '#34d399',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(16, 185, 129, 0.25)';
+              e.currentTarget.style.color = '#ffffff';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(16, 185, 129, 0.12)';
+              e.currentTarget.style.color = '#34d399';
+            }}
+          >
+            <RotateCcw size={14} />
+            <span>Topik Baru</span>
+          </button>
+
           {/* Clear Button */}
           <button
             onClick={handleClear}
@@ -3247,6 +3329,31 @@ export default function Chat() {
         }}
       >
         {messages.map((msg) => {
+          if (msg.role === 'divider') {
+            return (
+              <div key={msg.id} style={{ display: 'flex', alignItems: 'center', gap: '16px', margin: '14px 0', width: '100%' }}>
+                <div style={{ flex: 1, height: '1px', background: 'linear-gradient(to right, transparent, rgba(16, 185, 129, 0.4), rgba(16, 185, 129, 0.2))' }} />
+                <span style={{
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  color: '#34d399',
+                  background: 'rgba(16, 185, 129, 0.12)',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  padding: '5px 16px',
+                  borderRadius: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.15)'
+                }}>
+                  <ShieldCheck size={14} color="#10b981" />
+                  {msg.content}
+                </span>
+                <div style={{ flex: 1, height: '1px', background: 'linear-gradient(to left, transparent, rgba(16, 185, 129, 0.4), rgba(16, 185, 129, 0.2))' }} />
+              </div>
+            );
+          }
+
           const isUser = msg.role === 'user';
           const isAssistant = msg.role === 'assistant';
 
@@ -4149,6 +4256,25 @@ export default function Chat() {
                               <ShieldCheck size={11} />
                               {msg.metrics.strict_mode !== false ? 'Faktual (Anti-Halu)' : `Fleksibel (${msg.metrics.temperature || 0.3})`}
                             </span>
+                            {msg.context_rot_guard && (
+                              <span 
+                                title={`Anti-Context-Rot Guard: ${msg.context_rot_guard.poisoning_neutralized} halusinasi dinetralisir, ${msg.context_rot_guard.large_tables_compacted} tabel dipadatkan, ~${msg.context_rot_guard.estimated_tokens_saved} token dihemat.`}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  color: msg.context_rot_guard.task_shift_detected ? '#38bdf8' : '#a78bfa',
+                                  background: msg.context_rot_guard.task_shift_detected ? 'rgba(56, 189, 248, 0.1)' : 'rgba(167, 139, 250, 0.1)',
+                                  padding: '1px 6px',
+                                  borderRadius: '4px',
+                                  border: `1px solid ${msg.context_rot_guard.task_shift_detected ? 'rgba(56, 189, 248, 0.25)' : 'rgba(167, 139, 250, 0.25)'}`,
+                                  fontWeight: '500'
+                                }}
+                              >
+                                <ShieldCheck size={11} />
+                                {msg.context_rot_guard.task_shift_detected ? 'Anti-Rot: Fresh Plan' : `Anti-Rot: Optimal (~${msg.context_rot_guard.estimated_tokens_saved} tok)`}
+                              </span>
+                            )}
                           </>
                         ) : (
                           <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-muted)' }}>

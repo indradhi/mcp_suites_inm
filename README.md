@@ -35,7 +35,10 @@ Full compliance with the **OpenAI Chat Completions standard** (based on the Open
 Streaming is also available on the Backoffice API at `POST /api/chat/stream`.
 
 ### 3. 📚 Hybrid RAG — Vector + Graph Knowledge Retrieval
-- **ChromaDB Vector Store**: Semantic similarity search across all ingested documents.
+- **Dual Vector Store Engine (ChromaDB + Qdrant)**:
+  - **ChromaDB**: Embedded high-speed vector retrieval for local documents.
+  - **Qdrant**: Enterprise distributed vector engine with payload filtering and high-concurrency ANN search.
+  - **Vector Database Synchronization (`ChromaDB ⇄ Qdrant`)**: 1-click migration and bi-directional synchronization directly from Backoffice Database Settings, complete with on-the-fly dimension adaptation/re-embedding (e.g. 384-dim vs 1024-dim/1536-dim) and optional real-time dual-write (`VECTOR_DB_DUAL_WRITE=true`).
 - **Neo4j Knowledge Graph**: Entity & relationship extraction with multi-hop traversal.
 - **Hybrid Scoring**: 70% semantic relevance + 30% authority validity score per chunk.
 - **Validity Tier System** — every knowledge source is rated:
@@ -131,13 +134,29 @@ Ingestion is fully async via **Celery** + **Redis** workers with real-time job s
 - **Thinking / reasoning transparency**: `<think>` blocks and `reasoning_content` extracted and returned separately.
 - **Photo auto-healing**: entity-aware base64 photo injection from tool results matched to LLM output.
 
-### 12. 🔐 Security & RBAC
+### 12. 🛡️ Anti-Context-Rot Guard & Working Memory Architecture
+Pada sesi percakapan investigasi atau analitik multi-turn yang panjang, riwayat chat secara akumulatif menyimpan seluruh riwayat, termasuk respons keliru, halusinasi, dump payload data mentah, dan informasi usang. Ketika model LLM membaca ulang seluruh riwayat tersebut di setiap langkah berikutnya, terjadi degradasi penalaran dan akurasi yang dikenal sebagai **Context Rot**.
+
+MCP Server dilengkapi dengan **Anti-Context-Rot Guard Engine** (`services/backoffice_api/services/context_rot_guard.py`) yang secara proaktif mendeteksi, memetakan, dan menetralkan 3 mode kegagalan utama:
+
+| Mode Context Rot | Gejala & Dampak | Mekanisme Pertahanan Sistem (Anti-Rot Guard) |
+|---|---|---|
+| **1. Poisoning** *(Keracunan Konteks)* | Satu halusinasi kecil (misal: nama function/tool fiktif, parameter tidak valid, atau fakta keliru) masuk ke riwayat asisten. Di giliran berikutnya, LLM menganggap riwayat asisten tersebut sebagai kebenaran mutlak (*ground truth*), lalu terus-menerus memanggil function tersebut atau mengulang kekeliruan secara rekursif. | • **Tool Whitelist Verification**: Memindai riwayat respons asisten terhadap `tool_dispatch_map` resmi. Tool call fiktif langsung dinetralisir menjadi komentar aman: `[alat/fungsi non-resmi telah dinetralisir]`.<br>• **Traceback Sanitization**: Membersihkan dump error stack trace teknis dari giliran lama agar LLM tidak terfokus pada pesan error teknis usang.<br>• **Apology Stripping**: Menghapus pola minta maaf berulang ("Maaf saya salah...", "Mohon maaf...") yang memicu bias ketidakpastian (*uncertainty bias*) pada LLM.<br>• **Anti-Poisoning System Directives**: Menegaskan pada sistem prompt bahwa riwayat asisten terdahulu adalah catatan dinamis dan bukan sumber kebenaran absolut jika bertentangan dengan katalog tool aktif. |
+| **2. Distraction** *(Distraksi & Kelembaman Pola)* | Agent terlalu bersandar pada alur giliran terdahulu, terjebak dalam pengulangan format lama (*pattern inertia*), dan berhenti menyusun rencana baru (*fresh step-by-step plan*) saat pengguna berganti fokus masalah atau entitas target. | • **Automated Task Shift Detection (`_detect_task_shift`)**: Mendeteksi pergantian fokus investigasi berdasarkan perubahan entitas kunci (misal: kueri NIK Dukcapil ➜ sertifikat tanah BPN ➜ profil vendor SIKAP ➜ regulasi hukum) serta kata kunci reset kueri.<br>• **Working Context Quarantine**: Mengkarantina dan meringkas giliran lama ke dalam *scratchpad working memory* terisolasi.<br>• **Fresh Planning Directives**: Menginjeksi direktif strategis baru ke model: *"Topik/tugas telah berganti. Abaikan alur tugas sebelumnya. Susun rencana langkah baru (fresh plan) berdasarkan tools dan entitas terkini."* |
+| **3. Confusion** *(Kebingungan Overload Konteks)* | Konteks kepenuhan muatan data besar yang sudah tidak relevan (seperti tabel markdown ratusan baris atau raw JSON payload berukuran puluhan KB). Mengakibatkan degradasi atensi (*needle-in-a-haystack drop*), peningkatan latensi inferensi, dan penurunan akurasi penalaran secara bertahap. | • **Tabular & JSON Bloat Compactor (`_compact_tabular_and_json_bloat`)**: Tabel markdown >5 baris pada riwayat lama diringkas menjadi sampel 3 baris + ringkasan total; payload JSON >300 karakter diringkas menjadi representasi skema ringkas.<br>• **Rolling Scratchpad Window**: Mempertahankan teks penuh (*verbatim*) hanya pada 2–3 giliran terbaru, sementara riwayat lama diarsip ke memori kerja terstruktur.<br>• **Token Savings Transparency**: Menghemat 40%–70% token pada sesi percakapan panjang dan dilaporkan secara transparan pada metadata balikan API (`context_rot_guard.tokens_saved`). |
+
+#### Fitur Kontrol & Antarmuka UI:
+- **Tombol "Topik Baru" (Reset Konteks Kerja)**: Tombol di toolbar chat (`RotateCcw`) yang memungkinkan pengguna memulai sesi investigasi/analisis baru secara instan tanpa menghapus riwayat pesan dari layar. Ditandai dengan divider visual beriluminasi perisai: `🛡️ Investigasi / Topik Baru Dimulai — Konteks Riwayat Disegarkan`.
+- **Anti-Rot Guard Shield Badge**: Chip status pada footer setiap pesan asisten yang menampilkan efektivitas proteksi (misal: `🛡️ Anti-Rot: +1.420 token dihemat` atau `🛡️ Anti-Rot: Fresh Plan Diaktifkan`).
+- **Programmatic Control via API**: Mendukung parameter boolean `clear_prior_context: true` pada `POST /api/chat` maupun kontrol per-request pada endpoint `/v1/chat/completions`.
+
+### 13. 🔐 Security & RBAC
 - **JWT-based authentication** with role-based access: `admin`, `editor`, `viewer`.
 - **API Keys** with scoped permissions (tool allowlist, knowledge base allowlist).
 - Middleware-level key validation with **in-memory caching** (60s TTL) to minimize latency.
 - `MCP_AUTH_ENABLED` toggle for development environments.
 
-### 13. 🗄️ Enterprise Data Persistence & Zero-Loss Protection
+### 14. 🗄️ Enterprise Data Persistence & Zero-Loss Protection
 - Host bind-mount volumes under `./data/` survive container restarts and rebuilds.
 - **Automated daily backups**: MySQL dumps, Neo4j snapshots, ChromaDB archives, Redis AOF — all packaged into timestamped `.tar.gz` in `./backups/`.
 
@@ -158,7 +177,7 @@ Ingestion is fully async via **Celery** + **Redis** workers with real-time job s
                              │ REST (internal)
                              ▼
           ┌──────────────────────────────────────────────┐
-          │         Backoffice API (FastAPI :8000)        │
+          │         Backoffice API (FastAPI :8000)       │
           │                                              │
           │  /api/chat          – Hybrid RAG Chat        │
           │  /api/chat/stream   – Streaming SSE Chat     │
@@ -323,12 +342,12 @@ curl --location 'http://localhost:5173/v1/models' \
 | **Knowledge Sources** | CRUD for all knowledge sources with per-source validity tier config |
 | **Ingest Jobs** | Real-time job monitoring with logs and retry |
 | **LLM Backends** | Add/test/route LLM backends; task-model assignments |
-| **Chat** | Full RAG chat UI with streaming, file upload, face scan, source citations |
+| **Chat** | Full RAG chat UI with streaming, file upload, face scan, Anti-Context-Rot Guard ("Topik Baru" context reset & metrics), reasoning display, and dynamic tool explorer |
 | **Network Explorer** | Interactive Cytoscape.js graph — multi-hop path-finding, cluster analysis |
 | **Data Orchestrator** | Prompt Flow Memory — create/edit/test multi-step retrieval flows |
 | **MCP Personality** | Configure AI personas, tone, mission, and custom instructions |
 | **API Keys** | Manage MCP API keys with tool and KB scoping |
-| **Database Settings** | Configure connection parameters for database sources |
+| **Database Settings** | Configure connection parameters for database sources + Vector DB Sync modal (ChromaDB ⇄ Qdrant bi-directional migration & live sync) |
 | **Users** | User management with RBAC role assignment |
 
 ---
@@ -372,6 +391,11 @@ make restore BACKUP_FILE=backups/backup_YYYYMMDD_HHMMSS.tar.gz
 | `MYSQL_*` | *(see .env.example)* | MySQL connection settings |
 | `NEO4J_URI` | `bolt://neo4j:7687` | Neo4j connection |
 | `CHROMADB_HOST` | `chromadb` | ChromaDB host |
+| `QDRANT_HOST` | *(optional)* | Qdrant host (e.g. `alakai.kpk.go.id`) |
+| `QDRANT_PORT` | `6333` | Qdrant HTTP port |
+| `QDRANT_API_KEY` | *(optional)* | Qdrant JWT / Bearer API key |
+| `QDRANT_COLLECTION` | `mcp_ai` | Qdrant vector collection name |
+| `VECTOR_DB_DUAL_WRITE` | `false` | Real-time dual-write ingestion to both ChromaDB and Qdrant |
 | `REDIS_URL` | `redis://redis:6379/0` | Redis for Celery |
 
 ---
