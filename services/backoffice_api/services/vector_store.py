@@ -1,10 +1,12 @@
 import os
 import re
 import math
+import uuid
 import hashlib
 import logging
 from typing import List, Dict, Any, Optional
 import numpy as np
+import requests
 import chromadb
 from chromadb.config import Settings
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
@@ -16,7 +18,7 @@ logger = logging.getLogger(__name__)
 class FastFeatureEmbeddingFunction(EmbeddingFunction[Documents]):
     """
     High-performance, zero-dependency offline feature-hashing embedding function.
-    Projects sub-tokens, char n-grams, and word bigrams into a normalized 384-dim vector.
+    Projects sub-tokens, char n-grams, and word bigrams into a normalized vector (default 384-dim, or collection-specific).
     Enables robust semantic and keyword matching via cosine similarity without external APIs or onnxruntime.
     """
     def __init__(self, dim: int = 384):
@@ -67,12 +69,298 @@ class FastFeatureEmbeddingFunction(EmbeddingFunction[Documents]):
         return [self._embed_text(doc) for doc in input]
 
 
+class QdrantCollectionAdapter:
+    """
+    Zero-dependency REST adapter providing ChromaDB collection-like interface over Qdrant.
+    Supports point count, get by IDs or scroll filter, batch upsert, delete by filter/IDs, and similarity search.
+    """
+    def __init__(self, base_url: str, collection_name: str, api_key: str = "", default_dim: int = 1024):
+        self.base_url = base_url.rstrip("/")
+        self.collection_name = collection_name
+        self.api_key = api_key
+        self.headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            self.headers["api-key"] = self.api_key
+        self.default_dim = default_dim
+        self.vector_dim = self._inspect_or_create_collection()
+
+    def _inspect_or_create_collection(self) -> int:
+        try:
+            r = requests.get(f"{self.base_url}/collections/{self.collection_name}", headers=self.headers, timeout=6)
+            if r.status_code == 200:
+                data = r.json().get("result", {})
+                v_params = data.get("config", {}).get("params", {}).get("vectors", {})
+                if isinstance(v_params, dict) and "size" in v_params:
+                    return int(v_params["size"])
+                return self.default_dim
+            elif r.status_code == 404:
+                create_payload = {
+                    "vectors": {
+                        "size": self.default_dim,
+                        "distance": "Cosine"
+                    }
+                }
+                cr = requests.put(f"{self.base_url}/collections/{self.collection_name}", headers=self.headers, json=create_payload, timeout=6)
+                if cr.status_code in (200, 201):
+                    logger.info(f"Created Qdrant collection '{self.collection_name}' with vector size {self.default_dim}")
+                    return self.default_dim
+                else:
+                    logger.warning(f"Failed creating Qdrant collection '{self.collection_name}': {cr.text}")
+        except Exception as e:
+            logger.warning(f"Could not inspect or create Qdrant collection '{self.collection_name}': {e}")
+        return self.default_dim
+
+    def count(self) -> int:
+        try:
+            r = requests.post(f"{self.base_url}/collections/{self.collection_name}/points/count", headers=self.headers, json={"exact": True}, timeout=6)
+            if r.status_code == 200:
+                return r.json().get("result", {}).get("count", 0)
+        except Exception as e:
+            logger.error(f"Error getting count from Qdrant: {e}")
+        return 0
+
+    def _convert_id_to_uuid(self, orig_id: Any) -> str:
+        s_id = str(orig_id)
+        try:
+            uuid.UUID(s_id)
+            return s_id
+        except Exception:
+            return str(uuid.uuid5(uuid.NAMESPACE_DNS, s_id))
+
+    def _build_filter(self, where: Optional[Dict[str, Any]] = None, contains_text: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        must_conditions = []
+        if contains_text:
+            must_conditions.append({
+                "key": "document",
+                "match": {"text": contains_text}
+            })
+        if where:
+            for k, v in where.items():
+                if k == "$and" and isinstance(v, list):
+                    for cond in v:
+                        for sub_k, sub_v in cond.items():
+                            must_conditions.append({"key": sub_k, "match": {"value": sub_v}})
+                elif isinstance(v, dict):
+                    if "$eq" in v:
+                        must_conditions.append({"key": k, "match": {"value": v["$eq"]}})
+                    elif "$in" in v:
+                        must_conditions.append({"key": k, "match": {"any": v["$in"]}})
+                else:
+                    must_conditions.append({"key": k, "match": {"value": v}})
+
+        if not must_conditions:
+            return None
+        return {"must": must_conditions}
+
+    def get(
+        self,
+        ids: Optional[List[str]] = None,
+        where: Optional[Dict[str, Any]] = None,
+        where_document: Optional[Dict[str, Any]] = None,
+        limit: int = 100,
+        offset: Optional[Any] = None,
+        include: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        output = {"ids": [], "documents": [], "metadatas": []}
+
+        # 1. Fetch by explicit IDs
+        if ids:
+            uuids = [self._convert_id_to_uuid(i) for i in ids]
+            try:
+                r = requests.post(
+                    f"{self.base_url}/collections/{self.collection_name}/points",
+                    headers=self.headers,
+                    json={"ids": uuids, "with_payload": True, "with_vector": False},
+                    timeout=10
+                )
+                if r.status_code == 200:
+                    points = r.json().get("result", [])
+                    for p in points:
+                        payload = p.get("payload") or {}
+                        orig_id = payload.get("_original_id") or str(p["id"])
+                        doc = payload.get("document", "")
+                        meta = {k: v for k, v in payload.items() if k not in ("document", "_original_id")}
+                        output["ids"].append(orig_id)
+                        output["documents"].append(doc)
+                        output["metadatas"].append(meta)
+            except Exception as e:
+                logger.error(f"Error in Qdrant get by IDs: {e}")
+            return output
+
+        # 2. Scroll by filter / text
+        contains_text = None
+        if where_document and isinstance(where_document, dict):
+            contains_text = where_document.get("$contains")
+
+        q_filter = self._build_filter(where=where, contains_text=contains_text)
+        only_ids = include is not None and len(include) == 0
+
+        num_offset = 0
+        if isinstance(offset, int) and offset > 0:
+            num_offset = offset
+            fetch_limit = num_offset + (limit or 100)
+        else:
+            fetch_limit = limit or 100
+
+        scroll_body = {
+            "limit": fetch_limit,
+            "with_payload": not only_ids,
+            "with_vector": False
+        }
+        if q_filter:
+            scroll_body["filter"] = q_filter
+
+        try:
+            r = requests.post(
+                f"{self.base_url}/collections/{self.collection_name}/points/scroll",
+                headers=self.headers,
+                json=scroll_body,
+                timeout=10
+            )
+            if r.status_code == 200:
+                res_data = r.json().get("result", {})
+                points = res_data.get("points", [])
+                if num_offset > 0:
+                    points = points[num_offset:num_offset + limit]
+
+                for p in points:
+                    payload = p.get("payload") or {}
+                    orig_id = payload.get("_original_id") or str(p["id"])
+                    doc = payload.get("document", "")
+                    meta = {k: v for k, v in payload.items() if k not in ("document", "_original_id")}
+                    output["ids"].append(orig_id)
+                    output["documents"].append(doc)
+                    output["metadatas"].append(meta)
+        except Exception as e:
+            logger.error(f"Error in Qdrant scroll get: {e}")
+
+        return output
+
+    def upsert(
+        self,
+        ids: List[str],
+        documents: List[str],
+        metadatas: List[Dict[str, Any]],
+        embeddings: List[List[float]]
+    ):
+        batch_size = 200
+        for i in range(0, len(ids), batch_size):
+            b_ids = ids[i:i+batch_size]
+            b_docs = documents[i:i+batch_size]
+            b_metas = metadatas[i:i+batch_size]
+            b_embs = embeddings[i:i+batch_size]
+
+            points = []
+            for cid, doc, meta, emb in zip(b_ids, b_docs, b_metas, b_embs):
+                pid = self._convert_id_to_uuid(cid)
+                payload = dict(meta) if meta else {}
+                payload["document"] = doc
+                payload["_original_id"] = str(cid)
+                points.append({
+                    "id": pid,
+                    "vector": emb,
+                    "payload": payload
+                })
+
+            r = requests.put(
+                f"{self.base_url}/collections/{self.collection_name}/points?wait=true",
+                headers=self.headers,
+                json={"points": points},
+                timeout=15
+            )
+            if r.status_code not in (200, 201):
+                logger.error(f"Failed upserting batch to Qdrant: {r.status_code} {r.text[:300]}")
+                raise Exception(f"Qdrant upsert failed ({r.status_code}): {r.text[:200]}")
+
+    def delete(
+        self,
+        where: Optional[Dict[str, Any]] = None,
+        ids: Optional[List[str]] = None
+    ):
+        if ids:
+            uuids = [self._convert_id_to_uuid(i) for i in ids]
+            requests.post(
+                f"{self.base_url}/collections/{self.collection_name}/points/delete?wait=true",
+                headers=self.headers,
+                json={"points": uuids},
+                timeout=10
+            )
+        elif where:
+            q_filter = self._build_filter(where=where)
+            if q_filter:
+                requests.post(
+                    f"{self.base_url}/collections/{self.collection_name}/points/delete?wait=true",
+                    headers=self.headers,
+                    json={"filter": q_filter},
+                    timeout=10
+                )
+
+    def query(
+        self,
+        query_embeddings: List[List[float]],
+        n_results: int = 5,
+        where: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        output = {
+            "ids": [[]],
+            "documents": [[]],
+            "metadatas": [[]],
+            "distances": [[]]
+        }
+        if not query_embeddings:
+            return output
+
+        emb = query_embeddings[0]
+        search_body = {
+            "vector": emb,
+            "limit": n_results,
+            "with_payload": True,
+            "with_vector": False
+        }
+        q_filter = self._build_filter(where=where)
+        if q_filter:
+            search_body["filter"] = q_filter
+
+        try:
+            r = requests.post(
+                f"{self.base_url}/collections/{self.collection_name}/points/search",
+                headers=self.headers,
+                json=search_body,
+                timeout=10
+            )
+            if r.status_code == 200:
+                hits = r.json().get("result", [])
+                for h in hits:
+                    payload = h.get("payload") or {}
+                    orig_id = payload.get("_original_id") or str(h.get("id"))
+                    doc = payload.get("document", "")
+                    meta = {k: v for k, v in payload.items() if k not in ("document", "_original_id")}
+                    score = float(h.get("score", 1.0))
+                    dist = max(0.0, 1.0 - score)
+
+                    output["ids"][0].append(orig_id)
+                    output["documents"][0].append(doc)
+                    output["metadatas"][0].append(meta)
+                    output["distances"][0].append(dist)
+        except Exception as e:
+            logger.error(f"Error in Qdrant vector search: {e}")
+
+        return output
+
+
 from database import SessionLocal
 from services.database_settings_service import database_settings_service
 
 class VectorStoreService:
     def __init__(self):
         self.embedding_fn = FastFeatureEmbeddingFunction(dim=384)
+        self._client = None
+        self._collection = None
+        self.provider = "chromadb"
+        self.collection_name = "knowledge_base"
+
+    def reload(self):
+        """Forces vector store to reload client and collection configuration from database settings."""
         self._client = None
         self._collection = None
 
@@ -84,24 +372,60 @@ class VectorStoreService:
                     db_config = database_settings_service.get_settings(db)
                 finally:
                     db.close()
-                
-                self.host = db_config.get("CHROMADB_HOST") or settings.CHROMADB_HOST
-                self.port = db_config.get("CHROMADB_PORT") or settings.CHROMADB_PORT
-                self.collection_name = db_config.get("CHROMADB_COLLECTION") or settings.CHROMADB_COLLECTION
 
-                self._client = chromadb.HttpClient(
-                    host=self.host,
-                    port=self.port,
-                    settings=Settings(allow_reset=False, anonymized_telemetry=False)
-                )
+                provider = (db_config.get("VECTOR_DB_PROVIDER") or settings.VECTOR_DB_PROVIDER or "chromadb").lower()
+                self.provider = "qdrant" if "qdrant" in provider else "chromadb"
+
+                if self.provider == "qdrant":
+                    raw_host = (db_config.get("QDRANT_HOST") or settings.QDRANT_HOST or "localhost").strip()
+                    port = db_config.get("QDRANT_PORT") or settings.QDRANT_PORT or 6333
+                    self.collection_name = (db_config.get("QDRANT_COLLECTION") or settings.QDRANT_COLLECTION or "mcp_ai").strip()
+                    api_key = (db_config.get("QDRANT_API_KEY") or settings.QDRANT_API_KEY or "").strip()
+                    use_https = bool(db_config.get("QDRANT_HTTPS", settings.QDRANT_HTTPS))
+
+                    if raw_host.startswith("http://") or raw_host.startswith("https://"):
+                        base_url = raw_host.rstrip("/")
+                        host_without_proto = base_url.split("://", 1)[1]
+                        if ":" not in host_without_proto and port:
+                            base_url = f"{base_url}:{port}"
+                    else:
+                        scheme = "https" if use_https else "http"
+                        base_url = f"{scheme}://{raw_host}:{port}"
+
+                    adapter = QdrantCollectionAdapter(
+                        base_url=base_url,
+                        collection_name=self.collection_name,
+                        api_key=api_key,
+                        default_dim=1024
+                    )
+                    self._collection = adapter
+                    self._client = adapter
+                    if adapter.vector_dim != self.embedding_fn.dim:
+                        self.embedding_fn = FastFeatureEmbeddingFunction(dim=adapter.vector_dim)
+                    logger.info(f"Initialized Qdrant vector store: {base_url} collection='{self.collection_name}' (dim={adapter.vector_dim})")
+                    return self._client
+                else:
+                    self.host = db_config.get("CHROMADB_HOST") or settings.CHROMADB_HOST
+                    self.port = db_config.get("CHROMADB_PORT") or settings.CHROMADB_PORT
+                    self.collection_name = db_config.get("CHROMADB_COLLECTION") or settings.CHROMADB_COLLECTION
+
+                    self._client = chromadb.HttpClient(
+                        host=self.host,
+                        port=self.port,
+                        settings=Settings(allow_reset=False, anonymized_telemetry=False)
+                    )
+                    self.embedding_fn = FastFeatureEmbeddingFunction(dim=384)
+                    logger.info(f"Initialized ChromaDB vector store: {self.host}:{self.port} collection='{self.collection_name}'")
             except Exception as e:
-                logger.error(f"Failed connecting to ChromaDB: {e}")
+                logger.error(f"Failed connecting to Vector Store ({getattr(self, 'provider', 'unknown')}): {e}")
                 raise
         return self._client
 
     def get_collection(self):
         if self._collection is None:
             client = self.get_client()
+            if getattr(self, "provider", "") == "qdrant":
+                return self._collection
             try:
                 self._collection = client.get_collection(name=self.collection_name)
             except Exception:

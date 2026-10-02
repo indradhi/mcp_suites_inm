@@ -142,6 +142,7 @@ def run_ingest_source_task(self, source_id: int):
             ids_to_index.append(chunk_id)
 
         if texts_to_index:
+            vector_store.reload()
             try:
                 vector_store.delete_by_source(source.id)
             except Exception as del_err:
