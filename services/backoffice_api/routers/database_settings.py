@@ -8,6 +8,7 @@ from database import get_db
 from services.database_settings_service import database_settings_service
 from services.graph.neo4j_client import neo4j_client
 from services.vector_store import vector_store
+from services.vector_sync_service import vector_sync_service
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,7 @@ router = APIRouter(prefix="/settings/database", tags=["Database Settings"])
 
 class DatabaseSettingsPayload(BaseModel):
     VECTOR_DB_PROVIDER: str = None
+    VECTOR_DB_DUAL_WRITE: bool = None
     CHROMADB_HOST: str = None
     CHROMADB_PORT: int = None
     CHROMADB_COLLECTION: str = None
@@ -179,3 +181,31 @@ def test_database_connection(payload: DatabaseSettingsPayload):
         "status": "success",
         "results": results
     }
+
+class VectorDBSyncPayload(BaseModel):
+    direction: str = "chromadb_to_qdrant"
+    clean_target: bool = False
+    batch_size: int = 100
+
+@router.get("/vector-stats")
+def get_vector_db_stats():
+    """Returns live vector chunk stats, dimensions, and sync status for ChromaDB and Qdrant."""
+    return vector_sync_service.get_stats()
+
+@router.post("/sync")
+def sync_vector_databases(payload: VectorDBSyncPayload):
+    """Synchronizes vector embeddings and knowledge chunks between ChromaDB and Qdrant."""
+    try:
+        result = vector_sync_service.sync(
+            direction=payload.direction,
+            clean_target=payload.clean_target,
+            batch_size=payload.batch_size
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Vector DB sync failed: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+

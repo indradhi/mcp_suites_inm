@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import math
 import uuid
 import hashlib
@@ -356,13 +357,18 @@ class VectorStoreService:
         self.embedding_fn = FastFeatureEmbeddingFunction(dim=384)
         self._client = None
         self._collection = None
+        self._secondary_collection = None
+        self._secondary_embedding_fn = None
         self.provider = "chromadb"
         self.collection_name = "knowledge_base"
+        self.dual_write = False
 
     def reload(self):
         """Forces vector store to reload client and collection configuration from database settings."""
         self._client = None
         self._collection = None
+        self._secondary_collection = None
+        self._secondary_embedding_fn = None
 
     def get_client(self):
         if self._client is None:
@@ -375,6 +381,7 @@ class VectorStoreService:
 
                 provider = (db_config.get("VECTOR_DB_PROVIDER") or settings.VECTOR_DB_PROVIDER or "chromadb").lower()
                 self.provider = "qdrant" if "qdrant" in provider else "chromadb"
+                self.dual_write = bool(db_config.get("VECTOR_DB_DUAL_WRITE", settings.VECTOR_DB_DUAL_WRITE))
 
                 if self.provider == "qdrant":
                     raw_host = (db_config.get("QDRANT_HOST") or settings.QDRANT_HOST or "localhost").strip()
@@ -441,6 +448,67 @@ class VectorStoreService:
                     )
         return self._collection
 
+    def get_secondary_collection(self):
+        """Initializes and returns secondary vector database collection for live dual-write replication."""
+        if not getattr(self, "dual_write", False):
+            return None
+        if self._secondary_collection is not None:
+            return self._secondary_collection
+
+        try:
+            db = SessionLocal()
+            try:
+                db_config = database_settings_service.get_settings(db)
+            finally:
+                db.close()
+
+            if self.provider == "qdrant":
+                # Primary is Qdrant, secondary is ChromaDB
+                c_host = db_config.get("CHROMADB_HOST") or settings.CHROMADB_HOST or "chromadb"
+                c_port = db_config.get("CHROMADB_PORT") or settings.CHROMADB_PORT or 8000
+                c_name = db_config.get("CHROMADB_COLLECTION") or settings.CHROMADB_COLLECTION or "knowledge_base"
+                client = chromadb.HttpClient(
+                    host=c_host,
+                    port=c_port,
+                    settings=Settings(allow_reset=False, anonymized_telemetry=False)
+                )
+                try:
+                    self._secondary_collection = client.get_collection(name=c_name)
+                except Exception:
+                    self._secondary_collection = client.get_or_create_collection(name=c_name, metadata={"hnsw:space": "cosine"})
+                self._secondary_embedding_fn = FastFeatureEmbeddingFunction(dim=384)
+                logger.info(f"Initialized secondary ChromaDB for dual-write: {c_host}:{c_port} collection='{c_name}'")
+            else:
+                # Primary is ChromaDB, secondary is Qdrant
+                raw_host = (db_config.get("QDRANT_HOST") or settings.QDRANT_HOST or "localhost").strip()
+                port = db_config.get("QDRANT_PORT") or settings.QDRANT_PORT or 6333
+                col_name = (db_config.get("QDRANT_COLLECTION") or settings.QDRANT_COLLECTION or "mcp_ai").strip()
+                api_key = (db_config.get("QDRANT_API_KEY") or settings.QDRANT_API_KEY or "").strip()
+                use_https = bool(db_config.get("QDRANT_HTTPS", settings.QDRANT_HTTPS))
+
+                if raw_host.startswith("http://") or raw_host.startswith("https://"):
+                    base_url = raw_host.rstrip("/")
+                    host_without_proto = base_url.split("://", 1)[1]
+                    if ":" not in host_without_proto and port:
+                        base_url = f"{base_url}:{port}"
+                else:
+                    scheme = "https" if use_https else "http"
+                    base_url = f"{scheme}://{raw_host}:{port}"
+
+                adapter = QdrantCollectionAdapter(
+                    base_url=base_url,
+                    collection_name=col_name,
+                    api_key=api_key,
+                    default_dim=1024
+                )
+                self._secondary_collection = adapter
+                self._secondary_embedding_fn = FastFeatureEmbeddingFunction(dim=adapter.vector_dim)
+                logger.info(f"Initialized secondary Qdrant for dual-write: {base_url} collection='{col_name}' (dim={adapter.vector_dim})")
+            return self._secondary_collection
+        except Exception as e:
+            logger.warning(f"Could not initialize secondary vector store for dual-write: {e}")
+            return None
+
     def add_chunks(
         self,
         texts: List[str],
@@ -448,9 +516,8 @@ class VectorStoreService:
         ids: List[str]
     ):
         """
-        Adds text chunks with metadata and unique IDs to ChromaDB.
-        Explicitly pre-embeds documents using FastFeatureEmbeddingFunction
-        to avoid embedding function conflicts and onnxruntime dependency.
+        Adds text chunks with metadata and unique IDs to the primary vector database.
+        If dual-write is enabled, also replicates chunks to the secondary vector database.
         """
         if not texts:
             return
@@ -468,12 +535,50 @@ class VectorStoreService:
                 ids=batch_ids
             )
 
+            # Replicate to secondary if dual-write is enabled
+            if getattr(self, "dual_write", False):
+                try:
+                    sec_coll = self.get_secondary_collection()
+                    if sec_coll and self._secondary_embedding_fn:
+                        sec_embs = [self._secondary_embedding_fn._embed_text(t) for t in batch_texts]
+                        # Sanitize metadata if secondary is ChromaDB (which requires primitive values)
+                        if self.provider == "qdrant":
+                            sanitized_metas = []
+                            for m in batch_metas:
+                                sm = {}
+                                for k, v in (m or {}).items():
+                                    if isinstance(v, (str, int, float, bool)):
+                                        sm[k] = v
+                                    elif v is not None:
+                                        sm[k] = json.dumps(v)
+                                sanitized_metas.append(sm)
+                            sec_meta_to_write = sanitized_metas
+                        else:
+                            sec_meta_to_write = batch_metas
+
+                        sec_coll.upsert(
+                            documents=batch_texts,
+                            embeddings=sec_embs,
+                            metadatas=sec_meta_to_write,
+                            ids=batch_ids
+                        )
+                except Exception as dw_err:
+                    logger.warning(f"Dual-write replication error in add_chunks: {dw_err}")
+
     def delete_by_source(self, source_id: int):
         """
-        Deletes all chunks associated with a specific knowledge source.
+        Deletes all chunks associated with a specific knowledge source from primary vector store.
+        If dual-write is enabled, also deletes from secondary vector store.
         """
         collection = self.get_collection()
         collection.delete(where={"source_id": source_id})
+        if getattr(self, "dual_write", False):
+            try:
+                sec_coll = self.get_secondary_collection()
+                if sec_coll:
+                    sec_coll.delete(where={"source_id": source_id})
+            except Exception as dw_err:
+                logger.warning(f"Dual-write delete error in delete_by_source: {dw_err}")
 
     def query_similarity(
         self,

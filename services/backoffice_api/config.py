@@ -38,6 +38,7 @@ class Settings(BaseSettings):
 
     # Vector Database
     VECTOR_DB_PROVIDER: str = os.getenv("VECTOR_DB_PROVIDER", "chromadb")
+    VECTOR_DB_DUAL_WRITE: bool = os.getenv("VECTOR_DB_DUAL_WRITE", "false").lower() in ("true", "1", "yes")
 
     # ChromaDB
     CHROMADB_HOST: str = os.getenv("CHROMADB_HOST") or os.getenv("CHROMA_HOST", "chromadb")

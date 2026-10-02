@@ -12,6 +12,7 @@ class DatabaseSettingsService:
         # Default config from env/config.py
         default_config = {
             "VECTOR_DB_PROVIDER": settings.VECTOR_DB_PROVIDER,
+            "VECTOR_DB_DUAL_WRITE": settings.VECTOR_DB_DUAL_WRITE,
             "CHROMADB_HOST": settings.CHROMADB_HOST,
             "CHROMADB_PORT": settings.CHROMADB_PORT,
             "CHROMADB_COLLECTION": settings.CHROMADB_COLLECTION,
