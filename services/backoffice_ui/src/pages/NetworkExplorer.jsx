@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { 
   Network, 
   Sparkles, 
@@ -105,6 +106,9 @@ const NETWORK_LAYOUTS = [
 ];
 
 export default function NetworkExplorer() {
+  const [searchParams] = useSearchParams();
+  const urlParamQuery = searchParams.get('q') || searchParams.get('search') || '';
+
   const [graphData, setGraphData] = useState({ elements: { nodes: [], edges: [] }, stats: { total_nodes: 0, total_edges: 0 } });
   const [metrics, setMetrics] = useState({ node_count: 0, edge_count: 0, density: 0, top_hubs: [] });
   const [insights, setInsights] = useState([]);
@@ -112,7 +116,7 @@ export default function NetworkExplorer() {
   const [layoutName, setLayoutName] = useState('cose');
   const [isLayoutDropdownOpen, setIsLayoutDropdownOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('graph'); // 'graph', 'path', 'insights'
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(urlParamQuery);
   const [selectedType, setSelectedType] = useState('ALL');
   const [filterMode, setFilterMode] = useState('highlight'); // 'highlight' or 'isolate'
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
@@ -128,6 +132,14 @@ export default function NetworkExplorer() {
     fetchMetrics();
     fetchInsights();
   }, []);
+
+  // Sync searchQuery when URL params change
+  useEffect(() => {
+    const q = searchParams.get('q') || searchParams.get('search');
+    if (q !== null && q !== undefined) {
+      setSearchQuery(q);
+    }
+  }, [searchParams]);
 
   // Close popovers on outside click
   useEffect(() => {
@@ -182,6 +194,21 @@ export default function NetworkExplorer() {
 
   const allNodes = graphData?.elements?.nodes || [];
   const allEdges = graphData?.elements?.edges || [];
+
+  // Auto-focus matching entity from URL query
+  useEffect(() => {
+    if (searchQuery && allNodes.length > 0 && !selectedEntity) {
+      const qClean = searchQuery.toLowerCase().trim();
+      const matchedNode = allNodes.find(n => {
+        const lbl = (n.data?.label || '').toLowerCase();
+        const id = (n.data?.id || '').toLowerCase();
+        return lbl === qClean || id === qClean || (lbl.length >= 4 && qClean.includes(lbl)) || (qClean.length >= 4 && lbl.includes(qClean));
+      });
+      if (matchedNode) {
+        setSelectedEntity(matchedNode.data?.id || matchedNode.id);
+      }
+    }
+  }, [searchQuery, allNodes, selectedEntity]);
 
   const filteredNodes = allNodes.filter(n => {
     const q = (searchQuery || '').toLowerCase().trim();

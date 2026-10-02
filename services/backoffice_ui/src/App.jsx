@@ -47,6 +47,7 @@ export default function App() {
           <Route path="orchestrator" element={<DataOrchestrator />} />
           <Route path="knowledge" element={<KnowledgeSources />} />
           <Route path="network" element={<NetworkExplorer />} />
+          <Route path="network-explorer" element={<NetworkExplorer />} />
           <Route path="llm-backends" element={<LLMBackends />} />
           <Route path="personality" element={<MCPPersonality />} />
           <Route path="jobs" element={<Jobs />} />

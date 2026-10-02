@@ -150,6 +150,27 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
     );
   };
 
+  const getSubjectQuery = () => {
+    if (debouncedSearch && debouncedSearch.trim()) return debouncedSearch.trim();
+    for (const it of items) {
+      if (!it.document) continue;
+      const mName = it.document.match(/(?:NAMA_LGKP|NAMA)\s*[:=]\s*([^\n\r,|]+)/i);
+      if (mName && mName[1]?.trim() && mName[1].trim().length >= 3 && !mName[1].includes('{')) {
+        return mName[1].trim();
+      }
+      const mParam = it.document.match(/nama=([^\n\r,&|]+)/i);
+      if (mParam && mParam[1]?.trim() && mParam[1].trim().length >= 3) {
+        return mParam[1].trim();
+      }
+    }
+    return '';
+  };
+
+  const subjectQuery = getSubjectQuery();
+  const networkGraphUrl = subjectQuery
+    ? `/network?q=${encodeURIComponent(subjectQuery)}`
+    : '/network';
+
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1050 }}>
       <div 
@@ -230,30 +251,40 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <a
-              href="/network-explorer"
+              href={networkGraphUrl}
               target="_blank"
               rel="noreferrer"
-              title="Buka Knowledge Graph Network Profiling di tab baru"
+              title={subjectQuery ? `Buka Knowledge Graph untuk "${subjectQuery}" di tab baru` : "Buka Knowledge Graph Network Profiling di tab baru"}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
-                padding: '6px 12px',
+                padding: '7px 13px',
                 borderRadius: '8px',
                 fontSize: '12px',
                 fontWeight: '600',
-                color: '#a5b4fc',
-                background: 'rgba(99, 102, 241, 0.12)',
-                border: '1px solid rgba(99, 102, 241, 0.3)',
+                color: '#ffffff',
+                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(168, 85, 247, 0.35))',
+                border: '1px solid rgba(168, 85, 247, 0.5)',
                 textDecoration: 'none',
+                boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)',
+                cursor: 'pointer',
                 transition: 'all 0.2s ease'
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.25)'; e.currentTarget.style.color = '#ffffff'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.12)'; e.currentTarget.style.color = '#a5b4fc'; }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(99, 102, 241, 0.65), rgba(168, 85, 247, 0.65))';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 4px 14px rgba(168, 85, 247, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(168, 85, 247, 0.35))';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(99, 102, 241, 0.25)';
+              }}
             >
-              <Share2 size={13} />
+              <Share2 size={13} color="#c084fc" />
               <span>Network Graph</span>
-              <ExternalLink size={11} />
+              <ExternalLink size={11} color="#e9d5ff" />
             </a>
 
             <button
@@ -597,6 +628,54 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                       <Trash2 size={12} />
                       <span>{isDeleting ? 'Menghapus...' : 'Hapus'}</span>
                     </button>
+
+                    {/* Item Network Graph Button */}
+                    {(() => {
+                      let itemSubj = '';
+                      if (queryParams && typeof queryParams === 'object') {
+                        itemSubj = queryParams.nama || queryParams.nama_lgkp || queryParams.name || '';
+                      }
+                      if (!itemSubj && item.document) {
+                        const mName = item.document.match(/(?:NAMA_LGKP|NAMA)\s*[:=]\s*([^\n\r,|]+)/i);
+                        if (mName && mName[1]?.trim() && !mName[1].includes('{')) {
+                          itemSubj = mName[1].trim();
+                        } else {
+                          const mParam = item.document.match(/nama=([^\n\r,&|]+)/i);
+                          if (mParam && mParam[1]?.trim()) {
+                            itemSubj = mParam[1].trim();
+                          }
+                        }
+                      }
+                      if (!itemSubj) return null;
+                      return (
+                        <a
+                          href={`/network?q=${encodeURIComponent(itemSubj)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            background: 'rgba(99, 102, 241, 0.15)',
+                            border: '1px solid rgba(99, 102, 241, 0.4)',
+                            color: '#c7d2fe',
+                            borderRadius: '6px',
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            textDecoration: 'none',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.35)'; e.currentTarget.style.color = '#ffffff'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.15)'; e.currentTarget.style.color = '#c7d2fe'; }}
+                          title={`Telusuri relasi entitas "${itemSubj}" di Network Graph`}
+                        >
+                          <Share2 size={11} color="#a5b4fc" />
+                          <span>Graph</span>
+                        </a>
+                      );
+                    })()}
 
                     {/* Expand/Collapse Toggle */}
                     <button
