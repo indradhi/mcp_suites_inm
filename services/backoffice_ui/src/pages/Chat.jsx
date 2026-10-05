@@ -4258,21 +4258,30 @@ export default function Chat() {
                             </span>
                             {msg.context_rot_guard && (
                               <span 
-                                title={`Anti-Context-Rot Guard: ${msg.context_rot_guard.poisoning_neutralized} halusinasi dinetralisir, ${msg.context_rot_guard.large_tables_compacted} tabel dipadatkan, ~${msg.context_rot_guard.estimated_tokens_saved} token dihemat.`}
+                                title={
+                                  msg.context_rot_guard.task_shift_detected 
+                                    ? `Anti-Context-Rot Guard: Pergantian topik terdeteksi otomatis (${msg.context_rot_guard.shift_reason}). Rencana langkah baru diaktifkan tanpa bias masa lalu.`
+                                    : `Anti-Context-Rot Guard: Aktif otomatis. ${msg.context_rot_guard.poisoning_neutralized} halusinasi dinetralisir, ${msg.context_rot_guard.large_tables_compacted} tabel dipadatkan, ~${msg.context_rot_guard.estimated_tokens_saved} token dihemat.`
+                                }
                                 style={{
                                   display: 'inline-flex',
                                   alignItems: 'center',
                                   gap: '3px',
                                   color: msg.context_rot_guard.task_shift_detected ? '#38bdf8' : '#a78bfa',
-                                  background: msg.context_rot_guard.task_shift_detected ? 'rgba(56, 189, 248, 0.1)' : 'rgba(167, 139, 250, 0.1)',
+                                  background: msg.context_rot_guard.task_shift_detected ? 'rgba(56, 189, 248, 0.12)' : 'rgba(167, 139, 250, 0.1)',
                                   padding: '1px 6px',
                                   borderRadius: '4px',
-                                  border: `1px solid ${msg.context_rot_guard.task_shift_detected ? 'rgba(56, 189, 248, 0.25)' : 'rgba(167, 139, 250, 0.25)'}`,
+                                  border: `1px solid ${msg.context_rot_guard.task_shift_detected ? 'rgba(56, 189, 248, 0.35)' : 'rgba(167, 139, 250, 0.25)'}`,
                                   fontWeight: '500'
                                 }}
                               >
                                 <ShieldCheck size={11} />
-                                {msg.context_rot_guard.task_shift_detected ? 'Anti-Rot: Fresh Plan' : `Anti-Rot: Optimal (~${msg.context_rot_guard.estimated_tokens_saved} tok)`}
+                                {msg.context_rot_guard.task_shift_detected 
+                                  ? 'Anti-Rot: Fresh Plan (Otomatis)' 
+                                  : (msg.context_rot_guard.estimated_tokens_saved > 0 
+                                      ? `Anti-Rot: Optimal (~${msg.context_rot_guard.estimated_tokens_saved} tok)` 
+                                      : 'Anti-Rot: Aktif (0 Rot)')
+                                }
                               </span>
                             )}
                           </>

@@ -536,14 +536,15 @@ async def chat_stream_endpoint(
                 }
                 yield f"data: {json.dumps(content_chunk, ensure_ascii=False)}\n\n"
 
-            # Final chunk with finish_reason and usage
+            # Final chunk with finish_reason, usage, and context_rot_guard telemetry
             final_chunk = {
                 "id": chat_id,
                 "object": "chat.completion.chunk",
                 "created": created_ts,
                 "model": model_used,
                 "choices": [{"index": 0, "delta": {}, "finish_reason": result.get("finish_reason", "stop")}],
-                "usage": result.get("usage")
+                "usage": result.get("usage"),
+                "context_rot_guard": result.get("context_rot_guard")
             }
             yield f"data: {json.dumps(final_chunk, ensure_ascii=False)}\n\n"
         except Exception as e:
@@ -718,7 +719,8 @@ async def openai_chat_completions(
                 "id": chat_id, "object": "chat.completion.chunk",
                 "created": created_ts, "model": model_used,
                 "choices": [{"index": 0, "delta": {}, "finish_reason": finish_reason}],
-                "usage": usage
+                "usage": usage,
+                "context_rot_guard": result.get("context_rot_guard")
             }
             yield f"data: {json.dumps(final)}\n\n"
             yield "data: [DONE]\n\n"
@@ -742,6 +744,7 @@ async def openai_chat_completions(
         ],
         "usage": usage,
         "system_fingerprint": None,
+        "context_rot_guard": result.get("context_rot_guard"),
         # Extended fields (non-OpenAI, for rich clients)
         "_knowledge": {
             "sources": result.get("sources", []),
@@ -749,7 +752,8 @@ async def openai_chat_completions(
             "tools_executed": result.get("tools_executed", []),
             "thinking": result.get("thinking"),
             "backend_name": result.get("backend_name", ""),
-            "metrics": result.get("metrics", {})
+            "metrics": result.get("metrics", {}),
+            "context_rot_guard": result.get("context_rot_guard")
         }
     }
 

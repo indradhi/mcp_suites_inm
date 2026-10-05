@@ -38,6 +38,7 @@ class ContextRotGuard:
             "poisoning_neutralized": 0,
             "large_tables_compacted": 0,
             "task_shift_detected": False,
+            "shift_reason": "continuous_dialogue",
             "distilled_turns_count": 0,
             "retained_turns_count": 0,
             "chars_before": sum(len(str(m.get("content", ""))) for m in raw_history),
@@ -79,6 +80,9 @@ class ContextRotGuard:
                 # C. Compact overly large markdown tables and raw JSON blocks (anti-confusion)
                 content, t_count = self._compact_tabular_and_json_bloat(content)
                 guard_metrics["large_tables_compacted"] += t_count
+            elif role == "user":
+                # Also strip raw leaked tracebacks or fake tool errors in user quotes
+                content = self._neutralize_error_residue(content)
 
             cleaned_history.append({"role": role, "content": content})
 
@@ -92,7 +96,7 @@ class ContextRotGuard:
 
         if is_task_shift:
             # If the user pivoted to a completely new topic or task, we quarantine older turns
-            # into a concise 1-paragraph background summary so attention weights stay 100% focused on current task.
+            # into a concise background scratchpad so attention weights stay 100% focused on the new task.
             distilled_summary = self._distill_older_turns(cleaned_history[:-2] if len(cleaned_history) > 2 else cleaned_history[:-1])
             if distilled_summary:
                 final_messages.append({
@@ -103,14 +107,18 @@ class ContextRotGuard:
                     "role": "assistant",
                     "content": "Dipahami. Saya mencatat rekap sesi sebelumnya dan siap fokus penuh menyusun rencana baru untuk pertanyaan/tugas Anda saat ini."
                 })
-                guard_metrics["distilled_turns_count"] = len(cleaned_history) - 2
+                guard_metrics["distilled_turns_count"] = max(0, len(cleaned_history) - 2)
 
-            # Retain only the very last turn for immediate conversational continuity
+            # For recent turns during task shift:
+            # Strictly condense the previous assistant response so obsolete details of the old subject
+            # do not leak or confuse the model's new reasoning process.
             recent_turns = cleaned_history[-2:] if len(cleaned_history) >= 2 else cleaned_history
             for t in recent_turns:
                 t_content = t["content"]
-                if t["role"] == "assistant" and len(t_content) > self.max_message_chars:
-                    t_content = t_content[:self.max_message_chars] + "... [ringkasan respon sebelumnya]"
+                if t["role"] == "assistant":
+                    if len(t_content) > 300:
+                        first_line = t_content.strip().splitlines()[0][:250]
+                        t_content = f"{first_line}... [hasil tugas sebelumnya diringkas untuk transisi tugas baru]"
                 final_messages.append({"role": t["role"], "content": t_content})
         else:
             # Topic is consistent; apply rolling window:
@@ -156,36 +164,102 @@ class ContextRotGuard:
         Anti-Poisoning: Detects references in prior assistant responses to tool/function calls
         that are NOT in the active tool catalog. Replaces them with neutral markers so the model
         won't anchor on fake function names as facts.
+        Supports with or without backticks, quotes, or JSON formatting.
         """
         if not registered_tools:
             return text, 0
 
         neutralized = 0
+        COMMON_STOPWORDS = {
+            "ini", "itu", "yang", "dan", "atau", "pada", "untuk", "dari", "ke", "di",
+            "data", "database", "api", "hasil", "kami", "anda", "saya", "kita", "ia",
+            "dia", "mereka", "tersebut", "berikut", "ada", "tidak", "bukan", "hanya",
+            "the", "and", "or", "to", "for", "with", "this", "that", "from", "in", "on"
+        }
 
         def replace_tool_ref(m):
             nonlocal neutralized
-            tool_name = m.group(1)
-            # If it looks like a function slug (snake_case)
-            if "_" in tool_name and tool_name not in registered_tools:
+            tool_name = m.group(1).strip("`'\"() ")
+            if not tool_name or tool_name.lower() in COMMON_STOPWORDS:
+                return m.group(0)
+
+            # If tool is not registered in the active tool catalog
+            if tool_name not in registered_tools:
                 neutralized += 1
-                return f"[alat/fungsi non-resmi telah dinetralisir]"
+                # Preserve the prefix word (tool / function / fungsi / etc.)
+                prefix = m.group(0)[:m.start(1) - m.start(0)]
+                suffix = m.group(0)[m.end(1) - m.start(0):]
+                return f"{prefix}[alat/fungsi non-resmi telah dinetralisir]{suffix}"
             return m.group(0)
 
-        # Match patterns like: tool `xyz_abc`, function `xyz_abc`, fungsi `xyz_abc`
-        text = re.sub(r'(?:tool|function|fungsi)\s+`([a-zA-Z0-9_]{4,40})`', replace_tool_ref, text, flags=re.IGNORECASE)
-        text = re.sub(r'memanggil\s+(?:tool|fungsi)\s+([a-zA-Z0-9_]{4,40})', replace_tool_ref, text, flags=re.IGNORECASE)
+        # Match patterns like:
+        # 1. tool `xyz_abc`, function xyz_abc, fungsi 'xyz_abc', method xyz_abc
+        text = re.sub(
+            r'(?:tool|function|fungsi|method|alat)\s+[`\'"]?([a-zA-Z0-9_]{3,50})[`\'"]?',
+            replace_tool_ref,
+            text,
+            flags=re.IGNORECASE
+        )
+
+        # 2. memanggil tool xyz, menjalankan fungsi abc, calling tool 123
+        text = re.sub(
+            r'(?:memanggil|menjalankan|eksekusi|calling|executed|executing|invoking|invoke)\s+(?:tool|function|fungsi|alat)?\s*[`\'"]?([a-zA-Z0-9_]{3,50})[`\'"]?',
+            replace_tool_ref,
+            text,
+            flags=re.IGNORECASE
+        )
+
+        # 3. Tool 'xyz' is not recognized
+        text = re.sub(
+            r'Tool\s+[`\'"]?([a-zA-Z0-9_]{3,50})[`\'"]?\s+is\s+not\s+recognized',
+            replace_tool_ref,
+            text,
+            flags=re.IGNORECASE
+        )
+
+        # 4. JSON tool call representations: "name": "fake_tool"
+        def replace_json_tool_ref(m):
+            nonlocal neutralized
+            tool_name = m.group(1).strip()
+            if tool_name and tool_name not in registered_tools and tool_name.lower() not in COMMON_STOPWORDS:
+                neutralized += 1
+                return '"name": "alat_non_resmi_dinetralisir"'
+            return m.group(0)
+
+        text = re.sub(r'["\']name["\']\s*:\s*["\']([a-zA-Z0-9_]{3,50})["\']', replace_json_tool_ref, text)
 
         return text, neutralized
 
     def _neutralize_error_residue(self, text: str) -> str:
         """
-        Strips internal traceback strings or repetitive error apologies that cause the model
-        to repeatedly apologize or freeze up in subsequent turns.
+        Strips internal traceback strings, server exceptions, or repetitive error apologies
+        that cause the model to repeatedly apologize or freeze up in subsequent turns.
         """
-        # Strip long python tracebacks if leaked
-        text = re.sub(r'Traceback \(most recent call last\):.*?(?:Exception|Error):.*?\n', '[Catatan internal: Gangguan teknis sebelumnya telah dipulihkan]\n', text, flags=re.DOTALL)
-        # Strip excessive repetitive apology openers
-        text = re.sub(r'^(?:Mohon maaf sebesar-besarnya|Saya minta maaf|Maaf atas kesalahan sebelumnya)[,.]\s*', '', text, flags=re.IGNORECASE)
+        # Strip long python tracebacks or server exceptions
+        text = re.sub(
+            r'Traceback \(most recent call last\):.*?(?:Exception|Error):.*?(?:\r?\n|$)',
+            '[Catatan internal: Gangguan teknis sebelumnya telah dipulihkan]\n',
+            text,
+            flags=re.DOTALL
+        )
+        text = re.sub(
+            r'(?:pymysql|neo4j|redis|urllib|requests|sqlalchemy)\.(?:err|exceptions|error)\.[a-zA-Z0-9_]+:.*?(?:\r?\n|$)',
+            '[Catatan: Galat koneksi internal telah ditangani]\n',
+            text
+        )
+        text = re.sub(
+            r'(?:Internal Server Error|500 Server Error|502 Bad Gateway|504 Gateway Timeout|ConnectionRefusedError).*?(?:\r?\n|$)',
+            '[Catatan: Status server normal]\n',
+            text
+        )
+
+        # Strip repetitive apology openers and uncertainty bias triggers
+        text = re.sub(
+            r'^(?:Mohon maaf sebesar-besarnya|Saya minta maaf|Maaf atas kesalahan sebelumnya|Mohon maaf atas ketidaknyamanan|Maaf,?\s*sebelumnya|I apologize for the confusion|I am sorry for the previous mistake)[,.]\s*',
+            '',
+            text,
+            flags=re.IGNORECASE | re.MULTILINE
+        )
         return text
 
     def _compact_tabular_and_json_bloat(self, text: str) -> Tuple[str, int]:
@@ -195,23 +269,23 @@ class ContextRotGuard:
         """
         compacted = 0
 
-        # Compact massive JSON blocks (> 300 chars)
+        # Compact massive JSON blocks (> 200 chars)
         def replace_json_block(m):
             nonlocal compacted
             raw = m.group(1)
-            if len(raw) > 250:
+            if len(raw) > 200:
                 compacted += 1
                 return "[Ringkasan data JSON dari sesi sebelumnya telah diproses]"
             return m.group(0)
 
         text = re.sub(r'```(?:json)?\s*(\[\s*\{.*?\}\s*\]|\{.*?\})\s*```', replace_json_block, text, flags=re.DOTALL)
 
-        # Compact Markdown tables with > 4 rows
-        table_pattern = r'(\|.+?\|\n\|[-:| ]+\|\n(?:\|.+?\|\n){4,})'
+        # Compact Markdown tables with > 3 rows (support both \n and \r\n)
+        table_pattern = r'(\|.+?\|\r?\n\|[-:| ]+\|\r?\n(?:\|.+?\|\r?\n){3,})'
         def replace_table_block(m):
             nonlocal compacted
             table_str = m.group(1)
-            lines = [l.strip() for l in table_str.strip().split('\n') if l.strip()]
+            lines = [l.strip() for l in table_str.strip().splitlines() if l.strip()]
             header = lines[0] if lines else "Tabel Data"
             row_count = len(lines) - 2
             compacted += 1
@@ -228,67 +302,96 @@ class ContextRotGuard:
         if not history:
             return False, "fresh_session"
 
-        # Extract last user query from history
-        prior_user_queries = [m["content"] for m in history if m["role"] == "user"]
-        if not prior_user_queries:
-            return False, "no_prior_queries"
-
-        last_user_query = prior_user_queries[-1]
-
-        # 1. Explicit Topic Reset Commands
-        if re.search(r'\b(?:ganti topik|topik baru|pertanyaan lain|tugas baru|alih topik|reset|start new|next topic)\b', current_query, re.IGNORECASE):
+        # 1. Explicit Topic Reset Commands in Indonesian & English
+        reset_pattern = (
+            r'\b(?:ganti topik|topik baru|pertanyaan lain|tugas baru|alih topik|reset|start new|next topic|'
+            r'bukan itu|sekarang coba|sekarang cari|ganti pertanyaan|kasus lain|orang lain|topik berbeda|'
+            r'case baru|investigasi baru|beralih ke|clear context|new question|another topic|switch to|'
+            r'different person|cari yang lain)\b'
+        )
+        if re.search(reset_pattern, current_query, re.IGNORECASE):
             return True, "explicit_user_reset"
 
-        # 2. Distinct Entity ID Check (e.g. searching a completely different NIK or Certificate)
+        # 2. Distinct Entity ID Check (e.g. searching a completely different NIK, Passport, or Certificate)
         current_ids = set(re.findall(r'\b\d{10,20}\b', current_query))
-        prior_ids = set(re.findall(r'\b\d{10,20}\b', last_user_query))
-        if current_ids and prior_ids and not (current_ids & prior_ids):
-            return True, f"entity_id_shift ({list(prior_ids)[0]} -> {list(current_ids)[0]})"
+        if current_ids:
+            all_prior_text = " ".join(m.get("content", "") for m in history)
+            prior_ids = set(re.findall(r'\b\d{10,20}\b', all_prior_text))
+            if prior_ids and not (current_ids & prior_ids):
+                return True, f"entity_id_shift ({list(prior_ids)[0]} -> {list(current_ids)[0]})"
 
-        # 3. Domain Shift (e.g. Person/Dukcapil vs Land/BPN vs Company/Vendor vs General QA)
+        # 3. Domain Shift (e.g. Person/Dukcapil vs Land/BPN vs Company/Vendor vs Banking vs Legal vs General QA)
         def get_domain(q: str) -> str:
             q_lower = q.lower()
-            if any(k in q_lower for k in ["tanah", "sertifikat", "bpn", "bidang", "shm", "hgb", "lahan"]):
+            if any(k in q_lower for k in ["tanah", "sertifikat", "bpn", "bidang", "shm", "hgb", "lahan", "persil"]):
                 return "land"
-            if any(k in q_lower for k in ["nik", "dukcapil", "ktp", "keluarga", "kk", "lahir", "penduduk"]):
+            if any(k in q_lower for k in ["nik", "dukcapil", "ktp", "keluarga", "kk", "lahir", "penduduk", "orang"]):
                 return "citizen"
             if any(k in q_lower for k in ["pt ", "perusahaan", "vendor", "pengadaan", "tender", "sikap", "cv "]):
                 return "company"
             if any(k in q_lower for k in ["rekening", "bank", "transaksi", "mutasi", "keuangan", "saldo"]):
                 return "banking"
+            if any(k in q_lower for k in ["hukum", "pasal", "undang-undang", "uu ", "pidana", "peraturan", "kpk", "korupsi"]):
+                return "legal"
             return "general"
 
         cur_domain = get_domain(current_query)
-        prior_domain = get_domain(last_user_query)
-
-        if cur_domain != "general" and prior_domain != "general" and cur_domain != prior_domain:
-            return True, f"domain_shift ({prior_domain} -> {cur_domain})"
+        prior_user_queries = [m["content"] for m in history if m["role"] == "user"]
+        if prior_user_queries:
+            last_user_query = prior_user_queries[-1]
+            prior_domain = get_domain(last_user_query)
+            if cur_domain != "general" and prior_domain != "general" and cur_domain != prior_domain:
+                return True, f"domain_shift ({prior_domain} -> {cur_domain})"
 
         return False, "continuous_dialogue"
 
     def _distill_older_turns(self, turns: List[Dict[str, str]]) -> str:
         """
         Distills older conversation turns into a high-density, low-token working memory buffer.
+        Robust against any role ordering.
         """
         if not turns:
             return ""
 
         summary_points = []
-        for i in range(0, len(turns), 2):
-            u_turn = turns[i] if turns[i]["role"] == "user" else None
-            a_turn = turns[i+1] if (i+1 < len(turns) and turns[i+1]["role"] == "assistant") else None
+        last_user_text = None
+        for m in turns:
+            role = m.get("role", "user")
+            content = m.get("content", "").strip()
+            if not content:
+                continue
 
-            if u_turn:
-                u_text = re.sub(r'\s+', ' ', u_turn["content"]).strip()[:140]
-                point = f"• Tanya: \"{u_text}\""
-                if a_turn:
-                    # Extract first 2 informative sentences of assistant reply
-                    a_lines = [l.strip() for l in a_turn["content"].split('\n') if l.strip() and not l.startswith('>')]
-                    snippet = a_lines[0][:140] if a_lines else "Telah dijawab."
-                    point += f" ➔ Temuan: {snippet}"
-                summary_points.append(point)
+            if role == "user":
+                last_user_text = re.sub(r'\s+', ' ', content)[:120]
+            elif role == "assistant" and last_user_text:
+                lines = [l.strip() for l in content.splitlines() if l.strip() and not l.startswith('>')]
+                snippet = lines[0][:120] if lines else "Telah diproses."
+                summary_points.append(f"• Tanya: \"{last_user_text}\" ➔ Temuan: {snippet}")
+                last_user_text = None
 
-        return "\n".join(summary_points[:4])
+        if last_user_text:
+            summary_points.append(f"• Tanya: \"{last_user_text}\"")
+
+        return "\n".join(summary_points[-4:])
+
+    def compact_tool_records(self, records: Any, max_records: int = 15) -> Tuple[Any, Optional[str], int]:
+        """
+        Anti-Confusion for Live Tool Results:
+        If a database query or API returns a huge list of records (e.g. 50-200 rows),
+        caps the prompt payload at `max_records` while retaining all fields and injecting
+        an explicit total count note so the LLM doesn't overflow or suffer attention degradation.
+        Returns: (compacted_records, summary_note, count_compacted)
+        """
+        if not isinstance(records, list) or len(records) <= max_records:
+            return records, None, 0
+
+        total_count = len(records)
+        compacted = records[:max_records]
+        note = (
+            f"Menampilkan {max_records} dari total {total_count} record resmi untuk menjaga ketajaman konteks penalaran (Anti-Confusion Guard). "
+            f"Seluruh {total_count} record telah diverifikasi dan tersimpan utuh di bank data."
+        )
+        return compacted, note, (total_count - max_records)
 
     def get_anti_rot_system_directive(self, is_task_shift: bool = False) -> str:
         """

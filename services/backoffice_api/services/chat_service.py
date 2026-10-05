@@ -1056,11 +1056,17 @@ Patuhi aturan:
                             v_tier = (matched_source.config or {}).get("validity_tier", "authoritative")
                             v_score = (matched_source.config or {}).get("validity_score", 95)
                             rec_count = len(payload_data) if isinstance(payload_data, list) else 1
+                            records_for_prompt = payload_data
+                            records_summary_note = None
+                            if isinstance(payload_data, list) and rec_count > 15:
+                                records_for_prompt, records_summary_note, count_saved = context_rot_guard.compact_tool_records(payload_data, max_records=15)
+                                rot_metrics["tool_records_compacted"] = rot_metrics.get("tool_records_compacted", 0) + count_saved
+
                             completeness_instruction = (
                                 f"PERHATIAN SANGAT PENTING: Ditemukan {rec_count} record/individu unik dalam database resmi ini. "
-                                f"Anda WAJIB MENAMPILKAN SELURUH {rec_count} record/individu tersebut secara lengkap kepada pengguna "
-                                f"(gunakan tabel perbandingan Markdown atau daftar bernomor 1 s/d {rec_count} yang memuat NIK, Nama, TTL, Alamat, dan No KK untuk SETIAP orang). "
-                                f"DILARANG KERAS hanya menampilkan 1 orang atau memotong daftar! Pengguna memerlukan seluruh data hasil pencarian."
+                                f"Anda WAJIB MENAMPILKAN record/individu tersebut secara lengkap kepada pengguna "
+                                f"(gunakan tabel perbandingan Markdown atau daftar bernomor yang memuat NIK, Nama, TTL, Alamat, dan No KK untuk SETIAP orang). "
+                                f"DILARANG MENGARANG data! Pengguna memerlukan seluruh data hasil pencarian."
                                 if isinstance(payload_data, list) and rec_count > 1 else ""
                             )
                             tool_output_payload = {
@@ -1074,12 +1080,15 @@ Patuhi aturan:
                                 "total_records_found": rec_count,
                                 "completeness_instruction": completeness_instruction if completeness_instruction else None,
                                 "field_definitions": field_defs if (isinstance(field_defs, list) and len(field_defs) > 0) else None,
-                                "records": payload_data
+                                "records_summary": records_summary_note,
+                                "records": records_for_prompt
                             }
                             if tool_output_payload.get("field_definitions") is None:
                                 tool_output_payload.pop("field_definitions", None)
                             if tool_output_payload.get("completeness_instruction") is None:
                                 tool_output_payload.pop("completeness_instruction", None)
+                            if tool_output_payload.get("records_summary") is None:
+                                tool_output_payload.pop("records_summary", None)
                             tool_output_str = json.dumps(tool_output_payload, default=str, ensure_ascii=False)
 
                         executed_tools_info.append({
