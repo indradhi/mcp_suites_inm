@@ -171,6 +171,13 @@ def normalize_tool_data(raw_data: Any) -> List[Dict[str, Any]]:
     if not isinstance(raw_data, dict):
         return []
 
+    # Filter out upstream errors, failure messages, and not-found responses
+    msg = str(raw_data.get("message", "")).lower()
+    err = str(raw_data.get("error", "")).lower()
+    st = str(raw_data.get("status", "")).lower()
+    if "execution failed" in msg or "tidak ditemukan" in msg or "not found" in msg or st in ["error", "fail", "failed", "not_found"] or (err and err not in ["none", "false", "0"]):
+        return []
+
     # Flatten common wrappers
     if 'data' in raw_data and isinstance(raw_data['data'], dict):
         raw_data = raw_data['data']
@@ -263,7 +270,10 @@ def normalize_tool_data(raw_data: Any) -> List[Dict[str, Any]]:
         if key in raw_data and isinstance(raw_data[key], list):
             return [r for r in raw_data[key] if isinstance(r, dict)]
 
-    # 3. Single record dictionary
+    # 3. Single record dictionary (guard against bare metadata or error objects)
+    data_keys = set(raw_data.keys()) - {'message', 'status', 'error', 'code', 'respon_code', 'success'}
+    if not data_keys:
+        return []
     return [raw_data]
 
 

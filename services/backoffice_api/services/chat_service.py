@@ -916,6 +916,9 @@ Instructions:
 - If the question can be answered or queried using one of the available tools, call the tool first.
 - Only formulate a direct answer from the context above if none of the tools are applicable.
 - STRICT ANTI-HALLUCINATION: If neither the tools nor the context contain the requested data, state clearly: "Data tidak ditemukan dalam basis data atau dokumen yang tersedia." DO NOT invent, fabricate, or guess any details.
+- INTEGRITAS KESIMPULAN & DISAMBIGUASI NAMA (ANTI-CONFLATION): Jika hasil pencarian basis data resmi memuat beberapa individu berbeda dengan nama serupa (memiliki NIK/TTL/Alamat berbeda), pisahkan rincian aset secara tegas per NIK. DILARANG KERAS menyimpulkan bahwa semua aset tersebut milik satu orang yang sama.
+- ZERO-SPECULATION IN CONCLUSIONS: Pada bagian simpulan atau ringkasan, hanya sampaikan fakta yang tertera dalam data resmi (nomor sertifikat, NIK, luas m2, wilayah). DILARANG menambahkan dugaan spekulatif yang tidak berdasar.
+- ANTI-CONTENT-ROT: Dilarang mengaitkan atau memasukkan kembali data/aset milik orang lain dari sesi percakapan sebelumnya ke dalam simpulan subjek saat ini.
 - When tool results or context contain photos, render the photo in Markdown image tag `![Foto Profil - NAMA_LENGKAP](foto_resmi)` ONLY IF the photo strictly belongs to the specific person or entity being profiled (matching NIK or Full Name). The system backend will automatically replace (foto_resmi) with the verified image. NEVER output raw base64 strings manually in the answer."""
         else:
             if not has_real_context and strict_mode:
@@ -945,7 +948,10 @@ Patuhi aturan:
 2. Jangan pernah menebak, mengasumsikan, atau menambahkan rincian yang tidak ada dalam konteks.
 3. Sebutkan sumber dokumen pendukung jika relevan.
 4. PENCARIAN KARTU KELUARGA (KK): Jika pertanyaan menyangkut Kartu Keluarga (KK) atau Nomor KK, Anda WAJIB menampilkan SELURUH anggota keluarga yang terdaftar dalam KK tersebut (Kepala Keluarga, Istri/Pasangan, dan Anak/Famili Lain) secara berurutan dan lengkap (1, 2, 3, dst.). DILARANG BERHENTI setelah hanya menampilkan Kepala Keluarga jika konteks memuat anggota keluarga lainnya.
-5. FOTO PROFIL: Untuk setiap orang/anggota keluarga yang memiliki foto dalam basis data, sertakan tag Markdown: `![Foto Profil - NAMA_LENGKAP](foto_resmi)`. DILARANG KERAS menyalin atau menuliskan kode base64 mentah dalam teks jawaban."""
+5. FOTO PROFIL: Untuk setiap orang/anggota keluarga yang memiliki foto dalam basis data, sertakan tag Markdown: `![Foto Profil - NAMA_LENGKAP](foto_resmi)`. DILARANG KERAS menyalin atau menuliskan kode base64 mentah dalam teks jawaban.
+6. INTEGRITAS KESIMPULAN (ANTI-CONTENT-ROT): Bagian kesimpulan/ringkasan wajib murni 100% dari data yang terverifikasi. Dilarang mengarang asumsi atau spekulasi.
+7. DISAMBIGUASI NAMA (ANTI-CONFLATION): Jika terdapat banyak entitas dengan nama sama namun NIK/TTL/Alamat berbeda, pisahkan secara tegas dan jangan menyimpulkan aset mereka sebagai satu orang.
+8. ISOLASI KONTEN RIWAYAT: Jangan pernah membawa masuk data subjek percakapan sebelumnya ke dalam jawaban subjek saat ini."""
 
         # ── ANTI-CONTEXT-ROT GUARD (Poisoning, Distraction, Confusion Prevention) ──
         sanitized_history, rot_metrics = context_rot_guard.sanitize_and_compact_history(
@@ -1167,23 +1173,6 @@ Patuhi aturan:
                         success = exec_res.get("success", False)
                         payload_data = exec_res.get("data") if exec_res.get("data") is not None else exec_res.get("text", exec_res)
 
-                        # ── Persist result (bank data + cache entry) ────────
-                        if success and not cache_hit:
-                            try:
-                                rec_data = exec_res.get("data")
-                                if rec_data:
-                                    from services.ingestion.bank_data_saver import (
-                                        save_tool_records_to_bank_data, save_tool_cache_entry
-                                    )
-                                    if rec_data and (isinstance(rec_data, list) or isinstance(rec_data, dict)):
-                                        save_tool_records_to_bank_data(matched_source, fn_args, rec_data, db)
-                                    # Save cache entry regardless of list/dict
-                                    if ttl_minutes and ttl_minutes > 0:
-                                        save_tool_cache_entry(matched_source, fn_args, rec_data, db)
-                            except Exception as cache_err:
-                                logger.warning(f"Notice saving tool bank data in chat: {cache_err}")
-
-                        
                         # Deduplicate list records if duplicate entries exist (e.g. from SQL joins or repeated pagination)
                         if isinstance(payload_data, list) and len(payload_data) > 0 and isinstance(payload_data[0], dict):
                             seen_keys = set()
@@ -1209,8 +1198,23 @@ Patuhi aturan:
                             err_val = str(payload_data.get("error", "")).lower()
                             if "execution failed" in msg_val or "tidak ditemukan" in msg_val or "not found" in msg_val or status_val in ["error", "fail", "failed", "not_found"] or (err_val and err_val not in ["none", "false", "0"]):
                                 is_empty_or_failed = True
-                            elif not payload_data:
+                            elif not (set(payload_data.keys()) - {'message', 'status', 'error', 'code', 'respon_code', 'success'} or 'combinedResults' in payload_data or 'data' in payload_data):
                                 is_empty_or_failed = True
+
+                        # ── Persist result (bank data + cache entry) ONLY IF VALID & NON-EMPTY ────────
+                        if success and not cache_hit and not is_empty_or_failed:
+                            try:
+                                rec_data = exec_res.get("data")
+                                if rec_data:
+                                    from services.ingestion.bank_data_saver import (
+                                        save_tool_records_to_bank_data, save_tool_cache_entry
+                                    )
+                                    if rec_data and (isinstance(rec_data, list) or isinstance(rec_data, dict)):
+                                        save_tool_records_to_bank_data(matched_source, fn_args, rec_data, db)
+                                    if ttl_minutes and ttl_minutes > 0:
+                                        save_tool_cache_entry(matched_source, fn_args, rec_data, db)
+                            except Exception as cache_err:
+                                logger.warning(f"Notice saving tool bank data in chat: {cache_err}")
 
                         if is_empty_or_failed:
                             target_arg_str = ", ".join(f"{k}='{v}'" for k, v in fn_args.items()) if fn_args else "parameter terkait"
@@ -1250,6 +1254,12 @@ Patuhi aturan:
                                 f"DILARANG MENGARANG data! Pengguna memerlukan seluruh data hasil pencarian."
                                 if isinstance(payload_data, list) and rec_count > 1 else ""
                             )
+                            conclusion_instruction = (
+                                "PANDUAN KESIMPULAN & ANALISIS AKHIR (ZERO-HALLUCINATION & ANTI-CONTENT-ROT):\n"
+                                "1. INTEGRITAS KESIMPULAN: Bagian kesimpulan/rangkuman WAJIB merupakan murni rekapitulasi data numerik/faktual dari records resmi di atas. DILARANG menambahkan dugaan spekulatif (seperti dugaan motif kepemilikan, hubungan keluarga fiktif, atau status hukum yang tidak tercatat).\n"
+                                "2. DISAMBIGUASI ENTITAS (ANTI-CONFLATION): Jika nama pemilik sama tetapi memiliki NIK, Tempat/Tanggal Lahir, atau Wilayah yang berbeda, nyatakan dengan tegas dalam simpulan bahwa data tersebut merujuk pada beberapa individu yang berbeda. DILARANG MENGGABUNGKAN aset mereka seolah-olah milik satu orang yang sama!\n"
+                                "3. ISOLASI DATA SELESAI: DILARANG KERAS mengaitkan atau memasukkan kembali data/aset/nama dari subjek sesi percakapan sebelumnya ke dalam simpulan subjek saat ini."
+                            )
                             tool_output_payload = {
                                 "status": "success",
                                 "source_name": matched_source.name,
@@ -1260,6 +1270,7 @@ Patuhi aturan:
                                 "data_priority": f"PRIORITAS_UTAMA_MUTLAK (Tingkat Validitas: {v_tier.upper()} [{v_score}/100] - Data ini diambil langsung secara real-time dari database/source data resmi. WAJIB ditampilkan sebagai acuan utama kepada pengguna di atas data lainnya).",
                                 "total_records_found": rec_count,
                                 "completeness_instruction": completeness_instruction if completeness_instruction else None,
+                                "conclusion_instruction": conclusion_instruction,
                                 "field_definitions": field_defs if (isinstance(field_defs, list) and len(field_defs) > 0) else None,
                                 "records_summary": records_summary_note,
                                 "records": records_for_prompt
@@ -1654,6 +1665,18 @@ Patuhi aturan:
 
             if not clean_answer:
                 clean_answer = raw_answer or "No response generated by model."
+
+            # 6. Post-Synthesis Verification: Zero-Hallucination & Anti-Content-Rot Guard
+            try:
+                clean_answer, rot_sanitization_metrics = context_rot_guard.validate_and_sanitize_response(
+                    clean_answer=clean_answer,
+                    current_message=message,
+                    history=history,
+                    executed_tools_info=executed_tools_info
+                )
+                rot_metrics.update(rot_sanitization_metrics)
+            except Exception as sanitize_err:
+                logger.warning(f"Notice during response anti-rot validation: {sanitize_err}")
 
         except Exception as e:
             logger.error(f"Error calling LLM for chat response: {e}")

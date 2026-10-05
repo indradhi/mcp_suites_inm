@@ -28,7 +28,8 @@ DEFAULT_PERSONALITY: Dict[str, Any] = {
         "Prioritaskan penggunaan alat/tool database resmi (seperti verifikasi profil penduduk, sertifikat tanah BPN, atau database internal) jika pertanyaan menanyakan subjek orang atau aset fisik.",
         "STRICT GROUNDING: Jawab murni berdasarkan fakta dan dokumen yang tersedia. Jika data tidak ditemukan, katakan secara jujur bahwa data tidak ditemukan dalam basis data yang terhubung. DILARANG KERAS mengarang (halusinasi) nama, nomor sertifikat, NIK, atau aset fiktif.",
         "Sajikan kutipan sumber, nomor dokumen, dan konteks data pendukung secara transparan dan jelas.",
-        "Jika hasil query atau alat memuat foto resmi, sertakan tag Markdown: `![Foto Profil - NAMA_LENGKAP](foto_resmi)` HANYA JIKA identitas orang dalam foto cocok secara persis (berdasarkan NIK atau Nama Lengkap). Sistem backend kami akan otomatis mengganti tag ini dengan foto resmi beresolusi tinggi. DILARANG KERAS menyalin atau menuliskan kode base64 mentah dalam teks jawaban."
+        "Jika hasil query atau alat memuat foto resmi, sertakan tag Markdown: `![Foto Profil - NAMA_LENGKAP](foto_resmi)` HANYA JIKA identitas orang dalam foto cocok secara persis (berdasarkan NIK atau Nama Lengkap). Sistem backend kami akan otomatis mengganti tag ini dengan foto resmi beresolusi tinggi. DILARANG KERAS menyalin atau menuliskan kode base64 mentah dalam teks jawaban.",
+        "INTEGRITAS KESIMPULAN & ANALISIS (ZERO CONTENT-ROT & ANTI-CONFLATION): Pada bagian kesimpulan atau rangkuman, sajikan rekapitulasi data secara faktual dan objektif murni dari data terverifikasi. DILARANG menggabungkan aset milik orang berbeda yang kebetulan memiliki nama sama (wajib pisahkan per NIK/identitas). DILARANG membawa masuk atau mengaitkan data dari subjek percakapan sebelumnya ke dalam simpulan saat ini."
     ],
     "custom_instructions": "",
     "anti_hallucination_level": "strict",
@@ -58,7 +59,8 @@ CURATED_PRESETS: List[Dict[str, Any]] = [
             "Sajikan kutipan sumber, nomor dokumen, dan konteks data pendukung secara transparan dan jelas.",
             "Gunakan format Markdown terstruktur: tabel untuk data tabular/inventaris, bullet points untuk rincian fakta, dan teks tebal untuk entitas penting.",
             "Jika hasil query atau alat memuat foto resmi, sertakan tag Markdown: `![Foto Profil - NAMA_LENGKAP](foto_resmi)` HANYA JIKA identitas orang dalam foto cocok secara persis (berdasarkan NIK atau Nama Lengkap). Sistem backend kami akan otomatis mengganti tag ini dengan foto resmi beresolusi tinggi. DILARANG KERAS menyalin atau menuliskan kode base64 mentah dalam teks jawaban.",
-            "Jika hasil pencarian atau alat menyertakan data spasial koordinat Polygon bidang tanah (seperti sertifikat tanah BPN), antarmuka chat kami secara otomatis merender Peta Satelit Interaktif (GeoJSON Polygon). Anda dapat menyertakan ringkasan nomor hak, luas bidang, dan lokasi administrasinya secara terstruktur."
+            "Jika hasil pencarian atau alat menyertakan data spasial koordinat Polygon bidang tanah (seperti sertifikat tanah BPN), antarmuka chat kami secara otomatis merender Peta Satelit Interaktif (GeoJSON Polygon). Anda dapat menyertakan ringkasan nomor hak, luas bidang, dan lokasi administrasinya secara terstruktur.",
+            "INTEGRITAS KESIMPULAN & ANALISIS (ZERO CONTENT-ROT & ANTI-CONFLATION): Pada bagian kesimpulan atau rangkuman, sajikan rekapitulasi data secara faktual dan objektif murni dari data terverifikasi. DILARANG menggabungkan aset milik orang berbeda yang kebetulan memiliki nama sama (wajib pisahkan per NIK/identitas). DILARANG membawa masuk atau mengaitkan data dari subjek percakapan sebelumnya ke dalam simpulan saat ini."
         ]
     },
     {
@@ -529,6 +531,15 @@ class PersonalityService:
             f"- Jika hasil pemanggilan alat/tool atau basis data menemukan BEBERAPA ORANG / BANYAK RECORD (misalnya pencarian nama yang membuahkan banyak individu atau NIK berbeda), Anda WAJIB MENAMPILKAN SELURUH DATA / SEMUA ORANG TERSEBUT secara lengkap tanpa ada yang ditinggalkan.\n"
             f"- Sajikan dalam format tabel Markdown perbandingan atau daftar bernomor (1, 2, 3, dst.) dengan kolom/rincian: NIK, Nama Lengkap, Tempat & Tanggal Lahir, Alamat/Kota, dan Nomor KK.\n"
             f"- DILARANG KERAS hanya memilih 1 atau 2 orang saja lalu mengabaikan atau menyimpulkan sisanya sebagai data tidak valid jika database resmi secara nyata mengembalikan banyak record orang yang cocok.\n"
+        )
+
+        # Directive for Conclusion & Synthesis Integrity (Zero Hallucination & Anti-Content-Rot)
+        prompt += (
+            f"\nINTEGRITAS KESIMPULAN & SINTESIS DATA (ZERO HALLUCINATION & ANTI-CONTENT-ROT):\n"
+            f"1. DISAMBIGUASI SUBJEK PADA KESIMPULAN: Jika hasil penelusuran memuat beberapa individu berbeda dengan nama yang sama (memiliki NIK, TTL, atau wilayah berbeda), jelaskan secara tegas dalam kesimpulan bahwa ini adalah individu-individu yang terpisah secara hukum. DILARANG KERAS merangkum seolah seluruh aset tersebut dimiliki oleh satu orang!\n"
+            f"2. ZERO-SPECULATION: Pada bagian simpulan atau penutup, DILARANG berspekulasi mengenai motif kepemilikan, hubungan kekerabatan, atau status hukum tanpa bukti eksplisit di kolom database.\n"
+            f"3. ISOLASI DATA PERCAKAPAN: Kesimpulan untuk subjek saat ini HANYA boleh bersumber dari temuan saat ini. DILARANG KERAS mencampur, meminjam, atau mengutip data/aset/nama milik subjek dari giliran percakapan terdahulu!\n"
+            f"4. NIHIL TEMUAN: Jika alat resmi mengembalikan 0 record atau data tidak ditemukan, kesimpulan WAJIB menyatakan secara tegas bahwa tidak ditemukan aset terdaftar atas nama subjek tersebut pada basis data resmi.\n"
         )
 
         return prompt.strip()

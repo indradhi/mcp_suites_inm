@@ -29,7 +29,7 @@ class ContextRotGuard:
         if not name:
             return ""
         n = re.sub(r'[\'\"`]', '', str(name)).strip()
-        title_pattern = r'\b(?:prof|dr|dra|drs|ir|h|hj|apt|ak|s\.?kom|s\.?t|s\.?pd|s\.?h|s\.?e|s\.?si|s\.?ked|m\.?kom|m\.?m|m\.?si|m\.?t|m\.?kn|m\.?pd|b\.?sc|ph\.?d)\b\.?'
+        title_pattern = r'\b(?:prof|dr|dra|drs|ir|h|hj|apt|ak|drg|drh|s\.?kom|s\.?t|s\.?pd|s\.?h|s\.?e|s\.?si|s\.?ked|s\.?sos|s\.?ip|s\.?farm|s\.?psi|s\.?ag|s\.?sn|m\.?kom|m\.?m|m\.?si|m\.?t|m\.?kn|m\.?pd|m\.?h|m\.?ag|m\.?sc|b\.?sc|ph\.?d|ll\.?m|mba)\b\.?'
         cleaned = re.sub(title_pattern, '', n, flags=re.IGNORECASE)
         cleaned = re.sub(r'[,.]+', ' ', cleaned)
         cleaned = re.sub(r'\s+', ' ', cleaned).strip()
@@ -43,7 +43,7 @@ class ContextRotGuard:
         """
         if not query:
             return None
-        NON_NAME_WORDS = {"tanah", "sertifikat", "rumah", "nik", "lahan", "persil", "shm", "hgb", "pt", "cv", "vendor", "lelang"}
+        NON_NAME_WORDS = {"tanah", "sertifikat", "rumah", "nik", "lahan", "persil", "shm", "hgb", "pt", "cv", "vendor", "lelang", "di", "pada", "tentang", "terkait", "dari", "dan", "atau"}
         
         # 1. Quoted string: "miftahusurur s.kom" or 'bambang'
         m_quote = re.search(r'["\']([a-zA-Z\s.,]{3,50})["\']', query)
@@ -65,6 +65,22 @@ class ContextRotGuard:
                 final_name = " ".join(words).strip()
                 if len(final_name) >= 3:
                     return final_name.upper()
+
+        # 3. Intent Pattern: cari [tanah/aset/lahan/properti/nik/kk/orang/data] [nama] or [profil/siapa/cek/temukan/lihat/lacak] [nama]
+        m_intent = re.search(
+            r'(?:cari\s+(?:tanah|aset|lahan|properti|sertifikat|nik|kk|orang|data)|profil|siapa|cek|temukan|lihat|lacak)\s+([a-zA-Z\s.,]{3,50})',
+            query,
+            re.IGNORECASE
+        )
+        if m_intent:
+            raw = m_intent.group(1).split("?")[0].split("\n")[0].split(" di ")[0].split(" kab ")[0].split(" kota ")[0]
+            cleaned = cls.clean_person_name(raw)
+            words = [w for w in cleaned.lower().split() if w not in NON_NAME_WORDS and len(w) >= 2]
+            if len(words) >= 1:
+                final_name = " ".join(words).strip()
+                if len(final_name) >= 3:
+                    return final_name.upper()
+
         return None
 
     def sanitize_and_compact_history(
@@ -467,16 +483,20 @@ class ContextRotGuard:
         Explicitly neutralizes Poisoning, Distraction, and Confusion.
         """
         directive = (
-            "\n\n🛡️ PROTOKOL PENCEGAHAN CONTEXT ROT (ANTI-POISONING & FRESH PLANNING):\n"
+            "\n\n🛡️ PROTOKOL PENCEGAHAN CONTEXT ROT (ANTI-POISONING, FRESH PLANNING & KONTROL INTEGRITAS KESIMPULAN):\n"
             "1. STATUS RIWAYAT PERCAKAPAN: Seluruh riwayat obrolan sebelumnya HANYA merupakan dialog kontekstual. Riwayat tersebut BUKANLAH basis data fakta (Bukan Ground Truth).\n"
             "2. ANTI-POISONING (KEBAL HALUSINASI): DILARANG KERAS mengulang atau menganggap benar nama alat/fungsi, angka NIK, nama subjek, atau klaim data apapun dari balasan asisten sebelumnya, KECUALI jika didukung langsung oleh fakta di 'Context Information' atau hasil pemanggilan Tool pada giliran SAAT INI.\n"
-            "3. FRESH PLANNING: Jangan meniru format, gaya, atau batasan dari jawaban sebelumnya jika tidak relevan. Evaluasi pertanyaan terkini secara objektif dari awal."
+            "3. FRESH PLANNING: Jangan meniru format, gaya, atau batasan dari jawaban sebelumnya jika tidak relevan. Evaluasi pertanyaan terkini secara objektif dari awal.\n"
+            "4. INTEGRITAS SINTESIS & KESIMPULAN (ANTI-CONTENT-ROT PADA KESIMPULAN):\n"
+            "   a. DISAMBIGUASI ENTITAS (ANTI-CONFLATION): Jika hasil pencarian basis data memuat beberapa individu berbeda dengan nama serupa (memiliki NIK, Tempat/Tanggal Lahir, atau Alamat berlainan), DILARANG KERAS MENGGABUNGKAN aset atau data mereka menjadi milik satu orang! Kelompokkan dan sajikan secara terpisah per NIK/identitas unik.\n"
+            "   b. ZERO-SPECULATION IN CONCLUSIONS: Pada bagian kesimpulan atau rangkuman, DILARANG mengarang hubungan keluarga, spekulasi status hukum, atau dugaan tanpa bukti eksplisit. Setiap klaim WAJIB berakar langsung pada fakta numerik/atribut resmi (Nomor Sertifikat, NIK, Luas, Tanggal).\n"
+            "   c. ISOLASI KONTEN RIWAYAT: DILARANG mengaitkan atau membawa masuk angka, aset, atau kesimpulan dari subjek percakapan sebelumnya ke dalam simpulan saat ini."
         )
 
         if is_task_shift:
             if "subject_name_shift" in shift_reason:
                 directive += (
-                    "\n4. PERINGATAN ISOLASI SUBJEK MUTLAK (SUBJECT SHIFT DETECTED): "
+                    "\n5. PERINGATAN ISOLASI SUBJEK MUTLAK (SUBJECT SHIFT DETECTED): "
                     "Pengguna saat ini menanyakan individu/subjek baru yang berbeda dari percakapan sebelumnya. "
                     "DILARANG KERAS mengaitkan, meminjam, atau menyebutkan sertifikat tanah, aset, NIK, properti, ataupun NAMA dari subjek sebelumnya pada jawaban! "
                     "Fokus 100% murni hanya pada subjek yang ditanyakan saat ini tanpa menyinggung subjek sebelumnya. "
@@ -484,12 +504,148 @@ class ContextRotGuard:
                 )
             else:
                 directive += (
-                    "\n4. PERINGATAN ALIH TUGAS (TASK SHIFT): Pengguna saat ini mengajukan topik/entitas/tugas baru yang independen. "
+                    "\n5. PERINGATAN ALIH TUGAS (TASK SHIFT): Pengguna saat ini mengajukan topik/entitas/tugas baru yang independen. "
                     "Kosongkan asumsi dari kasus sebelumnya, susun rencana penyelidikan baru, dan jangan mencampuradukkan data subjek lama dengan pertanyaan saat ini."
                 )
 
         return directive
 
+    def validate_and_sanitize_response(
+        self,
+        clean_answer: str,
+        current_message: str,
+        history: List[Dict[str, Any]],
+        executed_tools_info: List[Dict[str, Any]]
+    ) -> Tuple[str, Dict[str, Any]]:
+        """
+        Deterministic Post-Synthesis Guard for Zero-Hallucination and Zero-Content-Rot.
+        Guarantees:
+          1. Cross-Entity Isolation: Strips leaked sentences mentioning prior distinct search subjects.
+          2. Zero-Record Hallucination Defense: If tools found 0 records, overrides any fabricated certificate numbers or land plots.
+          3. Multi-Entity Conflation Warning: If records contain multiple NIKs for the same name, ensures conclusion distinguishes them.
+        """
+        metrics = {
+            "prior_leaks_scrubbed": 0,
+            "anti_hallucination_override": False,
+            "anti_conflation_note_applied": False
+        }
+
+        if not clean_answer or not clean_answer.strip():
+            return clean_answer, metrics
+
+        cur_subject = self.extract_target_subject_name(current_message)
+
+        # ── 1. CROSS-ENTITY SCRUBBING (ANTI-ROT) ──────────────────────────
+        # Gather all prior subject names from user queries in conversation history
+        prior_subjects = []
+        if history:
+            for m in history:
+                if m.get("role") == "user":
+                    sub = self.extract_target_subject_name(m.get("content", ""))
+                    if sub and sub not in prior_subjects:
+                        prior_subjects.append(sub)
+
+        cur_tokens = set(cur_subject.split()) if cur_subject else set()
+        distinct_prior = [ps for ps in prior_subjects if not (set(ps.split()) & cur_tokens)]
+
+        if distinct_prior:
+            lines = clean_answer.splitlines()
+            cleaned_lines = []
+            for line in lines:
+                # If table header or markdown separator, retain
+                if line.strip().startswith("|---") or line.strip() == "---":
+                    cleaned_lines.append(line)
+                    continue
+
+                # Sentence-level check
+                sentences = re.split(r'((?<=[.!?])\s+)', line)
+                kept_parts = []
+                for s in sentences:
+                    if not s.strip():
+                        kept_parts.append(s)
+                        continue
+                    has_leak = False
+                    for ps in distinct_prior:
+                        ps_sig = [w for w in ps.split() if len(w) >= 4]
+                        if (len(ps_sig) >= 2 and all(re.search(r'\b' + re.escape(w) + r'\b', s, re.IGNORECASE) for w in ps_sig[:2])) or ps.lower() in s.lower():
+                            has_leak = True
+                            break
+                    if has_leak:
+                        metrics["prior_leaks_scrubbed"] += 1
+                        logger.info(f"Context Rot Guard: Scrubbed prior subject leak referencing '{ps}' from current response")
+                    else:
+                        kept_parts.append(s)
+
+                reconstructed = "".join(kept_parts).strip()
+                if reconstructed:
+                    cleaned_lines.append(reconstructed)
+
+            clean_answer = "\n".join(cleaned_lines)
+
+        # ── 2. ZERO-RECORD HALLUCINATION DEFENSE ──────────────────────────
+        # Check if tools were executed, and ALL returned not_found / 0 records / empty data
+        if executed_tools_info:
+            all_empty = True
+            for t_info in executed_tools_info:
+                if t_info.get("success") and t_info.get("data") and t_info.get("data") != []:
+                    all_empty = False
+                    break
+                if t_info.get("error") != "Data tidak ditemukan" and t_info.get("success"):
+                    all_empty = False
+                    break
+
+            if all_empty:
+                fabricated_cert_match = re.search(
+                    r'(?:ditemukan\s+(?:\d+|beberapa)\s+bidang\s+tanah|memiliki\s+sertifikat|nomor\s+hak\s*:\s*\d+|shm\s*(?:no\.?|nomor)?\s*\d+|hgb\s*(?:no\.?|nomor)?\s*\d+)',
+                    clean_answer,
+                    re.IGNORECASE
+                )
+                if fabricated_cert_match and not any(neg in clean_answer.lower() for neg in ["tidak ditemukan", "nihil", "0 record", "belum tercatat"]):
+                    logger.warning("Context Rot Guard: Overriding fabricated certificate claims on zero-record tool result")
+                    subj_label = f"**{cur_subject}**" if cur_subject else "subjek yang dicari"
+                    clean_answer = (
+                        f"⚠️ **Hasil Penelusuran Resmi Basis Data:**\n\n"
+                        f"Berdasarkan penelusuran langsung pada basis data resmi (misal: BPN ATR / Dukcapil), "
+                        f"**tidak ditemukan bidang tanah ataupun sertifikat kepemilikan yang terdaftar atas nama {subj_label}** (0 record ditemukan).\n\n"
+                        f"**Catatan Integritas Data:**\n"
+                        f"- Query ke basis data resmi telah selesai dieksekusi secara real-time.\n"
+                        f"- Seluruh hasil bernilai nihil (tidak ada hak milik, HGB, ataupun persil tanah terdata)."
+                    )
+                    metrics["anti_hallucination_override"] = True
+
+        # ── 3. ANTI-CONFLATION CONCLUSION NOTE ────────────────────────────
+        # If tool returned multiple records across distinct NIKs for the same name,
+        # ensure the conclusion contains an explicit disambiguation note
+        if executed_tools_info and not metrics.get("anti_hallucination_override"):
+            all_records = []
+            for t in executed_tools_info:
+                d = t.get("data")
+                if isinstance(d, list):
+                    all_records.extend(d)
+
+            if len(all_records) > 1:
+                distinct_niks = set()
+                for r in all_records:
+                    if isinstance(r, dict):
+                        nik = r.get("nik") or r.get("NIK") or r.get("no_ktp")
+                        if nik and len(str(nik)) >= 8:
+                            distinct_niks.add(str(nik))
+
+                if len(distinct_niks) > 1 and cur_subject:
+                    has_disambiguation = any(w in clean_answer.lower() for w in ["disambiguasi", "berbeda orang", "beberapa individu", "bukan satu orang", "terpisah", "per nik"])
+                    if not has_disambiguation:
+                        conflation_note = (
+                            f"\n\n> 💡 **Catatan Integritas Data (Disambiguasi Entitas):** "
+                            f"Hasil penelusuran atas nama **'{cur_subject}'** di atas mencakup {len(distinct_niks)} individu berbeda "
+                            f"(berdasarkan NIK/wilayah yang berlainan). Aset dan catatan tersebut merupakan milik subjek hukum yang berbeda "
+                            f"dan tidak digabungkan sebagai milik satu orang."
+                        )
+                        clean_answer += conflation_note
+                        metrics["anti_conflation_note_applied"] = True
+
+        return clean_answer, metrics
+
 
 # Global singleton instance
 context_rot_guard = ContextRotGuard()
+

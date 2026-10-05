@@ -156,6 +156,10 @@ class APIIngester:
         """
         import time
         import json
+        if hasattr(config, "config"):
+            config = getattr(config, "config") or {}
+        if not isinstance(config, dict):
+            config = {}
         start_time = time.time()
         endpoint = config.get("endpoint", "")
         method = config.get("method", "GET").upper()
@@ -323,6 +327,10 @@ class APIIngester:
         """
         import time
         import json
+        if hasattr(config, "config"):
+            config = getattr(config, "config") or {}
+        if not isinstance(config, dict):
+            config = {}
         start_time = time.time()
         endpoint = config.get("endpoint", "")
         method = config.get("method", "GET").upper()

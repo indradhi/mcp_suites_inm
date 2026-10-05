@@ -6,6 +6,47 @@ Designed for seamless integration with **OpenWebUI**, **Claude Desktop**, **Open
 
 ---
 
+## 🎯 Keunggulan Utama Sistem: Deep Profiling, Network Mapping & Anomaly Detection
+
+Keunggulan sistem ini terletak pada kemampuannya untuk **menelusuri profiling mendalam dari seorang individu atau instansi** ke seluruh basis pengetahuan (*knowledge base*) yang terhubung, **memetakan jaringan keterkaitan** terhadap individu dan instansi lain secara multi-hop, serta **menganalisis data secara relasional untuk menemukan hubungan tersembunyi dan anomali faktual**.
+
+```mermaid
+graph TD
+    A["Kueri Penelusuran / Investigasi"] --> B("Multi-Source Ingestion & Live Tools")
+    B --> C1["Kependudukan (SIAK Dukcapil)"]
+    B --> C2["Pertanahan (BPN ATR / GeoJSON)"]
+    B --> C3["Profil Usaha & Vendor (SIKAP)"]
+    B --> C4["Pengadaan PBJ (SPSE & RUP Paket)"]
+    B --> C5["Biometrik Wajah & Berkas PDF/OCR"]
+    
+    C1 & C2 & C3 & C4 & C5 --> D["Hybrid Retrieval: Vector DB + Neo4j Graph"]
+    
+    D --> E["Pemetaan Jejaring Keterkaitan Multi-Hop"]
+    E --> F1["Relasi Antar-Individu (Keluarga, Pasangan, Rekan)"]
+    E --> F2["Afiliasi Entitas Usaha (Pengurus, Saham, Beneficial Owner)"]
+    E --> F3["Kepemilikan Aset Lintas Wilayah & Persil Tanah"]
+    
+    F1 & F2 & F3 --> G["Mesin Analisis Relasional & Deteksi Anomali"]
+    G --> H1["Penemuan Hubungan Tersembunyi (Hidden Multi-Hop Links)"]
+    G --> H2["Deteksi Anomali Profil & Konflik Kepentingan"]
+    G --> H3["Sintesis Laporan Faktual (Zero-Hallucination & Anti-Rot)"]
+```
+
+### 3 Pilar Kapabilitas Unggulan:
+
+1. **🔍 Penelusuran Profiling Komprehensif (Individu & Instansi)**:
+   - **Individu**: Menelusuri identitas resmi KTP/KK (Dukcapil), legalitas kepemilikan aset tanah (SHM/HGB BPN), keterlibatan badan usaha, hingga verifikasi identitas visual melalui pencocokan biometrik wajah (*Face Recognition*).
+   - **Instansi / Korporasi**: Menggali profil legalitas perusahaan, susunan direksi/komisaris, riwayat kepemilikan modal/saham, keikutsertaan dalam lelang pengadaan barang & jasa (SPSE), dan paket penyedia terumumkan (RUP).
+2. **🌐 Pemetaan Jaringan Keterkaitan Multi-Hop (Entity Network Graph)**:
+   - Menghubungkan titik-titik data terpisah (*connecting the dots*) yang tersebar di berbagai database menjadi satu graf pengetahuan utuh di Neo4j.
+   - Menggunakan *2-Hop Multi-Hop Network Traversal* untuk memetakan rantai hubungan tidak langsung (misalnya: *Individu A ➔ Perusahaan B ➔ Pemenang Tender C ➔ Pemilik Aset D*).
+3. **📊 Analisis Data, Penemuan Korelasi & Deteksi Anomali**:
+   - **Deteksi Hubungan Tersembunyi**: Mengidentifikasi afiliasi terselubung antar-entitas yang tidak tampak pada pencarian data sekuensial biasa.
+   - **Deteksi Anomali & Risiko**: Menyoroti anomali data (misal: kepemilikan aset silang, ketidaksesuaian domisili kependudukan vs lokasi aset, atau peserta tender yang terafiliasi pada pengurus yang sama).
+   - **Zero-Hallucination & Anti-Rot Grounding**: Seluruh kesimpulan diverifikasi oleh *Context Rot Guard*, memisahkan individu bernama sama (*Anti-Conflation*), dan murni berpijak pada data otoritatif (*Ground Truth*) tanpa spekulasi liar.
+
+---
+
 ## 🌟 Key Capabilities
 
 ### 1. 🔌 MCP Server — OpenWebUI & Agent Integration
