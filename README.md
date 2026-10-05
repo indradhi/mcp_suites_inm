@@ -89,6 +89,8 @@ Ingestion is fully async via **Celery** + **Redis** workers with real-time job s
   - NIK Identity Profiling & Dukcapil Verification
   - Land Asset & BPN Certificate Tracing
   - Business Entity & SIKAP Company Investigation
+  - Public Procurement (PBJ), SPSE Tender & RUP Package Tracing
+- **Automated Tool Target Aliasing**: dynamic resolution of abstract flow targets to concrete registered OpenAPI tools (`TOOL_TARGET_ALIASES`).
 - Custom flows editable via the **Data Orchestrator** UI.
 
 ### 8. 👤 Biometric Face Recognition
@@ -150,13 +152,23 @@ MCP Server dilengkapi dengan **Anti-Context-Rot Guard Engine** (`services/backof
 - **Anti-Rot Guard Shield Badge**: Chip status pada footer setiap pesan asisten yang menampilkan efektivitas proteksi (misal: `🛡️ Anti-Rot: +1.420 token dihemat` atau `🛡️ Anti-Rot: Fresh Plan Diaktifkan`).
 - **Programmatic Control via API**: Mendukung parameter boolean `clear_prior_context: true` pada `POST /api/chat` maupun kontrol per-request pada endpoint `/v1/chat/completions`.
 
-### 13. 🔐 Security & RBAC
+### 13. 🎯 Precision Knowledge Tracing Engine (Field Glossary, Tool Mapping, Vector DB & Multi-Hop Graph)
+Sistem dilengkapi dengan subsistem penelusuran data (*knowledge tracing & analytical reasoning engine*) yang dioptimalkan secara menyeluruh agar AI dapat menelusuri data berstruktur kompleks (kependudukan, pertanahan BPN, pengadaan barang & jasa, profil korporasi) tanpa halusinasi dan dengan tingkat presisi maksimal:
+
+| Komponen | Masalah / Tantangan Awal | Mekanisme Tuning & Optimasi Sistem | Dampak Langsung pada AI |
+|---|---|---|---|
+| **1. Field Definition Glossary** | Potongan data terstruktur dari database/API memuat kode singkatan (misal: `HUB_KEL: 1`, `STAT_KWN: 2`, `TIPE_HAK: 1`). Tanpa konteks skema, LLM rentan berhalusinasi atau salah membaca kode angka. | • **Dynamic Glossary Injection**: Saat potongan dokumen dari sumber data diambil, sistem mengekstrak `field_definitions` resmi dari konfigurasi sumber dan menginjeksikannya sebagai `=== KAMUS DEFINISI KOLOM BASIS DATA (FIELD GLOSSARY) ===`.<br>• **Standard Code Dictionaries**: Menyertakan kamus konversi resmi untuk kode kependudukan Dukcapil (`HUB_KEL`: Kepala Keluarga, Istri, Anak, dll.; `STAT_KWN`, `JENIS_KLMIN`, `AGAMA`) dan Pertanahan BPN (`TIPE_HAK`: 1: SHM, 2: HGB, 3: HP, dll.). | AI membaca dan menafsirkan kode angka/singkatan secara akurat 100%, menghasilkan laporan analisis hubungan keluarga dan aset pertanahan yang presisi. |
+| **2. Orchestrator Tool Mapping** | Target pada alur pengambilan data (*retrieval flows*) kerap menggunakan identifier abstrak/lama (`api_dukcapil_lookup`, `bpn`, `ahu`, `spse`, `rup`) yang tidak cocok dengan nama tool OpenAPI aktif di sistem. | • **Tool Target Aliasing (`TOOL_TARGET_ALIASES`)**: Melakukan pemetaan otomatis target alur ke nama fungsi OpenAPI nyata (`data_orang_dukcapil`, `cari_tanah_bpn`, `db_sikap_pemilik_usaha`, `db_spse_tender_pengumuman`, `db_rup_paket_penyedia_terumumkan`).<br>• **Explicit Action Directives**: Menyuntikkan instruksi konkret pemanggilan tool pada prompt sistem: `[tool_call -> PANGGIL TOOL: 'cari_tanah_bpn']` beserta panduan eksekusi berbasis prioritas kebenaran data otoritatif.<br>• **New Procurement Flow**: Menambahkan alur baku pengadaan (*Alur Penelusuran Pengadaan Barang & Jasa (PBJ), Tender SPSE & RUP Paket*). | AI tidak lagi bingung mencari nama fungsi, melainkan langsung memanggil tool OpenAPI yang sesuai dengan parameter hasil ekstraksi pertanyaan. |
+| **3. High-Precision Vector DB Hybrid Search** | Ekstraksi kata kunci pada pencarian hibrida hanya menangkap angka numerik 6–20 digit (`\d{6,20}`), sehingga format nomor sertifikat (SHM/HGB), NPWP bertanda baca, dan kode paket lelang terlewat. | • **Multi-Identifier Extraction**: Mengekstrak kode sertifikat tanah (`SHM`, `HGB`, `NIB`, `NOP`, `NO_HAK`, `SURAT UKUR`), NPWP (format titik-strip maupun angka bersih), serta kode pengadaan (`KD_RUP`, `KD_PENYEDIA`, `KD_TENDER`, `ID_PAKET`).<br>• **Exact Attribute Match Scoring**: Potongan dokumen yang memuat atribut pengenal spesifik (seperti `"nomorhak": "10132307303457"`, `"nib": "..."`, atau `NPWP:`) otomatis memperoleh skor relevansi maksimal (`1.0`), menjamin dokumen target selalu tampil di peringkat teratas. | Dokumen sertifikat pertanahan, perpajakan, dan tender langsung ditemukan seketika (*instant top hit*) bahkan dengan kueri bertanda baca atau kode parsial. |
+| **4. Multi-Hop Network Graph Intelligence (Neo4j)** | Kueri graf sebelumnya membatasi baris secara global (`LIMIT 8`), menyebabkan entitas pertama menghabiskan kuota relasi dan menghilangkan entitas lain, serta hanya menjangkau hubungan 1-langkah (*1-hop*). | • **Distinct-Entity Grouping (`WITH e LIMIT $limit`)**: Memastikan setiap entitas yang cocok dengan kata kunci memiliki alokasi kuota relasi yang seimbang.<br>• **2-Hop Multi-Hop Network Traversal**: Menelusuri jalur hubungan tidak langsung antar entitas (misal: Orang A ➜ Orang B ➜ Perusahaan C, atau Orang A ➜ Lokasi/Aset ➜ Pihak Terkait).<br>• **Semantic Relationship Formatting**: Menyajikan relasi langsung (1-Hop) dan jalur multi-hop bertingkat secara terstruktur dengan tanda panah semantik (`↳ Orang A -[CHILD_OF]-> Orang B -[PART_OF]-> Orang C`). | AI mampu mendeteksi jejaring afiliasi tersembunyi, hubungan keluarga sekunder, dan kepemilikan aset lintas badan usaha secara komprehensif. |
+
+### 14. 🔐 Security & RBAC
 - **JWT-based authentication** with role-based access: `admin`, `editor`, `viewer`.
 - **API Keys** with scoped permissions (tool allowlist, knowledge base allowlist).
 - Middleware-level key validation with **in-memory caching** (60s TTL) to minimize latency.
 - `MCP_AUTH_ENABLED` toggle for development environments.
 
-### 14. 🗄️ Enterprise Data Persistence & Zero-Loss Protection
+### 15. 🗄️ Enterprise Data Persistence & Zero-Loss Protection
 - Host bind-mount volumes under `./data/` survive container restarts and rebuilds.
 - **Automated daily backups**: MySQL dumps, Neo4j snapshots, ChromaDB archives, Redis AOF — all packaged into timestamped `.tar.gz` in `./backups/`.
 
