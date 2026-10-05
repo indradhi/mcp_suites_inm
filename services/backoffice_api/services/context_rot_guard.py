@@ -20,6 +20,53 @@ class ContextRotGuard:
         self.max_history_chars = 4000      # Soft limit for entire prior history (~1000 tokens)
         self.max_message_chars = 1200      # Max chars for any single prior assistant message
 
+    @staticmethod
+    def clean_person_name(name: str) -> str:
+        """
+        Strips academic degrees, honorifics, quotes, and punctuation from person names
+        so database/API queries receive standard clean entity names without tripping upstream services.
+        """
+        if not name:
+            return ""
+        n = re.sub(r'[\'\"`]', '', str(name)).strip()
+        title_pattern = r'\b(?:prof|dr|dra|drs|ir|h|hj|apt|ak|s\.?kom|s\.?t|s\.?pd|s\.?h|s\.?e|s\.?si|s\.?ked|m\.?kom|m\.?m|m\.?si|m\.?t|m\.?kn|m\.?pd|b\.?sc|ph\.?d)\b\.?'
+        cleaned = re.sub(title_pattern, '', n, flags=re.IGNORECASE)
+        cleaned = re.sub(r'[,.]+', ' ', cleaned)
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        return cleaned if len(cleaned) >= 2 else n
+
+    @classmethod
+    def extract_target_subject_name(cls, query: str) -> Optional[str]:
+        """
+        Extracts the target individual's name from search inquiries (e.g. 'cari tanah atas nama "miftahusurur s.kom"').
+        Returns normalized uppercase name or None.
+        """
+        if not query:
+            return None
+        NON_NAME_WORDS = {"tanah", "sertifikat", "rumah", "nik", "lahan", "persil", "shm", "hgb", "pt", "cv", "vendor", "lelang"}
+        
+        # 1. Quoted string: "miftahusurur s.kom" or 'bambang'
+        m_quote = re.search(r'["\']([a-zA-Z\s.,]{3,50})["\']', query)
+        if m_quote:
+            cleaned = cls.clean_person_name(m_quote.group(1))
+            words = [w for w in cleaned.lower().split() if w not in NON_NAME_WORDS and len(w) >= 2]
+            if len(words) >= 1:
+                final_name = " ".join(words).strip()
+                if len(final_name) >= 3:
+                    return final_name.upper()
+
+        # 2. Pattern: atas nama ..., dengan nama ..., bernama ..., nama ...
+        m_name = re.search(r'(?:atas\s+nama|dengan\s+nama|bernama|subjek|orang|milik|nama)\s+([a-zA-Z\s.,]{3,50})', query, re.IGNORECASE)
+        if m_name:
+            raw = m_name.group(1).split("?")[0].split("\n")[0].split(" di ")[0].split(" kab ")[0].split(" kota ")[0]
+            cleaned = cls.clean_person_name(raw)
+            words = [w for w in cleaned.lower().split() if w not in NON_NAME_WORDS and len(w) >= 2]
+            if len(words) >= 1:
+                final_name = " ".join(words).strip()
+                if len(final_name) >= 3:
+                    return final_name.upper()
+        return None
+
     def sanitize_and_compact_history(
         self,
         current_message: str,
@@ -97,17 +144,20 @@ class ContextRotGuard:
         if is_task_shift:
             # If the user pivoted to a completely new topic or task, we quarantine older turns
             # into a concise background scratchpad so attention weights stay 100% focused on the new task.
-            distilled_summary = self._distill_older_turns(cleaned_history[:-2] if len(cleaned_history) > 2 else cleaned_history[:-1])
-            if distilled_summary:
-                final_messages.append({
-                    "role": "user",
-                    "content": f"[REKAPITULASI SESI SEBELUMNYA]:\n{distilled_summary}"
-                })
-                final_messages.append({
-                    "role": "assistant",
-                    "content": "Dipahami. Saya mencatat rekap sesi sebelumnya dan siap fokus penuh menyusun rencana baru untuk pertanyaan/tugas Anda saat ini."
-                })
-                guard_metrics["distilled_turns_count"] = max(0, len(cleaned_history) - 2)
+            if "subject_name_shift" not in shift_reason:
+                distilled_summary = self._distill_older_turns(cleaned_history[:-2] if len(cleaned_history) > 2 else cleaned_history[:-1])
+                if distilled_summary:
+                    final_messages.append({
+                        "role": "user",
+                        "content": f"[REKAPITULASI SESI SEBELUMNYA]:\n{distilled_summary}"
+                    })
+                    final_messages.append({
+                        "role": "assistant",
+                        "content": "Dipahami. Saya mencatat rekap sesi sebelumnya dan siap fokus penuh menyusun rencana baru untuk pertanyaan/tugas Anda saat ini."
+                    })
+                    guard_metrics["distilled_turns_count"] = max(0, len(cleaned_history) - 2)
+            else:
+                guard_metrics["distilled_turns_count"] = len(cleaned_history)
 
             # For recent turns during task shift:
             # Strictly condense the previous assistant response so obsolete details of the old subject
@@ -115,7 +165,12 @@ class ContextRotGuard:
             recent_turns = cleaned_history[-2:] if len(cleaned_history) >= 2 else cleaned_history
             for t in recent_turns:
                 t_content = t["content"]
-                if t["role"] == "assistant":
+                if "subject_name_shift" in shift_reason:
+                    if t["role"] == "assistant":
+                        t_content = "[Catatan: Data subjek percakapan sebelumnya telah diarsipkan secara terpisah]"
+                    elif t["role"] == "user":
+                        t_content = "[Catatan: Pertanyaan subjek percakapan sebelumnya telah selesai]"
+                elif t["role"] == "assistant":
                     if len(t_content) > 300:
                         first_line = t_content.strip().splitlines()[0][:250]
                         t_content = f"{first_line}... [hasil tugas sebelumnya diringkas untuk transisi tugas baru]"
@@ -320,6 +375,19 @@ class ContextRotGuard:
             if prior_ids and not (current_ids & prior_ids):
                 return True, f"entity_id_shift ({list(prior_ids)[0]} -> {list(current_ids)[0]})"
 
+        # 2b. Subject Name Shift (e.g. searching "miftahusurur s.kom" after searching "indradhi nugraha")
+        cur_subject = self.extract_target_subject_name(current_query)
+        if cur_subject:
+            cur_tokens = set(cur_subject.split())
+            prior_user_queries = [m["content"] for m in history if m.get("role") == "user"]
+            for prior_q in reversed(prior_user_queries):
+                prior_sub = self.extract_target_subject_name(prior_q)
+                if prior_sub:
+                    prior_tokens = set(prior_sub.split())
+                    # If there is no token overlap between the current subject name and prior subject name
+                    if not (cur_tokens & prior_tokens):
+                        return True, f"subject_name_shift ('{prior_sub}' -> '{cur_subject}')"
+
         # 3. Domain Shift (e.g. Person/Dukcapil vs Land/BPN vs Company/Vendor vs Banking vs Legal vs General QA)
         def get_domain(q: str) -> str:
             q_lower = q.lower()
@@ -393,7 +461,7 @@ class ContextRotGuard:
         )
         return compacted, note, (total_count - max_records)
 
-    def get_anti_rot_system_directive(self, is_task_shift: bool = False) -> str:
+    def get_anti_rot_system_directive(self, is_task_shift: bool = False, shift_reason: str = "") -> str:
         """
         Generates the mandatory Anti-Context-Rot System Directive to inject into the LLM's system prompt.
         Explicitly neutralizes Poisoning, Distraction, and Confusion.
@@ -406,10 +474,19 @@ class ContextRotGuard:
         )
 
         if is_task_shift:
-            directive += (
-                "\n4. PERINGATAN ALIH TUGAS (TASK SHIFT): Pengguna saat ini mengajukan topik/entitas/tugas baru yang independen. "
-                "Kosongkan asumsi dari kasus sebelumnya, susun rencana penyelidikan baru, dan jangan mencampuradukkan data subjek lama dengan pertanyaan saat ini."
-            )
+            if "subject_name_shift" in shift_reason:
+                directive += (
+                    "\n4. PERINGATAN ISOLASI SUBJEK MUTLAK (SUBJECT SHIFT DETECTED): "
+                    "Pengguna saat ini menanyakan individu/subjek baru yang berbeda dari percakapan sebelumnya. "
+                    "DILARANG KERAS mengaitkan, meminjam, atau menyebutkan sertifikat tanah, aset, NIK, properti, ataupun NAMA dari subjek sebelumnya pada jawaban! "
+                    "Fokus 100% murni hanya pada subjek yang ditanyakan saat ini tanpa menyinggung subjek sebelumnya. "
+                    "Jika data untuk subjek baru tidak ditemukan dalam database resmi BPN/Dukcapil, nyatakan secara tegas dan transparan bahwa data TIDAK DITEMUKAN (0 record)."
+                )
+            else:
+                directive += (
+                    "\n4. PERINGATAN ALIH TUGAS (TASK SHIFT): Pengguna saat ini mengajukan topik/entitas/tugas baru yang independen. "
+                    "Kosongkan asumsi dari kasus sebelumnya, susun rencana penyelidikan baru, dan jangan mencampuradukkan data subjek lama dengan pertanyaan saat ini."
+                )
 
         return directive
 

@@ -290,18 +290,29 @@ class APIIngester:
         except Exception:
             resp_data = response.text
 
+        is_call_success = response.is_success
+        err_msg = None
+        if isinstance(resp_data, dict):
+            m = str(resp_data.get("message", "")).lower()
+            e = str(resp_data.get("error", "")).lower()
+            st = str(resp_data.get("status", "")).lower()
+            if "workflow execution failed" in m or "execution failed" in m or st in ["error", "fail", "failed"] or (e and e not in ["none", "false", "0"]):
+                is_call_success = False
+                err_msg = resp_data.get("message") or resp_data.get("error") or "Upstream execution failed"
+
         if isinstance(resp_data, (dict, list)):
             text_repr = json.dumps(resp_data, indent=2, ensure_ascii=False)
         else:
             text_repr = str(resp_data)
 
         return {
-            "success": response.is_success,
+            "success": is_call_success,
             "status_code": response.status_code,
             "endpoint": endpoint,
             "method": method,
             "arguments": arguments,
             "latency_ms": latency_ms,
+            "error": err_msg,
             "data": resp_data,
             "text": text_repr[:10000]
         }
@@ -461,18 +472,29 @@ class APIIngester:
         except Exception:
             resp_data = response.text
 
+        is_call_success = response.is_success
+        err_msg = None
+        if isinstance(resp_data, dict):
+            m = str(resp_data.get("message", "")).lower()
+            e = str(resp_data.get("error", "")).lower()
+            st = str(resp_data.get("status", "")).lower()
+            if "workflow execution failed" in m or "execution failed" in m or st in ["error", "fail", "failed"] or (e and e not in ["none", "false", "0"]):
+                is_call_success = False
+                err_msg = resp_data.get("message") or resp_data.get("error") or "Upstream execution failed"
+
         if isinstance(resp_data, (dict, list)):
             text_repr = json.dumps(resp_data, indent=2, ensure_ascii=False)
         else:
             text_repr = str(resp_data)
 
         return {
-            "success": response.is_success,
+            "success": is_call_success,
             "status_code": response.status_code,
             "endpoint": endpoint,
             "method": method,
             "arguments": arguments,
             "latency_ms": latency_ms,
+            "error": err_msg,
             "data": resp_data,
             "text": text_repr[:10000]
         }

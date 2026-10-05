@@ -265,6 +265,41 @@ class ChatService:
                         retrieved_chunks = scored_chunks
                     except Exception as e:
                         logger.warning(f"Error evaluating validity scoring for chunks: {e}")
+
+                # Anti-Rot Vector Filtering: Filter out cross-entity contaminated chunks belonging to different individuals
+                target_person_name = context_rot_guard.extract_target_subject_name(message)
+                if target_person_name and retrieved_chunks:
+                    target_tokens = set(w for w in target_person_name.upper().split() if len(w) >= 3)
+                    filtered_chunks = []
+                    for c in retrieved_chunks:
+                        content_up = c.get("content", "").upper()
+                        src_name_lower = str(c.get("metadata", {}).get("source_name", "")).lower()
+
+                        # Check explicit owner/person matches
+                        owner_matches = re.findall(
+                            r'(?:PEMILIK(?:_NAMA|\s+NAMA)?|NAMA(?:_LGKP|_LENGKAP|\s+LENGKAP|_WP|_PENYEDIA)?|PEMEGANG(?:_HAK|\s+HAK|HAK)?|SUBJEK)\s*[:=]\s*([A-Z\s.,]{3,50})',
+                            content_up
+                        )
+                        is_cross_contamination = False
+                        if owner_matches:
+                            for om in owner_matches:
+                                om_cleaned = context_rot_guard.clean_person_name(om).upper()
+                                om_tokens = set(w for w in om_cleaned.split() if len(w) >= 3)
+                                # If chunk has an explicit owner and shares NO significant token with the target person name
+                                if om_tokens and not (target_tokens & om_tokens):
+                                    is_cross_contamination = True
+                                    break
+
+                        # If chunk is from a person/land registry source and mentions other entities but has NO mention of target person
+                        is_entity_registry = any(k in src_name_lower for k in ["dukcapil", "kependudukan", "bpn", "pertanahan", "pemilik", "orang"])
+                        if is_entity_registry and not any(t in content_up for t in target_tokens):
+                            is_cross_contamination = True
+
+                        if is_cross_contamination:
+                            logger.info(f"Anti-Rot Guard: Dropped cross-entity chunk from '{src_name_lower}' not matching target '{target_person_name}'")
+                            continue
+                        filtered_chunks.append(c)
+                    retrieved_chunks = filtered_chunks
             except Exception as e:
                 logger.warning(f"Vector retrieval warning in chat: {e}")
 
@@ -921,7 +956,8 @@ Patuhi aturan:
         )
         # Append anti-rot directive to system instruction
         system_instruction += context_rot_guard.get_anti_rot_system_directive(
-            is_task_shift=rot_metrics.get("task_shift_detected", False)
+            is_task_shift=rot_metrics.get("task_shift_detected", False),
+            shift_reason=rot_metrics.get("shift_reason", "")
         )
 
         # Prepare messages
@@ -993,23 +1029,19 @@ Patuhi aturan:
                     kwargs["response_format"] = response_format
             if tools:
                 kwargs["tools"] = tools
+                available_names = set(tool_dispatch_map.keys())
+                is_land_search = bool(re.search(r'\b(?:tanah|sertifikat|bpn|bidang|hak\s+milik|hgb|shm)\b', message, re.IGNORECASE))
+                is_company_search = bool(re.search(r'\b(?:pt|perusahaan|usaha|sikap|penyedia|vendor|cv)\b', message, re.IGNORECASE))
+                is_person_search = bool(re.search(r'\b(?:orang|nik|kependudukan|ktp|kk|penduduk|nama|profil|profiling|siapa)\b', message, re.IGNORECASE) or (re.search(r'\bcari\b', message, re.IGNORECASE) and not is_land_search and not is_company_search))
+
                 if is_single_tool_selected and single_selected_tool_name:
                     kwargs["tool_choice"] = {"type": "function", "function": {"name": single_selected_tool_name}}
-                elif not history:
-                    # Intelligently route fresh search intents to guarantee tool calling on open-source local LLMs
-                    available_names = set(tool_dispatch_map.keys())
-                    is_person_search = bool(re.search(r'\b(?:orang|nik|kependudukan|ktp|kk|penduduk|nama|profil|profiling|siapa)\b', message, re.IGNORECASE) or (re.search(r'\bcari\b', message, re.IGNORECASE) and not re.search(r'\b(?:tanah|sertifikat|bpn|pt|perusahaan|usaha)\b', message, re.IGNORECASE)))
-                    is_land_search = bool(re.search(r'\b(?:tanah|sertifikat|bpn|bidang|hak\s+milik|hgb|shm)\b', message, re.IGNORECASE))
-                    is_company_search = bool(re.search(r'\b(?:pt|perusahaan|usaha|sikap|penyedia|vendor|cv)\b', message, re.IGNORECASE))
-
-                    if is_person_search and "data_orang_dukcapil" in available_names:
-                        kwargs["tool_choice"] = {"type": "function", "function": {"name": "data_orang_dukcapil"}}
-                    elif is_land_search and "cari_tanah_bpn" in available_names:
-                        kwargs["tool_choice"] = {"type": "function", "function": {"name": "cari_tanah_bpn"}}
-                    elif is_company_search and "db_sikap_pemilik_usaha" in available_names:
-                        kwargs["tool_choice"] = {"type": "function", "function": {"name": "db_sikap_pemilik_usaha"}}
-                    else:
-                        kwargs["tool_choice"] = "auto"
+                elif is_land_search and "cari_tanah_bpn" in available_names:
+                    kwargs["tool_choice"] = {"type": "function", "function": {"name": "cari_tanah_bpn"}}
+                elif is_company_search and "db_sikap_pemilik_usaha" in available_names:
+                    kwargs["tool_choice"] = {"type": "function", "function": {"name": "db_sikap_pemilik_usaha"}}
+                elif is_person_search and "data_orang_dukcapil" in available_names:
+                    kwargs["tool_choice"] = {"type": "function", "function": {"name": "data_orang_dukcapil"}}
                 else:
                     kwargs["tool_choice"] = "auto"
 
@@ -1057,6 +1089,12 @@ Patuhi aturan:
                         fn_args = json.loads(fn_args_raw) if isinstance(fn_args_raw, str) else fn_args_raw
                     except Exception:
                         fn_args = {}
+
+                    # Sanitize entity/person names in tool arguments (strip academic titles, quotes, etc.)
+                    if isinstance(fn_args, dict):
+                        for k in ["nama", "name", "pemilik", "subject", "query"]:
+                            if k in fn_args and isinstance(fn_args[k], str):
+                                fn_args[k] = context_rot_guard.clean_person_name(fn_args[k])
 
                     logger.info(f"AI requested tool call: {fn_name} with arguments: {fn_args}")
                     matched_source = tool_dispatch_map.get(fn_name)
@@ -1157,11 +1195,40 @@ Patuhi aturan:
                                     deduped_records.append(r)
                             payload_data = deduped_records
 
-                        # Explicit empty result notification to prevent the LLM from inventing data
-                        if isinstance(payload_data, list) and len(payload_data) == 0:
+                        # Check if tool execution was unsuccessful, timed out, returned an error, or found 0 records
+                        is_empty_or_failed = False
+                        if not success:
+                            is_empty_or_failed = True
+                        elif payload_data is None:
+                            is_empty_or_failed = True
+                        elif isinstance(payload_data, list) and len(payload_data) == 0:
+                            is_empty_or_failed = True
+                        elif isinstance(payload_data, dict):
+                            msg_val = str(payload_data.get("message", "")).lower()
+                            status_val = str(payload_data.get("status", "")).lower()
+                            err_val = str(payload_data.get("error", "")).lower()
+                            if "execution failed" in msg_val or "tidak ditemukan" in msg_val or "not found" in msg_val or status_val in ["error", "fail", "failed", "not_found"] or (err_val and err_val not in ["none", "false", "0"]):
+                                is_empty_or_failed = True
+                            elif not payload_data:
+                                is_empty_or_failed = True
+
+                        if is_empty_or_failed:
+                            target_arg_str = ", ".join(f"{k}='{v}'" for k, v in fn_args.items()) if fn_args else "parameter terkait"
                             tool_output_str = json.dumps({
                                 "status": "not_found",
-                                "message": f"Query tool '{fn_name}' dijalankan langsung ke basis data sumber dan TIDAK MENEMUKAN data/record yang cocok. Sampaikan secara transparan kepada pengguna bahwa data tidak ditemukan di database resmi. DILARANG MENGARANG data profil fiktif.",
+                                "tool_name": fn_name,
+                                "source_name": matched_source.name,
+                                "source_type": matched_source.source_type,
+                                "fetch_mode": "LIVE_DIRECT_DATABASE_QUERY",
+                                "total_records_found": 0,
+                                "message": (
+                                    f"Query tool '{fn_name}' telah dijalankan langsung ke basis data sumber resmi dengan parameter ({target_arg_str}) "
+                                    f"dan TIDAK MENEMUKAN data/record yang cocok (0 record ditemukan). "
+                                    f"INSTRUKSI MUTLAK (ANTI-HALUSINASI & ISOLASI SUBJEK): "
+                                    f"1. Sampaikan secara tegas, jelas, dan transparan kepada pengguna bahwa TIDAK DITEMUKAN data/sertifikat/aset untuk subjek ini pada basis data resmi {matched_source.name}. "
+                                    f"2. DILARANG KERAS MENGARANG data, nomor sertifikat, atau properti fiktif! "
+                                    f"3. DILARANG MENGAMBIL atau MENYEBUTKAN data milik orang lain/subjek percakapan sebelumnya dari riwayat konteks!"
+                                ),
                                 "records": []
                             }, ensure_ascii=False)
                         else:
@@ -1213,11 +1280,11 @@ Patuhi aturan:
                             "validity_tier": (matched_source.config or {}).get("validity_tier", "authoritative"),
                             "validity_score": (matched_source.config or {}).get("validity_score", 95),
                             "arguments": fn_args,
-                            "success": success,
+                            "success": success and not is_empty_or_failed,
                             "url": target_url,
                             "status_code": exec_res.get("status_code"),
-                            "error": exec_res.get("error"),
-                            "data": payload_data if (isinstance(payload_data, (list, dict)) and len(str(payload_data)) < 150000) else None
+                            "error": exec_res.get("error") if not success else (None if not is_empty_or_failed else "Data tidak ditemukan"),
+                            "data": [] if is_empty_or_failed else (payload_data if (isinstance(payload_data, (list, dict)) and len(str(payload_data)) < 150000) else None)
                         })
                     else:
                         tool_output_str = json.dumps({"error": f"Tool '{fn_name}' is not recognized"})
