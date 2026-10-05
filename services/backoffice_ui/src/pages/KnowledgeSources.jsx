@@ -224,7 +224,7 @@ export default function KnowledgeSources() {
             Knowledge Base Catalog
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>
-            Kelola dan sinkronisasi sumber pengetahuan lintas database, API, dokumen, website, dan web search
+            Kelola dan sinkronisasi sumber pengetahuan lintas database, API, Server MCP, dokumen, website, dan web search
           </p>
         </div>
 
@@ -675,7 +675,7 @@ export default function KnowledgeSources() {
                         gap: '4px',
                         border: `1px solid ${!isActive ? 'var(--border-color)' : accentBorder}`
                       }}>
-                        <Zap size={11} /> {paramCount} params
+                        <Zap size={11} /> {isMcp ? `${paramCount} tools` : `${paramCount} params`}
                       </span>
                     ) : (
                       <span className={`badge ${source.sync_status === 'completed' ? 'badge-success' : source.sync_status === 'running' ? 'badge-info' : 'badge-warning'}`} style={{ opacity: !isActive ? 0.6 : 1 }}>
@@ -754,6 +754,34 @@ export default function KnowledgeSources() {
                 <h3 style={{ fontSize: '16px', fontWeight: '700', color: !isActive ? '#cbd5e1' : '#ffffff', marginBottom: '6px' }}>
                   {source.name}
                 </h3>
+                {isMcp && source.config?.endpoint && (
+                  <div style={{
+                    fontSize: '11px',
+                    color: '#c084fc',
+                    fontFamily: 'JetBrains Mono, monospace',
+                    marginBottom: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    wordBreak: 'break-all'
+                  }}>
+                    <Globe size={12} color="#c084fc" />
+                    <span>{source.config.endpoint}</span>
+                    {source.config?.transport && (
+                      <span style={{
+                        background: 'rgba(192, 132, 252, 0.15)',
+                        border: '1px solid rgba(192, 132, 252, 0.3)',
+                        borderRadius: '4px',
+                        padding: '0 4px',
+                        fontSize: '9px',
+                        textTransform: 'uppercase',
+                        fontWeight: '700'
+                      }}>
+                        {source.config.transport}
+                      </span>
+                    )}
+                  </div>
+                )}
                 <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px', lineHeight: '1.4' }}>
                   {source.description || 'No description provided'}
                 </p>
@@ -864,8 +892,8 @@ export default function KnowledgeSources() {
                   justifyContent: 'space-between',
                   alignItems: 'center'
                 }}>
-                  <span title={isTool ? "On-Demand Tool: Query langsung ke database/API secara real-time, dan setiap data otomatis disimpan ke ChromaDB sebagai Bank Data" : ""}>
-                    {isTool ? (isDbTool ? '⚡ On-Demand (Auto Bank Data)' : '⚡ Live API (Auto Bank Data)') : `Last sync: ${source.last_synced_at ? formatDateTimeWIB(source.last_synced_at) : 'Never'}`}
+                  <span title={isTool ? (isMcp ? "Server MCP: Terhubung langsung ke Remote MCP Server melalui protokol SSE / JSON-RPC" : "On-Demand Tool: Query langsung ke database/API secara real-time, dan setiap data otomatis disimpan ke ChromaDB sebagai Bank Data") : ""}>
+                    {isTool ? (isMcp ? `⚡ Server MCP Connected (${paramCount} Tools)` : (isDbTool ? '⚡ On-Demand (Auto Bank Data)' : '⚡ Live API (Auto Bank Data)')) : `Last sync: ${source.last_synced_at ? formatDateTimeWIB(source.last_synced_at) : 'Never'}`}
                   </span>
                   <span 
                     style={{ 

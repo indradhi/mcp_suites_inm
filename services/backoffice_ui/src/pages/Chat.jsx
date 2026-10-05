@@ -2640,7 +2640,9 @@ export default function Chat() {
                               fontWeight: '600',
                               textTransform: 'uppercase',
                               background:
-                                s.source_type === 'database'
+                                s.source_type === 'mcp' || s.source_type === 'mcp_server'
+                                  ? 'rgba(168, 85, 247, 0.15)'
+                                  : s.source_type === 'database'
                                   ? 'rgba(56, 189, 248, 0.15)'
                                   : s.source_type === 'api'
                                   ? 'rgba(167, 139, 250, 0.15)'
@@ -2648,7 +2650,9 @@ export default function Chat() {
                                   ? 'rgba(52, 211, 153, 0.15)'
                                   : 'rgba(251, 191, 36, 0.15)',
                               color:
-                                s.source_type === 'database'
+                                s.source_type === 'mcp' || s.source_type === 'mcp_server'
+                                  ? '#c084fc'
+                                  : s.source_type === 'database'
                                   ? '#38bdf8'
                                   : s.source_type === 'api'
                                   ? '#a78bfa'
@@ -4965,10 +4969,11 @@ export default function Chat() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {activeTools.map((t, idx) => {
-                  const isDb = t.source_type === 'database' || t.name.startsWith('db_');
-                  const toolColor = isDb ? 'var(--accent-primary)' : 'var(--accent-cyan)';
-                  const toolBg = isDb ? 'rgba(99, 102, 241, 0.08)' : 'rgba(6, 182, 212, 0.06)';
-                  const toolBorder = isDb ? 'rgba(99, 102, 241, 0.25)' : 'rgba(6, 182, 212, 0.25)';
+                  const isMcp = t.source_type === 'mcp' || t.source_type === 'mcp_server' || t.name.startsWith('mcp_');
+                  const isDb = !isMcp && (t.source_type === 'database' || t.name.startsWith('db_'));
+                  const toolColor = isMcp ? '#c084fc' : (isDb ? 'var(--accent-primary)' : 'var(--accent-cyan)');
+                  const toolBg = isMcp ? 'rgba(168, 85, 247, 0.08)' : (isDb ? 'rgba(99, 102, 241, 0.08)' : 'rgba(6, 182, 212, 0.06)');
+                  const toolBorder = isMcp ? 'rgba(168, 85, 247, 0.25)' : (isDb ? 'rgba(99, 102, 241, 0.25)' : 'rgba(6, 182, 212, 0.25)');
 
                   return (
                     <div
@@ -4999,12 +5004,12 @@ export default function Chat() {
                           fontSize: '10px',
                           padding: '1px 6px',
                           borderRadius: '6px',
-                          background: isDb ? 'rgba(99, 102, 241, 0.2)' : 'rgba(6, 182, 212, 0.2)',
+                          background: isMcp ? 'rgba(168, 85, 247, 0.2)' : (isDb ? 'rgba(99, 102, 241, 0.2)' : 'rgba(6, 182, 212, 0.2)'),
                           color: toolColor,
                           fontWeight: '600',
                           flexShrink: 0
                         }}>
-                          {isDb ? 'Database' : 'API'}
+                          {isMcp ? 'MCP' : (isDb ? 'Database' : 'API')}
                         </span>
                       </div>
                       {t.description && (
