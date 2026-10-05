@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 class ChatService:
     def get_graph_entities(self, query_text: str, limit: int = 8) -> List[Dict[str, Any]]:
         """
-        Extracts entities from Neo4j matching keywords in the query text.
+        Extracts entities from Neo4j matching keywords in the query text,
+        retrieving both direct connections (1-hop) and multi-hop relationship paths (2-hop).
         """
         words = [w.strip().lower() for w in re.findall(r'\w+', query_text) if len(w) >= 3]
         if not words:
@@ -25,37 +26,57 @@ class ChatService:
         cypher = """
         MATCH (e:Entity)
         WHERE any(w in $words WHERE toLower(e.name) CONTAINS w OR toLower(coalesce(e.description, '')) CONTAINS w)
+        WITH e LIMIT $limit
         OPTIONAL MATCH (e)-[r]-(target:Entity)
+        WITH e, 
+             collect(DISTINCT {
+                 relation: type(r), 
+                 target: target.name, 
+                 target_type: coalesce(target.type, 'ENTITY')
+             })[0..12] AS direct_rels
+        OPTIONAL MATCH (e)-[r1]-(mid:Entity)-[r2]-(hop2:Entity)
+        WHERE hop2 <> e AND NOT (e)--(hop2)
+        WITH e, direct_rels,
+             collect(DISTINCT {
+                 path_desc: e.name + ' -[' + type(r1) + ']-> ' + mid.name + ' -[' + type(r2) + ']-> ' + hop2.name + ' (' + coalesce(hop2.type, 'ENTITY') + ')'
+             })[0..6] AS multi_hop_paths
         RETURN e.name AS name,
                e.type AS type,
                e.description AS description,
-               type(r) AS relation,
-               target.name AS target_name,
-               target.type AS target_type
-        LIMIT $limit
+               direct_rels,
+               multi_hop_paths
         """
         try:
             records = neo4j_client.execute_read(cypher, {"words": words, "limit": limit})
-            entities_map = {}
+            entities_list = []
             for row in records:
                 name = row.get("name")
                 if not name:
                     continue
-                if name not in entities_map:
-                    entities_map[name] = {
-                        "name": name,
-                        "type": row.get("type", "ENTITY"),
-                        "description": row.get("description", ""),
-                        "connections": []
-                    }
-                rel = row.get("relation")
-                target = row.get("target_name")
-                if rel and target:
-                    conn = f"{rel} -> {target} ({row.get('target_type', 'ENTITY')})"
-                    if conn not in entities_map[name]["connections"]:
-                        entities_map[name]["connections"].append(conn)
+                direct_rels = row.get("direct_rels", [])
+                conns = []
+                for d in direct_rels:
+                    rel = d.get("relation")
+                    target = d.get("target")
+                    ttype = d.get("target_type", "ENTITY")
+                    if rel and target:
+                        conns.append(f"{rel} -> {target} ({ttype})")
 
-            return list(entities_map.values())
+                multi_hops = []
+                for m in row.get("multi_hop_paths", []):
+                    p_desc = m.get("path_desc")
+                    if p_desc and p_desc not in multi_hops:
+                        multi_hops.append(p_desc)
+
+                entities_list.append({
+                    "name": name,
+                    "type": row.get("type", "ENTITY"),
+                    "description": row.get("description", ""),
+                    "connections": conns,
+                    "multi_hop_paths": multi_hops
+                })
+
+            return entities_list
         except Exception as e:
             logger.warning(f"Error querying graph entities for chat: {e}")
             return []
@@ -355,6 +376,54 @@ class ChatService:
                 "(seperti menampilkan foto yang keliru, data tidak terverifikasi, atau foto orang lain)."
             )
 
+        # Compile Field Definitions Glossary if retrieved chunks come from tabular/database/API sources
+        if db and retrieved_chunks:
+            try:
+                from models.knowledge_source import KnowledgeSource
+                chunk_source_ids = set()
+                for c in retrieved_chunks:
+                    sid = c.get("metadata", {}).get("source_id")
+                    if sid is not None:
+                        chunk_source_ids.add(sid)
+
+                glossary_blocks = []
+                if chunk_source_ids:
+                    matched_sources = db.query(KnowledgeSource).filter(KnowledgeSource.id.in_(chunk_source_ids)).all()
+                    for ms in matched_sources:
+                        cfg = ms.config or {}
+                        fdefs = cfg.get("field_definitions") or []
+                        if isinstance(fdefs, list) and fdefs:
+                            lines = [f"[{ms.name}]"]
+                            for fd in fdefs[:18]:
+                                fname = fd.get("name", "")
+                                fdesc = fd.get("description", "")
+                                fsample = fd.get("sample", "")
+                                sample_hint = f" (Contoh: {fsample})" if fsample and len(str(fsample)) < 40 else ""
+                                if fname and fdesc:
+                                    lines.append(f"• {fname}: {fdesc}{sample_hint}")
+                            if len(lines) > 1:
+                                glossary_blocks.append("\n".join(lines))
+
+                if glossary_blocks:
+                    standard_codes = (
+                        "[Pedoman Kode Standar Kependudukan & Pertanahan]:\n"
+                        "• HUB_KEL: 1: Kepala Keluarga, 2: Suami, 3: Istri, 4: Anak, 5: Menantu, 6: Cucu, 7: Orang Tua, 8: Mertua, 9: Famili Lain, 10: Pembantu, 11: Lainnya\n"
+                        "• STAT_KWN: 1: Belum Kawin, 2: Kawin, 3: Cerai Hidup, 4: Cerai Mati\n"
+                        "• JENIS_KLMIN: 1: Laki-laki, 2: Perempuan\n"
+                        "• AGAMA: 1: Islam, 2: Kristen, 3: Katholik, 4: Hindu, 5: Budha, 6: Konghucu, 7: Kepercayaan\n"
+                        "• TIPE_HAK / jenishak: 1: Hak Milik (SHM), 2: Hak Guna Bangunan (HGB), 3: Hak Pakai (HP), 4: Hak Guna Usaha (HGU), 5: Hak Pengelolaan (HPL)"
+                    )
+                    glossary_text = (
+                        "=== KAMUS DEFINISI KOLOM BASIS DATA (FIELD GLOSSARY) ===\n"
+                        "Gunakan kamus arti kolom ini untuk membaca data terstruktur, singkatan, dan kode angka secara presisi tanpa berhalusinasi:\n"
+                        + "\n\n".join(glossary_blocks) + "\n\n"
+                        + standard_codes + "\n"
+                    )
+                    context_parts.append(glossary_text)
+                    accumulated_chars += len(glossary_text)
+            except Exception as fdef_err:
+                logger.warning(f"Error compiling field definitions glossary: {fdef_err}")
+
         if retrieved_chunks:
             context_parts.append("=== RETRIEVED KNOWLEDGE BASE DOCUMENTS ===")
 
@@ -469,13 +538,26 @@ class ChatService:
                 })
 
         if graph_entities:
-            context_parts.append("=== KNOWLEDGE GRAPH ENTITIES & RELATIONSHIPS ===")
+            context_parts.append("=== KNOWLEDGE GRAPH ENTITIES & MULTI-HOP RELATIONSHIPS ===")
             for ent in graph_entities:
-                conns = ", ".join(ent["connections"]) if ent["connections"] else "None"
-                ent_entry = f"Entity: {ent['name']} ({ent['type']}) - Description: {ent['description']} | Connected To: {conns}"
-                if accumulated_chars + len(ent_entry) <= MAX_TOTAL_CONTEXT_CHARS + 2000:
-                    context_parts.append(ent_entry)
-                    accumulated_chars += len(ent_entry)
+                direct_conns = ent.get("connections", [])
+                multi_paths = ent.get("multi_hop_paths", [])
+
+                conns_str = ", ".join(direct_conns) if direct_conns else "Tidak ada relasi langsung tercatat"
+                desc_str = f" - Ket: {ent['description']}" if ent.get('description') else ""
+                ent_lines = [
+                    f"• Entitas: **{ent['name']}** [{ent.get('type', 'ENTITY')}]{desc_str}",
+                    f"  - Relasi Langsung (1-Hop): {conns_str}"
+                ]
+                if multi_paths:
+                    ent_lines.append(f"  - Jalur Hubungan Multi-Hop (2-Hop Network Traversal):")
+                    for p in multi_paths[:4]:
+                        ent_lines.append(f"    ↳ {p}")
+
+                ent_block = "\n".join(ent_lines) + "\n"
+                if accumulated_chars + len(ent_block) <= MAX_TOTAL_CONTEXT_CHARS + 4000:
+                    context_parts.append(ent_block)
+                    accumulated_chars += len(ent_block)
 
         context_str = "\n".join(context_parts) if context_parts else "No specific documents found in knowledge base."
 
@@ -720,16 +802,48 @@ class ChatService:
         if matched_flow_res and matched_flow_res.get("matched") and matched_flow_res.get("flow"):
             m_flow = matched_flow_res["flow"]
             steps_list = m_flow.get("steps", [])
-            steps_desc = "\n".join([
-                f"   Langkah {s.get('step_order', i+1)}: {s.get('title', '')} [{s.get('action_type', '')}] - {s.get('description', '')}"
-                for i, s in enumerate(steps_list)
-            ])
+            steps_desc_lines = []
+            tools_to_recommend = []
+
+            for i, s in enumerate(steps_list):
+                raw_target = s.get("target", "")
+                resolved_target = raw_target
+                if db:
+                    try:
+                        from services.flow_orchestrator import flow_orchestrator
+                        resolved_target = flow_orchestrator.resolve_tool_target(raw_target)
+                    except Exception:
+                        pass
+
+                action_type = s.get("action_type", "")
+                tool_clause = ""
+                if action_type == "tool_call" and resolved_target:
+                    tool_clause = f" -> PANGGIL TOOL: `{resolved_target}`"
+                    if resolved_target not in tools_to_recommend:
+                        tools_to_recommend.append(resolved_target)
+                elif action_type == "graph_query":
+                    tool_clause = " -> TELUSURI KNOWLEDGE GRAPH"
+                elif action_type == "vector_search":
+                    tool_clause = " -> RETRIEVAL VECTOR BASE"
+
+                step_order = s.get("step_order", i + 1)
+                title = s.get("title", "")
+                desc = s.get("description", "")
+                steps_desc_lines.append(f"   Langkah {step_order}: {title} [{action_type}{tool_clause}] - {desc}")
+
+            steps_desc = "\n".join(steps_desc_lines)
+            rec_tools_desc = f"- Rekomendasi Tool Utama: {', '.join([f'`{t}`' for t in tools_to_recommend])}\n" if tools_to_recommend else ""
+
             system_instruction += (
                 f"\n\n🎯 ALUR RETRIEVAL ACUAN AKTIF (REMEMBERED ORCHESTRATION FLOW):\n"
                 f"Pertanyaan pengguna teridentifikasi memiliki alur retrieval baku: '{m_flow.get('name')}' (Kesesuaian: {int(matched_flow_res.get('confidence', 0.8)*100)}%).\n"
                 f"Sistem WAJIB mengikuti tahapan pengumpulan informasi berikut secara terstruktur:\n"
                 f"{steps_desc}\n"
                 f"Aturan Validitas Alur: {m_flow.get('validity_priority_rule', 'PRIORITIZE_HIGHEST_VALIDITY')} (Data dari sumber Otoritatif Tingkat 1 WAJIB dimenangkan dan ditampilkan sebagai kebenaran utama).\n"
+                f"PANDUAN EKSEKUSI ORCHESTRATOR:\n"
+                f"{rec_tools_desc}"
+                f"- Panggil tool yang dipetakan di atas secara presisi bila data primer belum lengkap di dokumen konteks.\n"
+                f"- Jangan mengarang data identitas, nomor sertifikat, nomor tender, atau kepemilikan aset tanpa verifikasi tool.\n"
             )
 
         if face_result:

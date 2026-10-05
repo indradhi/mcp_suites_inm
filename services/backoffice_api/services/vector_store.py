@@ -607,11 +607,35 @@ class VectorStoreService:
 
             kw_candidates = []
 
-            # A0. Extract explicit numeric identifiers (NIK, NO_KK, Certificate Numbers, etc.)
+            # A0. Extract explicit numeric and structured identifiers:
+            # - NIK / NO_KK (16 digits or 6-20 digits)
             id_matches = re.findall(r'\b\d{6,20}\b', query)
             for im in id_matches:
                 if im not in kw_candidates:
                     kw_candidates.append(im)
+
+            # - NPWP formatted (e.g. 01.234.567.8-901.000 or clean 15-16 digits)
+            npwp_matches = re.findall(r'\b\d{2}\.?\d{3}\.?\d{3}\.?\d{1}-?\d{3}\.?\d{3}\b', query)
+            for npm in npwp_matches:
+                clean_npm = re.sub(r'[^\d]', '', npm)
+                if npm not in kw_candidates:
+                    kw_candidates.append(npm)
+                if clean_npm not in kw_candidates and len(clean_npm) >= 15:
+                    kw_candidates.append(clean_npm)
+
+            # - Pertanahan BPN (SHM, HGB, HP, HGU, NIB, NOP, Nomor Hak, Surat Ukur)
+            land_matches = re.findall(r'\b(?:SHM|HGB|HGU|HP|HPL|NIB|NOP|NO_HAK|NOMOR_HAK|SURAT\s+UKUR)[\s:./#-]*([A-Za-z0-9./-]+)\b', query, re.IGNORECASE)
+            for lm in land_matches:
+                clean_lm = lm.strip()
+                if len(clean_lm) >= 3 and clean_lm not in kw_candidates:
+                    kw_candidates.append(clean_lm)
+
+            # - Pengadaan PBJ / SPSE / RUP (KD_RUP, KD_PENYEDIA, KD_TENDER, ID_PAKET)
+            proc_matches = re.findall(r'\b(?:KD_RUP|KD_PENYEDIA|KD_TENDER|ID_PAKET|PAKET|TENDER)[\s:./#-]*([A-Za-z0-9_-]+)\b', query, re.IGNORECASE)
+            for pm in proc_matches:
+                clean_pm = pm.strip()
+                if len(clean_pm) >= 3 and clean_pm not in kw_candidates:
+                    kw_candidates.append(clean_pm)
 
             # A. Extract person names preceded by indicators ('nama', 'bernama', 'atas nama', 'orang')
             name_patterns = [
@@ -681,19 +705,34 @@ class VectorStoreService:
                             if cid not in seen_ids:
                                 seen_ids.add(cid)
                                 # Scoring hierarchy:
-                                # 1.0 : Full person name, exact NIK, or exact NO_KK match
+                                # 1.0 : Full person name, exact NIK, exact NO_KK, or exact identifier match (BPN/NPWP/PBJ)
                                 # 0.95: Multi-word entity phrase match
-                                # 0.90: Single word attribute match (NAMA: X, NIK: X)
+                                # 0.90: Single word attribute match (NAMA: X, NIK: X, etc.)
                                 # 0.80: Single word substring match
-                                is_id_match = is_id_code and (
-                                    f"NO_KK: {kw}" in doc or f"NIK: {kw}" in doc or f": {kw}" in doc or kw in doc
+                                is_id_match = (
+                                    (is_id_code and (
+                                        f"NO_KK: {kw}" in doc or f"NIK: {kw}" in doc or f": {kw}" in doc or kw in doc
+                                    )) or
+                                    any(tag in doc for tag in [
+                                        f"\"nomorhak\": \"{kw}\"", f"\"nomorhak\":{kw}",
+                                        f"\"nib\": \"{kw}\"", f"\"nib\":{kw}",
+                                        f"\"suratukur\": \"{kw}\"",
+                                        f"SHM {kw}", f"HGB {kw}", f"NPWP: {kw}",
+                                        f"\"npwp\": \"{kw}\"", f"\"npwp\":{kw}",
+                                        f"KD_RUP: {kw}", f"\"kd_rup\": \"{kw}\"", f"\"kd_rup\":{kw}",
+                                        f"KD_PENYEDIA: {kw}", f"\"kd_penyedia\": \"{kw}\"", f"\"kd_penyedia\":{kw}",
+                                        f"NO_KK: {kw}", f"NIK: {kw}"
+                                    ])
                                 )
                                 is_full_name_match = (
                                     f"NAMA_LGKP: {kw}" in doc or 
                                     f"NAMA: {kw}" in doc or
-                                    (is_multiword and kw in doc and ("NAMA_LGKP:" in doc or "NAMA:" in doc))
+                                    (is_multiword and kw in doc and ("NAMA_LGKP:" in doc or "NAMA:" in doc or "\"nama\":" in doc))
                                 )
-                                is_attr_match = f"NIK: {kw}" in doc or f"NO_KK: {kw}" in doc or f": {kw}" in doc
+                                is_attr_match = (
+                                    f"NIK: {kw}" in doc or f"NO_KK: {kw}" in doc or f": {kw}" in doc or
+                                    f"\"nik\": \"{kw}\"" in doc or f"\"nama\": \"{kw}\"" in doc
+                                )
                                 
                                 if is_id_match or is_full_name_match:
                                     score = 1.0

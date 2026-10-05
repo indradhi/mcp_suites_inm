@@ -9,6 +9,21 @@ from models.knowledge_source import KnowledgeSource
 
 logger = logging.getLogger(__name__)
 
+TOOL_TARGET_ALIASES = {
+    "api_dukcapil_lookup": "data_orang_dukcapil",
+    "dukcapil": "data_orang_dukcapil",
+    "siak": "data_orang_dukcapil",
+    "db_bpn_sertifikat_search": "cari_tanah_bpn",
+    "bpn": "cari_tanah_bpn",
+    "tanah": "cari_tanah_bpn",
+    "api_ahu_kemenkumham": "db_sikap_pemilik_usaha",
+    "ahu": "db_sikap_pemilik_usaha",
+    "sikap": "db_sikap_pemilik_usaha",
+    "spse": "db_spse_tender_pengumuman",
+    "tender": "db_spse_tender_pengumuman",
+    "rup": "db_rup_paket_penyedia_terumumkan"
+}
+
 DEFAULT_GOLDEN_FLOWS = [
     {
         "name": "Alur Profiling NIK & Verifikasi Identitas Terpadu",
@@ -22,7 +37,7 @@ DEFAULT_GOLDEN_FLOWS = [
                 "step_order": 1,
                 "title": "Verifikasi Identitas Resmi Kependudukan",
                 "action_type": "tool_call",
-                "target": "api_dukcapil_lookup",
+                "target": "data_orang_dukcapil",
                 "priority": "MANDATORY",
                 "description": "Ambil data profil kependudukan SIAK Dukcapil langsung sebagai sumber Otoritatif Primer (Tingkat 1 - Skor 95).",
                 "parameters_mapping": {"nik": "{extracted_nik}", "nama": "{extracted_name}"}
@@ -68,7 +83,7 @@ DEFAULT_GOLDEN_FLOWS = [
                 "step_order": 1,
                 "title": "Pencarian Sertifikat di Basis Data BPN ATR",
                 "action_type": "tool_call",
-                "target": "db_bpn_sertifikat_search",
+                "target": "cari_tanah_bpn",
                 "priority": "MANDATORY",
                 "description": "Query langsung ke database pertanahan BPN ATR (Tingkat 1 - Skor 95) untuk nomor sertifikat, luas, dan batas koordinat.",
                 "parameters_mapping": {"nama": "{subject_name}", "lokasi": "{extracted_location}"}
@@ -121,11 +136,11 @@ DEFAULT_GOLDEN_FLOWS = [
             },
             {
                 "step_order": 2,
-                "title": "Pemeriksaan Akta Notaris & Legalitas AHU",
+                "title": "Pemeriksaan Profil Vendor & Pemilik Usaha (SIKAP)",
                 "action_type": "tool_call",
-                "target": "api_ahu_kemenkumham",
+                "target": "db_sikap_pemilik_usaha",
                 "priority": "REQUIRED",
-                "description": "Verifikasi data legalitas badan usaha resmi Kemenkumham AHU (Tingkat 1 - Skor 95).",
+                "description": "Verifikasi data profil penyedia, NPWP, dan susunan pemilik usaha di SIKAP / AHU (Tingkat 1 - Skor 95).",
                 "parameters_mapping": {"nama_pt": "{company_name}"}
             },
             {
@@ -145,6 +160,61 @@ DEFAULT_GOLDEN_FLOWS = [
                 "priority": "MANDATORY",
                 "description": "Sajikan susunan pengurus berdasarkan akta notaris perubahan terakhir yang sah di AHU.",
                 "parameters_mapping": {"rule": "LATEST_AHU_DEED"}
+            }
+        ]
+    },
+    {
+        "name": "Alur Penelusuran Pengadaan Barang & Jasa (PBJ), Tender SPSE & RUP Paket",
+        "description": "Alur acuan penelusuran paket rencana pengadaan (RUP), data pengumuman lelang SPSE, verifikasi peserta/pemenang tender, dan profiling penyedia usaha.",
+        "prompt_pattern": ".*?(?:tender|pengadaan|spse|rup|paket|lelang|penyedia|kontrak|hps|pemenang|satker).*",
+        "intent_category": "pengadaan",
+        "trigger_keywords": ["tender", "pengadaan", "spse", "rup", "paket", "penyedia", "lelang", "kontrak", "hps", "satker", "klpd"],
+        "validity_priority_rule": "PRIORITIZE_HIGHEST_VALIDITY",
+        "steps": [
+            {
+                "step_order": 1,
+                "title": "Pencarian Rencana Umum Pengadaan & Paket Terumumkan",
+                "action_type": "tool_call",
+                "target": "db_rup_paket_penyedia_terumumkan",
+                "priority": "MANDATORY",
+                "description": "Query paket RUP terumumkan (Tingkat 1 - Skor 95) untuk identifikasi pagu anggaran, nama paket, dan satuan kerja pelaksana.",
+                "parameters_mapping": {"nama_paket": "{package_name}", "tahun_anggaran": "{budget_year}"}
+            },
+            {
+                "step_order": 2,
+                "title": "Verifikasi Pengumuman Tender & Peserta Lelang SPSE",
+                "action_type": "tool_call",
+                "target": "db_spse_tender_pengumuman",
+                "priority": "REQUIRED",
+                "description": "Panggil database SPSE untuk status tender, nilai HPS, dan riwayat peserta penawaran lelang.",
+                "parameters_mapping": {"nama_tender": "{tender_name}"}
+            },
+            {
+                "step_order": 3,
+                "title": "Pemeriksaan Profil Penyedia & Pemilik Usaha",
+                "action_type": "tool_call",
+                "target": "db_sikap_pemilik_usaha",
+                "priority": "REQUIRED",
+                "description": "Validasi profil vendor penyedia terdaftar, nomor NPWP, dan susunan pemilik usaha di SIKAP.",
+                "parameters_mapping": {"nama_penyedia": "{vendor_name}"}
+            },
+            {
+                "step_order": 4,
+                "title": "Eksplorasi Jaringan Afiliasi Perusahaan di Graf Neo4j",
+                "action_type": "graph_traversal",
+                "target": "neo4j_entity_network",
+                "priority": "REQUIRED",
+                "description": "Telusuri hubungan kepemilikan silang antara penyedia pemenang dengan pejabat/panitia pengadaan.",
+                "parameters_mapping": {"depth": 2}
+            },
+            {
+                "step_order": 5,
+                "title": "Sintesis Transparansi Pengadaan & Rekonsiliasi",
+                "action_type": "synthesis_rule",
+                "target": "validity_ranking",
+                "priority": "MANDATORY",
+                "description": "Rekonsiliasi data pagu RUP, penawaran SPSE, dan legalitas vendor SIKAP secara terpadu.",
+                "parameters_mapping": {"rule": "PBJ_COMPREHENSIVE_AUDIT"}
             }
         ]
     },
@@ -188,9 +258,18 @@ DEFAULT_GOLDEN_FLOWS = [
 ]
 
 class FlowOrchestrator:
+    def resolve_tool_target(self, target: str) -> str:
+        """
+        Resolves generic or legacy tool target names to active system tool dispatch names.
+        """
+        if not target:
+            return ""
+        return TOOL_TARGET_ALIASES.get(target.strip().lower(), target.strip())
+
     def seed_default_flows(self, db: Session) -> int:
         """
-        Seeds default golden orchestration flows if the table is empty or missing them.
+        Seeds default golden orchestration flows if missing and updates existing flow steps
+        to keep tool targets aligned with the active tool catalog.
         """
         created = 0
         try:
@@ -210,9 +289,16 @@ class FlowOrchestrator:
                     )
                     db.add(flow)
                     created += 1
+                else:
+                    # Synchronize steps, keywords, and patterns to maintain target tool accuracy
+                    existing.steps = item["steps"]
+                    existing.trigger_keywords = item["trigger_keywords"]
+                    existing.prompt_pattern = item["prompt_pattern"]
+                    existing.validity_priority_rule = item["validity_priority_rule"]
+                    created += 1
             if created > 0:
                 db.commit()
-                logger.info(f"Successfully seeded {created} default orchestration flows.")
+                logger.info(f"Successfully synchronized {created} orchestration flows.")
         except Exception as e:
             db.rollback()
             logger.warning(f"Notice while seeding default orchestration flows: {e}")
