@@ -62,7 +62,7 @@ Knowledge Base Database & API telah disempurnakan secara menyeluruh dengan konse
      - `services/backoffice_api/services/chat_service.py` (`chat_with_knowledge`): Menginjeksi definisi tool dan instruksi pemanggilan ke model AI.
    - **Dispatcher Eksekusi**:
      - `services/backoffice_api/routers/knowledge.py` (`execute_api_tool`): Titik masuk eksekusi tool berparameter.
-     - `services/mcp_server/main.py` (`execute_tool` / `rpc_endpoint`): Menghubungkan MCP client (OpenWebUI/Claude) ke database KPK.
+     - `services/mcp_server/main.py` (`execute_tool` / `rpc_endpoint`): Menghubungkan MCP client (OpenWebUI/Claude) ke database internal BIN.
    - **Interpolasi Parameter & Driver TCP Database**:
      - `services/backoffice_api/services/ingestion/database_ingester.py` (`execute_tool_call` & `substitute_query_parameters`): Melakukan sanitasi parameter, membuka koneksi pool database (MySQL, PostgreSQL, Oracle, MongoDB, SQL Server), mengeksekusi query, dan mengembalikan data mentah terverifikasi.
 
@@ -635,7 +635,7 @@ Telah dilakukan pengujian end-to-end langsung pada server dan container Docker:
   - Sitasi Sumber: `📎 Dokumen Terunggah: laporan_pengadaan_2026.csv`
 
 #### Test 2: Upload & Analisis Catatan Investigasi Teks (`audit_investigasi_september2026.txt`)
-- **Dokumen Diunggah**: File laporan audit khusus tindak pidana korupsi berisi nomor surat, temuan aliran dana bansos, nomor rekening, dan rekomendasi cekal/blokir.
+- **Dokumen Diunggah**: File laporan audit khusus investigasi intelijen strategis berisi nomor surat, temuan aliran dana, nomor rekening, dan rekomendasi cekal/blokir.
 - **Endpoint Unggah**: `POST /api/chat/upload-document`
   - Status: `200 OK`
 - **Query Chat**: *"Berapa dana yang ditransfer ke Sdr. Hendra Kusuma dan apa rekomendasi dalam laporan audit ini?"*

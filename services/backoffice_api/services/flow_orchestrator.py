@@ -220,7 +220,7 @@ DEFAULT_GOLDEN_FLOWS = [
     },
     {
         "name": "Alur Telaah Regulasi Hukum, SOP & Pedoman Operasional",
-        "description": "Alur acuan pencarian pasal undang-undang, telaah hierarki perundang-undangan, dan kepatuhan standar operasional prosedur KPK.",
+        "description": "Alur acuan pencarian pasal undang-undang, telaah hierarki perundang-undangan, dan kepatuhan standar operasional prosedur BIN.",
         "prompt_pattern": ".*?(?:kebijakan|regulasi|undang-undang|uu|sop|peraturan|pedoman|pasal|hukum).*",
         "intent_category": "regulasi",
         "trigger_keywords": ["kebijakan", "regulasi", "uu", "undang-undang", "peraturan", "sop", "pedoman", "pasal", "hukum", "perkara"],

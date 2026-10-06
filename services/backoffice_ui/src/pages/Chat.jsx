@@ -2205,12 +2205,12 @@ export default function Chat() {
               {/* Active Personality pill - disciplined width, clean truncation, no wrap */}
               <a 
                 href="/personality"
-                title={`Kepribadian Sistem: ${activePersonality?.name || 'Default KPK'} (Klik untuk kelola)`}
+                title={`Kepribadian Sistem: ${activePersonality?.name || 'Default BIN'} (Klik untuk kelola)`}
                 className="badge badge-outline border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 gap-1.5 cursor-pointer font-medium py-2.5 px-2.5 text-xs no-underline transition-all flex-shrink-0"
               >
                 <Sparkles size={12} className="shrink-0 text-rose-400" />
                 <span className="truncate max-w-[130px]">
-                  {activePersonality?.name ? activePersonality.name.replace(/\s*\(Default\)/i, '') : 'Persona: KPK'}
+                  {activePersonality?.name ? activePersonality.name.replace(/\s*\(Default\)/i, '') : 'Persona: BIN'}
                 </span>
               </a>
             </div>
@@ -2309,6 +2309,7 @@ export default function Chat() {
             </button>
           </div>
         </div>
+
 
         {/* Expandable Options & Filter Tray (Smooth, Beautiful & Categorized) */}
         {isHeaderOptionsOpen && (
@@ -2998,7 +2999,7 @@ export default function Chat() {
                 }}
               >
                 <Sparkles size={13} />
-                <span>Persona: {activePersonality?.name ? activePersonality.name.replace(/\s*\(Default\)/i, '') : 'KPK'}</span>
+                <span>Persona: {activePersonality?.name ? activePersonality.name.replace(/\s*\(Default\)/i, '') : 'BIN'}</span>
               </a>
 
               {/* Tutup Opsi Button */}

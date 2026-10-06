@@ -123,7 +123,7 @@ Ingestion is fully async via **Celery** + **Redis** workers with real-time job s
 ### 6. 🎭 AI Personality System
 - **Multiple named personalities** (Curated Presets + Custom) — each with a unique name, tone, mission, and anti-hallucination level.
 - **Greeting-based personality activation**: saying "Hello Jarvis" dynamically switches to the matching persona.
-- **Configurable presets**: KPK Investigator, Customer Service, General Assistant, Technical Analyst, and more.
+- **Configurable presets**: BIN Investigator, Customer Service, General Assistant, Technical Analyst, and more.
 - **System prompt override** per personality for full LLM instruction control.
 
 ### 7. 🔁 Prompt Flow Memory (Orchestration Flows)
@@ -519,7 +519,7 @@ make restore BACKUP_FILE=backups/backup_YYYYMMDD_HHMMSS.tar.gz
 | `MYSQL_*` | *(see .env.example)* | MySQL connection settings |
 | `NEO4J_URI` | `bolt://neo4j:7687` | Neo4j connection |
 | `CHROMADB_HOST` | `chromadb` | ChromaDB host |
-| `QDRANT_HOST` | *(optional)* | Qdrant host (e.g. `alakai.kpk.go.id`) |
+| `QDRANT_HOST` | *(optional)* | Qdrant host (e.g. `alakai.bin.go.id`) |
 | `QDRANT_PORT` | `6333` | Qdrant HTTP port |
 | `QDRANT_API_KEY` | *(optional)* | Qdrant JWT / Bearer API key |
 | `QDRANT_COLLECTION` | `mcp_ai` | Qdrant vector collection name |

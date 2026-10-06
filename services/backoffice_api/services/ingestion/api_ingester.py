@@ -9,7 +9,7 @@ class APIIngester:
         """
         Determines whether SSL certificate verification is enabled.
         Defaults to False for enterprise/government internal endpoints
-        (such as *.kpk.go.id, internal CAs, or self-signed certificates),
+        (such as *.bin.go.id, internal CAs, or self-signed certificates),
         or reads explicit config flag 'verify_ssl' / 'ssl_verify'.
         """
         if not config:

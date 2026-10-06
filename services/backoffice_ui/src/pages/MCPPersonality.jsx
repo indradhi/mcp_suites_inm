@@ -25,7 +25,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 
 const PRESET_ICONS = {
-  kpk_investigator: ShieldCheck,
+  bin_investigator: ShieldCheck,
   legal_compliance: Scale,
   forensic_auditor: Search,
   general_enterprise: Building2,
@@ -33,11 +33,11 @@ const PRESET_ICONS = {
 };
 
 const PRESET_COLORS = {
-  kpk_investigator: {
+  bin_investigator: {
     bg: 'rgba(51, 65, 85, 0.15)',
     border: 'rgba(51, 65, 85, 0.35)',
     accent: '#475569',
-    badge: 'KPK Official'
+    badge: 'BIN Official'
   },
   legal_compliance: {
     bg: 'rgba(59, 130, 246, 0.12)',
@@ -77,10 +77,10 @@ export default function MCPPersonality() {
 
   // Active personality form state
   const [personality, setPersonality] = useState({
-    preset: 'kpk_investigator',
-    name: 'Analis Intelijen & Penyelidikan KPK',
+    preset: 'bin_investigator',
+    name: 'Analis Intelijen & Penyelidikan BIN',
     nickname: 'Asisten Intelijen',
-    role: 'Analis Intelijen & Penyelidikan Korupsi',
+    role: 'Analis Intelijen & Penyelidikan Strategis',
     tone_of_voice: 'Formal, lugas, analitis, presisi, objektif, berintegritas tinggi',
     core_mission: 'Melakukan penelaahan bukti dan fakta, penelusuran aset (asset tracing), profiling entitas terduga...',
     custom_instructions: ''
@@ -99,8 +99,8 @@ export default function MCPPersonality() {
         if (res.data.personality) {
           const p = res.data.personality;
           setPersonality({
-            preset: p.preset_id || p.preset || 'kpk_investigator',
-            name: p.name || 'Analis Intelijen & Penyelidikan KPK',
+            preset: p.preset_id || p.preset || 'bin_investigator',
+            name: p.name || 'Analis Intelijen & Penyelidikan BIN',
             nickname: p.nickname || '',
             role: p.role_title || p.role || 'Enterprise AI Knowledge & Investigation Orchestrator',
             tone_of_voice: p.tone_label || p.tone_of_voice || p.tone || 'Formal, Tegas & Berbasis Bukti Faktual',
@@ -212,7 +212,7 @@ export default function MCPPersonality() {
 
   const handleUpdatePreset = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
-    const presetId = personality.preset || 'kpk_investigator';
+    const presetId = personality.preset || 'bin_investigator';
     setSaving(true);
     setErrorMessage(null);
     setSaveSuccess(false);
@@ -257,9 +257,9 @@ export default function MCPPersonality() {
     }
   };
 
-  // Reset to KPK default
+  // Reset to BIN default
   const handleReset = async () => {
-    if (!window.confirm('Kembalikan konfigurasi kepribadian MCP ke setelan awal resmi (Analis Intelijen KPK)?')) {
+    if (!window.confirm('Kembalikan konfigurasi kepribadian MCP ke setelan awal resmi (Analis Intelijen BIN)?')) {
       return;
     }
     setResetting(true);
@@ -326,7 +326,7 @@ export default function MCPPersonality() {
     reader.readAsText(file);
   };
 
-  const activeColor = PRESET_COLORS[personality.preset] || PRESET_COLORS.kpk_investigator;
+  const activeColor = PRESET_COLORS[personality.preset] || PRESET_COLORS.bin_investigator;
   const ActiveIcon = PRESET_ICONS[personality.preset] || ShieldCheck;
 
   return (
@@ -401,10 +401,10 @@ export default function MCPPersonality() {
               padding: '9px 16px', 
               fontSize: '13px'
             }}
-            title="Kembalikan ke Kepribadian Asli Analis KPK"
+            title="Kembalikan ke Kepribadian Asli Analis BIN"
           >
             <RotateCcw size={16} />
-            {resetting ? 'Mereset...' : 'Reset ke Default KPK'}
+            {resetting ? 'Mereset...' : 'Reset ke Default BIN'}
           </button>
           <button
             type="button"
@@ -679,7 +679,7 @@ export default function MCPPersonality() {
                 className="input-field"
                 value={personality.name}
                 onChange={(e) => setPersonality({ ...personality, name: e.target.value })}
-                placeholder="Contoh: Analis Intelijen & Penyelidikan KPK"
+                placeholder="Contoh: Analis Intelijen & Penyelidikan BIN"
                 required
                 style={{ width: '100%', fontSize: '14px', padding: '10px 14px' }}
               />
@@ -704,7 +704,7 @@ export default function MCPPersonality() {
                   className="input-field"
                   value={personality.nickname || ''}
                   onChange={(e) => setPersonality({ ...personality, nickname: e.target.value })}
-                  placeholder="Contoh: Asisten KPK"
+                  placeholder="Contoh: Asisten BIN"
                   required
                   style={{ flex: 1, fontSize: '14px', padding: '10px 14px' }}
                 />
@@ -742,7 +742,7 @@ export default function MCPPersonality() {
                 className="input-field"
                 value={personality.role}
                 onChange={(e) => setPersonality({ ...personality, role: e.target.value })}
-                placeholder="Contoh: Analis Intelijen & Penyelidikan Korupsi"
+                placeholder="Contoh: Analis Intelijen & Penyelidikan Strategis"
                 required
                 style={{ width: '100%', fontSize: '14px', padding: '10px 14px' }}
               />

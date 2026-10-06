@@ -16,8 +16,8 @@ try:
     test_queries = [
         "Tolong carikan profil lengkap NIK 3174051208850001 dan aset yang dia miliki",
         "Cek sertifikat tanah SHM No 12345 atas nama Bambang di Jakarta Selatan",
-        "Analisis hubungan kepemilikan PT Maju Mundur dengan tersangka korupsi",
-        "Bagaimana regulasi UU Tipikor pasal 12B tentang gratifikasi?"
+        "Analisis hubungan kepemilikan PT Maju Mundur dengan target operasi intelijen",
+        "Bagaimana regulasi UU Intelijen Negara tentang wewenang dan SOP operasional?"
     ]
 
     for q in test_queries:
