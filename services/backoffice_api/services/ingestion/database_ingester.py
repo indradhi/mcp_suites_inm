@@ -108,6 +108,7 @@ class DatabaseIngester:
         )
 
         is_mongo = db_type.lower() == "mongodb"
+        auto_where_conditions = []
 
         for p in sorted_params:
             p_name = p.get("name")
@@ -193,9 +194,37 @@ class DatabaseIngester:
 
             else:
                 # SQL databases
-                if val_to_use is None:
-                    for pattern in [f"':{p_name}'", f"'{{{p_name}}}'", f":{p_name}", f"{{{p_name}}}"]:
-                        interpolated = interpolated.replace(pattern, "NULL")
+                has_placeholder = False
+                for token in [f":{p_name}", f"{{{p_name}}}", f":${p_name}", f"{{${p_name}}}"]:
+                    if token in raw_query:
+                        has_placeholder = True
+                        break
+                
+                is_empty = val_to_use is None or str(val_to_use).strip() == ""
+                
+                if not has_placeholder and not is_empty:
+                    if p_type in ["int", "integer", "float", "number", "bool", "boolean"]:
+                        if p_type in ["bool", "boolean"]:
+                            b_str = "1" if str(val_to_use).lower() in ["true", "1", "yes"] else "0"
+                            auto_where_conditions.append(f"{p_name} = {b_str}")
+                        else:
+                            try: num_str = str(val_to_use)
+                            except: num_str = "0"
+                            auto_where_conditions.append(f"{p_name} = {num_str}")
+                    else:
+                        escaped = str(val_to_use).replace("'", "''").replace("\\", "\\\\")
+                        auto_where_conditions.append(f"UPPER({p_name}) = UPPER('{escaped}')")
+                    continue
+                
+                if is_empty:
+                    # Remove the entire condition involving this parameter by replacing it with 1=1
+                    # This supports queries where missing parameters shouldn't filter the results
+                    pattern = r'[a-zA-Z0-9_.]+\s*(?:=|LIKE|ILIKE|IN|>|<|>=|<=|<>|!=)\s*\(?\s*[\'\"%]*(?::' + p_name + r'|:\s*\{' + p_name + r'\}|\{' + p_name + r'\})[\'\"%]*\s*\)?'
+                    interpolated = re.sub(pattern, ' 1=1 ', interpolated, flags=re.IGNORECASE)
+                    
+                    # Fallback for bare placeholders
+                    for bare_pattern in [f"':{p_name}'", f"'{{{p_name}}}'", f":{p_name}", f"{{{p_name}}}"]:
+                        interpolated = interpolated.replace(bare_pattern, "NULL")
                     continue
 
                 if p_type in ["int", "integer"]:
@@ -223,6 +252,18 @@ class DatabaseIngester:
                     raw_str = str(val_to_use)
                     escaped = raw_str.replace("'", "''").replace("\\", "\\\\")
 
+                    # Case-insensitive support: UPPER(column) <op> UPPER(placeholder)
+                    ph = re.escape(p_name)
+                    ci_pattern = re.compile(
+                        r'(?<![\w.(])((?:[a-zA-Z_][\w]*\.)?[a-zA-Z_][\w]*|"[^"]+")\s*(=|<>|!=|NOT\s+LIKE|LIKE|ILIKE)\s*'
+                        r"((?:'?%?)(?::" + ph + r"|\{" + ph + r"\})(?:%?'?))",
+                        re.IGNORECASE
+                    )
+                    interpolated = ci_pattern.sub(
+                        lambda m: f"UPPER({m.group(1)}) {m.group(2)} UPPER({m.group(3)})",
+                        interpolated
+                    )
+
                     # If user explicitly wrote ':param' or '{param}'
                     interpolated = interpolated.replace(f"':{p_name}'", f"'{escaped}'")
                     interpolated = interpolated.replace(f"'{{{p_name}}}'", f"'{escaped}'")
@@ -241,6 +282,17 @@ class DatabaseIngester:
 
                     pattern_brace = re.compile(r"([^a-zA-Z0-9_]|^)\{" + re.escape(p_name) + r"\}([^a-zA-Z0-9_]|$)")
                     interpolated = pattern_brace.sub(repl_placeholder, interpolated)
+
+        if not is_mongo and auto_where_conditions:
+            parts = re.split(r'(?i)(\s+(?:ORDER\s+BY|GROUP\s+BY|LIMIT\b|OFFSET\b))', interpolated, maxsplit=1)
+            base_query = parts[0]
+            
+            if re.search(r'(?i)\bWHERE\b', base_query):
+                base_query += " AND " + " AND ".join(auto_where_conditions)
+            else:
+                base_query += " WHERE " + " AND ".join(auto_where_conditions)
+                
+            interpolated = base_query + "".join(parts[1:])
 
         return interpolated
 
