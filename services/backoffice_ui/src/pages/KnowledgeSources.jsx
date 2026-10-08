@@ -175,6 +175,29 @@ export default function KnowledgeSources() {
     }
   };
 
+  const handleRefreshMCPTools = async () => {
+    try {
+      setLoading(true);
+      setNotification({
+        type: 'info',
+        message: 'Sedang merefresh alat dari semua Server MCP yang terhubung...'
+      });
+      const res = await api.post('/knowledge/mcp-tools/refresh-all');
+      await fetchSources();
+      setNotification({
+        type: 'success',
+        message: res.data.message || 'Berhasil merefresh alat MCP!'
+      });
+      setTimeout(() => setNotification(null), 5000);
+    } catch (err) {
+      console.error('Refresh MCP Tools error:', err);
+      alert('Gagal merefresh alat MCP: ' + (err.response?.data?.detail || err.message));
+      setNotification(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const closeModals = () => {
     setActiveModal(null);
     setEditingSource(null);
@@ -268,6 +291,27 @@ export default function KnowledgeSources() {
             >
               <Upload size={15} />
               <span>Import</span>
+            </button>
+          </div>
+          
+          <div style={{ display: 'flex', gap: '8px', paddingRight: '8px', borderRight: '1px solid var(--border-color)' }}>
+            <button
+              type="button"
+              id="btn-refresh-mcp-tools"
+              className="btn-secondary"
+              onClick={handleRefreshMCPTools}
+              title="Refresh dan perbarui definisi alat dari semua server MCP yang terhubung"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                borderColor: 'rgba(236, 72, 153, 0.4)',
+                color: '#ec4899',
+                background: 'rgba(236, 72, 153, 0.08)'
+              }}
+            >
+              <Cpu size={15} />
+              <span>Refresh MCP Tools</span>
             </button>
           </div>
 

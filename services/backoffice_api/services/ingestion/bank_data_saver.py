@@ -744,23 +744,9 @@ def save_tool_records_to_bank_data(
     all_extracted_relations = []
     narrative_chunks = []
 
-    for r_idx, record in enumerate(norm_records[:100]):
+    for r_idx, record in enumerate(norm_records):
         if not isinstance(record, dict):
             continue
-
-        # Extract graph entities & relations from structured fields
-        try:
-            ents, rels = extract_structured_entities_and_relations(record, source, query_args)
-            all_extracted_entities.extend(ents)
-            all_extracted_relations.extend(rels)
-        except Exception as ext_err:
-            logger.warning(f"Notice during structured graph extraction for record {r_idx}: {ext_err}")
-
-        # Check for narrative text for background LLM enrichment
-        for nk in ['riwayat_catatan', 'catatan', 'keterangan', 'deskripsi', 'kronologi', 'notes', 'memo']:
-            nval = record.get(nk)
-            if nval and isinstance(nval, str) and len(nval.strip()) > 60:
-                narrative_chunks.append(f"Sumber: {source.name}\n{nk}: {nval.strip()}")
 
         fields = [f"Sumber Data: {source.name} ({source.source_type.upper()})"]
         if query_args:
@@ -790,6 +776,9 @@ def save_tool_records_to_bank_data(
         if not chunk_text.strip():
             continue
 
+        # Send full chunk to background AI processing instead of structured parsing
+        narrative_chunks.append(chunk_text)
+
         # Generate unique deterministic ID using source_id and record hash
         rec_hash = hashlib.md5(json.dumps(clean_rec, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:12]
         chunk_id = f"bank_src_{source.id}_{rec_hash}"
@@ -806,42 +795,9 @@ def save_tool_records_to_bank_data(
         metas_to_index.append(metadata)
         ids_to_index.append(chunk_id)
 
-    # Deduplicate entities before upsert
-    dedup_entities = []
-    seen_names = set()
-    for ent in all_extracted_entities:
-        nm = ent["name"].strip().upper()
-        if nm and nm not in seen_names:
-            seen_names.add(nm)
-            dedup_entities.append(ent)
-
-    dedup_relations = []
-    seen_rel_keys = set()
-    for rel in all_extracted_relations:
-        rk = (rel["source"].strip().upper(), rel["relation"], rel["target"].strip().upper())
-        if rk[0] and rk[2] and rk[0] != rk[2] and rk not in seen_rel_keys:
-            seen_rel_keys.add(rk)
-            dedup_relations.append(rel)
-
-    ent_upserted = 0
-    rel_upserted = 0
-    if dedup_entities:
-        try:
-            ent_upserted = graph_builder.upsert_entities(dedup_entities, source.id, source.name)
-            logger.info(f"Auto Bank Data: Upserted {ent_upserted} entities to Neo4j for source '{source.name}'")
-        except Exception as ge_err:
-            logger.warning(f"Notice upserting entities to Neo4j for source '{source.name}': {ge_err}")
-
-    if dedup_relations:
-        try:
-            rel_upserted = graph_builder.upsert_relationships(dedup_relations, source.id)
-            logger.info(f"Auto Bank Data: Upserted {rel_upserted} relationships to Neo4j for source '{source.name}'")
-        except Exception as gr_err:
-            logger.warning(f"Notice upserting relationships to Neo4j for source '{source.name}': {gr_err}")
-
-    # Launch background async LLM enrichment for narrative text if present
+    # Launch background async LLM enrichment for all chunks (Option B)
     if narrative_chunks:
-        _enrich_narrative_graph_async(source.id, source.name, narrative_chunks[:5])
+        _enrich_narrative_graph_async(source.id, source.name, narrative_chunks)
 
     if texts_to_index:
         try:

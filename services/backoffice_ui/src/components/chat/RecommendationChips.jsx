@@ -6,46 +6,25 @@ import { Sparkles, ArrowRight, Compass, ShieldAlert, MapPin, Database, Network }
  */
 export const generateContextualRecommendations = (msg) => {
   if (!msg || msg.role !== 'assistant') return [];
-
-  const recs = [];
-  const text = (msg.content || '').toLowerCase();
-  const tools = (msg.tools_executed || []).map(t => (t.tool_name || '').toLowerCase());
-  const entities = (msg.entities || []).map(e => typeof e === 'string' ? e : e.name || e.text || '');
-
-  // 1. Dukcapil / Person detected
-  const hasDukcapil = tools.some(t => t.includes('dukcapil') || t.includes('nik') || t.includes('penduduk'));
-  const hasPerson = entities.some(e => e.length > 2) || text.includes('nik') || text.includes('kartu keluarga');
-
-  if (hasDukcapil || hasPerson) {
-    const firstEntity = entities[0] || 'subjek';
-    recs.push(`👨‍👩‍👧 Cek relasi Kartu Keluarga & silsilah untuk ${firstEntity}`);
-    recs.push(`🏢 Cari kepemilikan aset tanah BPN atas nama ${firstEntity}`);
-    recs.push(`🔗 Visualisasikan jejaring relasi ${firstEntity} di Knowledge Graph`);
+  
+  const content = msg.content || '';
+  const match = content.match(/<suggestions>([\s\S]*?)<\/suggestions>/i);
+  
+  if (match && match[1]) {
+    try {
+      const parsed = JSON.parse(match[1].trim());
+      if (Array.isArray(parsed)) {
+        return parsed.slice(0, 3).map(p => {
+          if (typeof p === 'string') return p;
+          return p.question || p.text || p.pertanyaan || JSON.stringify(p);
+        });
+      }
+    } catch (e) {
+      console.warn("Failed to parse recommendations", e);
+    }
   }
 
-  // 2. BPN / Pertanahan / Map detected
-  const hasBpn = tools.some(t => t.includes('bpn') || t.includes('tanah') || t.includes('persil')) || text.includes('sertifikat') || text.includes('nib');
-  if (hasBpn) {
-    recs.push('🗺️ Tampilkan seluruh bidang tanah terkait dalam peta interaktif GeoJSON');
-    recs.push('⚖️ Periksa status sengketa atau blokir yuridis di BPN');
-  }
-
-  // 3. SIKAP / Tender / Vendor detected
-  const hasSikap = tools.some(t => t.includes('sikap') || t.includes('vendor') || t.includes('tender')) || text.includes('pengadaan') || text.includes('lpse');
-  if (hasSikap) {
-    recs.push('📑 Analisis riwayat tender & izin usaha badan hukum terkait');
-    recs.push('⚠️ Periksa apakah ada afiliasi tersembunyi dengan panitia pengadaan');
-  }
-
-  // 4. Fallback / Universal insightful follow-ups
-  if (recs.length < 3) {
-    recs.push('📊 Tampilkan visualisasi relasi entitas dalam Knowledge Graph');
-    recs.push('📑 Ringkas temuan utama dalam format tabel audit');
-    recs.push('🔍 Verifikasi konsistensi data silang antar sumber primer');
-  }
-
-  // Return top 3 unique suggestions
-  return Array.from(new Set(recs)).slice(0, 3);
+  return [];
 };
 
 /**
@@ -154,7 +133,11 @@ export default function RecommendationChips({
                       key={idx}
                       type="button"
                       disabled={disabled}
-                      onClick={() => onSelectPrompt(p)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!disabled) onSelectPrompt(String(p));
+                      }}
                       style={{
                         textAlign: 'left',
                         fontSize: '11px',
@@ -226,7 +209,11 @@ export default function RecommendationChips({
             key={idx}
             type="button"
             disabled={disabled}
-            onClick={() => onSelectPrompt(prompt)}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (!disabled) onSelectPrompt(String(prompt));
+            }}
             style={{
               display: 'inline-flex',
               alignItems: 'center',

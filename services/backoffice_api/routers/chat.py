@@ -492,67 +492,123 @@ async def chat_stream_endpoint(
         }
         yield f"data: {json.dumps(initial_chunk, ensure_ascii=False)}\n\n"
 
-        try:
-            result = chat_service.chat_with_knowledge(
-                message=effective_message,
-                image_base64=req.image_base64,
-                uploaded_document=uploaded_doc,
-                history=history_dicts,
-                source_id=effective_source_ids[0] if len(effective_source_ids) == 1 else None,
-                source_ids=effective_source_ids if effective_source_ids else None,
-                backend_id=req.backend_id,
-                model_name=req.model_name,
-                include_graph=req.include_graph if req.include_graph is not None else True,
-                top_k=req.top_k or 20,
-                db=db,
-                liked_examples=[],
-                dislike_notes=[],
-                strict_mode=req.strict_mode if req.strict_mode is not None else True,
-                temperature=req.temperature,
-                top_p=req.top_p,
-                presence_penalty=req.presence_penalty,
-                frequency_penalty=req.frequency_penalty,
-                seed=req.seed,
-                stop=req.stop,
-                max_tokens=req.max_tokens,
-                max_completion_tokens=req.max_completion_tokens,
-                response_format=req.response_format.model_dump() if req.response_format else None,
-                reasoning_effort=req.reasoning_effort,
-                user=req.user or (str(user.id) if user else None),
-            )
-            full_answer = result.get("answer", "")
-            model_used = result.get("model_used", model_name)
+        import asyncio
+        import queue
+        import threading
+        
+        q = queue.Queue()
 
-            # Stream answer in chunks of ~30 characters for smooth UX
-            CHUNK_SIZE = 30
-            for i in range(0, len(full_answer), CHUNK_SIZE):
-                chunk_text = full_answer[i:i + CHUNK_SIZE]
+        def stream_callback(msg: str):
+            if any(msg.startswith(prefix) for prefix in ["🔍", "⚡", "✍️"]):
+                q.put(("status", msg))
+            else:
+                q.put(("chunk", msg))
+
+        def background_task():
+            try:
+                result = chat_service.chat_with_knowledge(
+                    message=effective_message,
+                    image_base64=req.image_base64,
+                    uploaded_document=uploaded_doc,
+                    history=history_dicts,
+                    source_id=effective_source_ids[0] if len(effective_source_ids) == 1 else None,
+                    source_ids=effective_source_ids if effective_source_ids else None,
+                    backend_id=req.backend_id,
+                    model_name=req.model_name,
+                    include_graph=req.include_graph if req.include_graph is not None else True,
+                    top_k=req.top_k or 20,
+                    db=db,
+                    liked_examples=[],
+                    dislike_notes=[],
+                    strict_mode=req.strict_mode if req.strict_mode is not None else True,
+                    temperature=req.temperature,
+                    top_p=req.top_p,
+                    presence_penalty=req.presence_penalty,
+                    frequency_penalty=req.frequency_penalty,
+                    seed=req.seed,
+                    stop=req.stop,
+                    max_tokens=req.max_tokens,
+                    max_completion_tokens=req.max_completion_tokens,
+                    response_format=req.response_format.model_dump() if req.response_format else None,
+                    reasoning_effort=req.reasoning_effort,
+                    user=req.user or (str(user.id) if user else None),
+                    stream_callback=stream_callback
+                )
+                q.put(("result", result))
+            except Exception as e:
+                q.put(("error", str(e)))
+
+        threading.Thread(target=background_task, daemon=True).start()
+
+        while True:
+            try:
+                msg_type, data = await asyncio.to_thread(q.get)
+            except Exception:
+                break
+
+            if msg_type == "chunk":
                 content_chunk = {
                     "id": chat_id,
                     "object": "chat.completion.chunk",
                     "created": created_ts,
-                    "model": model_used,
-                    "choices": [{"index": 0, "delta": {"content": chunk_text}, "finish_reason": None}]
+                    "model": model_name,
+                    "choices": [{"index": 0, "delta": {"content": data}, "finish_reason": None}]
                 }
                 yield f"data: {json.dumps(content_chunk, ensure_ascii=False)}\n\n"
+            
+            elif msg_type == "status":
+                status_chunk = {
+                    "id": chat_id,
+                    "object": "chat.completion.chunk",
+                    "created": created_ts,
+                    "model": model_name,
+                    "choices": [{"index": 0, "delta": {"status": data.strip()}, "finish_reason": None}]
+                }
+                yield f"data: {json.dumps(status_chunk, ensure_ascii=False)}\n\n"
+            
+            elif msg_type == "error":
+                error_chunk = {
+                    "error": {"message": data, "type": "server_error"},
+                    "choices": [{"index": 0, "delta": {"content": f"\n\n[Error: {data}]"}, "finish_reason": "error"}]
+                }
+                yield f"data: {json.dumps(error_chunk, ensure_ascii=False)}\n\n"
+                break
+                
+            elif msg_type == "result":
+                full_answer = data.get("answer", "")
+                model_used = data.get("model_used", model_name)
+                
+                # Stream remaining final answer text
+                CHUNK_SIZE = 30
+                for i in range(0, len(full_answer), CHUNK_SIZE):
+                    chunk_text = full_answer[i:i + CHUNK_SIZE]
+                    content_chunk = {
+                        "id": chat_id,
+                        "object": "chat.completion.chunk",
+                        "created": created_ts,
+                        "model": model_used,
+                        "choices": [{"index": 0, "delta": {"content": chunk_text}, "finish_reason": None}]
+                    }
+                    yield f"data: {json.dumps(content_chunk, ensure_ascii=False)}\n\n"
 
-            # Final chunk with finish_reason, usage, and context_rot_guard telemetry
-            final_chunk = {
-                "id": chat_id,
-                "object": "chat.completion.chunk",
-                "created": created_ts,
-                "model": model_used,
-                "choices": [{"index": 0, "delta": {}, "finish_reason": result.get("finish_reason", "stop")}],
-                "usage": result.get("usage"),
-                "context_rot_guard": result.get("context_rot_guard")
-            }
-            yield f"data: {json.dumps(final_chunk, ensure_ascii=False)}\n\n"
-        except Exception as e:
-            error_chunk = {
-                "error": {"message": str(e), "type": "server_error"},
-                "choices": [{"index": 0, "delta": {"content": f"\n\n[Error: {str(e)}]"}, "finish_reason": "error"}]
-            }
-            yield f"data: {json.dumps(error_chunk, ensure_ascii=False)}\n\n"
+                final_chunk = {
+                    "id": chat_id,
+                    "object": "chat.completion.chunk",
+                    "created": created_ts,
+                    "model": model_used,
+                    "choices": [{"index": 0, "delta": {}, "finish_reason": data.get("finish_reason", "stop")}],
+                    "usage": data.get("usage"),
+                    "context_rot_guard": data.get("context_rot_guard"),
+                    "sources": data.get("sources", []),
+                    "entities": data.get("entities", []),
+                    "tools_executed": data.get("tools_executed", []),
+                    "face_recognition": data.get("face_recognition"),
+                    "metrics": data.get("metrics"),
+                    "backend_name": data.get("backend_name"),
+                    "thinking": data.get("thinking")
+                }
+                yield f"data: {json.dumps(final_chunk, ensure_ascii=False)}\n\n"
+                break
 
         yield "data: [DONE]\n\n"
 
@@ -672,6 +728,120 @@ async def openai_chat_completions(
         stream=stream,
     )
 
+    import asyncio
+    import queue
+    import threading
+
+    chat_id = f"chatcmpl-{uuid.uuid4().hex[:24]}"
+    created_ts = int(time.time())
+    model_used = model or "default"
+
+    if stream:
+        q = queue.Queue()
+
+        def stream_callback(msg: str):
+            if any(msg.startswith(prefix) for prefix in ["🔍", "⚡", "✍️"]):
+                q.put(("status", msg))
+            else:
+                q.put(("chunk", msg))
+
+        def background_task():
+            try:
+                result = chat_service.chat_with_knowledge(
+                    message=user_message,
+                    history=[{"role": h["role"], "content": h["content"]} for h in history[:-1]],
+                    model_name=model,
+                    db=db,
+                    liked_examples=[],
+                    dislike_notes=[],
+                    temperature=temperature,
+                    top_p=top_p,
+                    presence_penalty=presence_penalty,
+                    frequency_penalty=frequency_penalty,
+                    seed=seed,
+                    stop=stop,
+                    max_tokens=max_tokens,
+                    max_completion_tokens=max_completion_tokens,
+                    response_format=response_format,
+                    reasoning_effort=reasoning_effort,
+                    user=user_id,
+                    stream_callback=stream_callback
+                )
+                q.put(("result", result))
+            except Exception as e:
+                q.put(("error", str(e)))
+
+        threading.Thread(target=background_task, daemon=True).start()
+
+        async def sse_stream():
+            initial = {
+                "id": chat_id, "object": "chat.completion.chunk",
+                "created": created_ts, "model": model_used,
+                "choices": [{"index": 0, "delta": {"role": "assistant", "content": ""}, "finish_reason": None}]
+            }
+            yield f"data: {json.dumps(initial)}\n\n"
+
+            while True:
+                try:
+                    msg_type, data = await asyncio.to_thread(q.get)
+                except Exception:
+                    break
+
+                if msg_type == "chunk":
+                    chunk = {
+                        "id": chat_id, "object": "chat.completion.chunk",
+                        "created": created_ts, "model": model_used,
+                        "choices": [{"index": 0, "delta": {"content": data}, "finish_reason": None}]
+                    }
+                    yield f"data: {json.dumps(chunk)}\n\n"
+                
+                elif msg_type == "status":
+                    status_chunk = {
+                        "id": chat_id, "object": "chat.completion.chunk",
+                        "created": created_ts, "model": model_used,
+                        "choices": [{"index": 0, "delta": {"status": data.strip()}, "finish_reason": None}]
+                    }
+                    yield f"data: {json.dumps(status_chunk)}\n\n"
+                
+                elif msg_type == "error":
+                    error_chunk = {
+                        "error": {"message": data, "type": "server_error"},
+                        "choices": [{"index": 0, "delta": {"content": f"\n\n[Error: {data}]"}, "finish_reason": "error"}]
+                    }
+                    yield f"data: {json.dumps(error_chunk)}\n\n"
+                    break
+                    
+                elif msg_type == "result":
+                    answer = data.get("answer", "")
+                    mod_used = data.get("model_used", model_used)
+                    finish_reason = data.get("finish_reason", "stop")
+                    usage = data.get("usage") or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+                    
+                    CHUNK_SIZE = 30
+                    for i in range(0, len(answer), CHUNK_SIZE):
+                        chunk = {
+                            "id": chat_id, "object": "chat.completion.chunk",
+                            "created": created_ts, "model": mod_used,
+                            "choices": [{"index": 0, "delta": {"content": answer[i:i+CHUNK_SIZE]}, "finish_reason": None}]
+                        }
+                        yield f"data: {json.dumps(chunk)}\n\n"
+                    
+                    final = {
+                        "id": chat_id, "object": "chat.completion.chunk",
+                        "created": created_ts, "model": mod_used,
+                        "choices": [{"index": 0, "delta": {}, "finish_reason": finish_reason}],
+                        "usage": usage,
+                        "context_rot_guard": data.get("context_rot_guard")
+                    }
+                    yield f"data: {json.dumps(final)}\n\n"
+                    break
+
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(sse_stream(), media_type="text/event-stream",
+                                  headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+    # Non-streaming fallback
     result = chat_service.chat_with_knowledge(
         message=user_message,
         history=[{"role": h["role"], "content": h["content"]} for h in history[:-1]],
@@ -692,41 +862,11 @@ async def openai_chat_completions(
         user=user_id,
     )
 
-    chat_id = result.get("id") or f"chatcmpl-{uuid.uuid4().hex[:24]}"
-    created_ts = int(time.time())
-    model_used = result.get("model_used", model or "default")
+    chat_id = result.get("id") or chat_id
+    model_used = result.get("model_used", model_used)
     answer = result.get("answer", "")
     finish_reason = result.get("finish_reason", "stop")
     usage = result.get("usage") or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-
-    if stream:
-        async def sse_stream():
-            initial = {
-                "id": chat_id, "object": "chat.completion.chunk",
-                "created": created_ts, "model": model_used,
-                "choices": [{"index": 0, "delta": {"role": "assistant", "content": ""}, "finish_reason": None}]
-            }
-            yield f"data: {json.dumps(initial)}\n\n"
-            CHUNK_SIZE = 30
-            for i in range(0, len(answer), CHUNK_SIZE):
-                chunk = {
-                    "id": chat_id, "object": "chat.completion.chunk",
-                    "created": created_ts, "model": model_used,
-                    "choices": [{"index": 0, "delta": {"content": answer[i:i+CHUNK_SIZE]}, "finish_reason": None}]
-                }
-                yield f"data: {json.dumps(chunk)}\n\n"
-            final = {
-                "id": chat_id, "object": "chat.completion.chunk",
-                "created": created_ts, "model": model_used,
-                "choices": [{"index": 0, "delta": {}, "finish_reason": finish_reason}],
-                "usage": usage,
-                "context_rot_guard": result.get("context_rot_guard")
-            }
-            yield f"data: {json.dumps(final)}\n\n"
-            yield "data: [DONE]\n\n"
-
-        return StreamingResponse(sse_stream(), media_type="text/event-stream",
-                                  headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     # Standard JSON response in OpenAI format
     return {

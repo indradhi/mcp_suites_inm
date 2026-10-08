@@ -304,6 +304,37 @@ async def discover_mcp_tools(payload: TestConnectionRequest, user = Depends(get_
     except Exception as e:
         return {"success": False, "error": str(e), "tools": []}
 
+@router.post("/mcp-tools/refresh-all")
+async def refresh_all_mcp_tools(db: Session = Depends(get_db)):
+    """
+    Iterates through every connected MCP server in the database and calls tools/list.
+    Updates the 'tools' configuration array for each server.
+    """
+    sources = db.query(KnowledgeSource).filter(
+        KnowledgeSource.source_type.in_(["mcp", "mcp_server"]),
+        KnowledgeSource.is_active == True
+    ).all()
+    
+    results = []
+    total_tools = 0
+    for s in sources:
+        try:
+            config = s.config or {}
+            tools = await mcp_ingester.fetch_tools(config)
+            config["tools"] = tools
+            # Also reset sync state flag
+            config["sync_resources"] = False
+            s.config = config
+            from sqlalchemy.orm.attributes import flag_modified
+            flag_modified(s, "config")
+            results.append({"id": s.id, "name": s.name, "status": "success", "tools_count": len(tools)})
+            total_tools += len(tools)
+        except Exception as e:
+            results.append({"id": s.id, "name": s.name, "status": "error", "error": str(e)})
+
+    db.commit()
+    return {"success": True, "refreshed_servers": len(sources), "total_tools_discovered": total_tools, "details": results}
+
 @router.get("/sources/{source_id}/mcp-tools")
 async def get_source_mcp_tools(source_id: int, db: Session = Depends(get_db)):
     source = db.query(KnowledgeSource).filter(KnowledgeSource.id == source_id).first()

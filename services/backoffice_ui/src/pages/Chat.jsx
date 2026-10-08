@@ -703,9 +703,10 @@ export default function Chat() {
       .map(m => ({ role: m.role, content: m.content }));
 
     try {
-      const res = await api.post('/chat', {
+      const token = localStorage.getItem('access_token');
+      const payload = {
         message: effectiveText,
-        history: historyPayload.slice(0, -1), // prior history
+        history: historyPayload.slice(0, -1),
         source_id: selectedSources.length === 1 ? parseInt(selectedSources[0]) : null,
         source_ids: selectedSources.length > 0 ? selectedSources.map(id => parseInt(id)) : null,
         backend_id: selectedBackendId || null,
@@ -718,14 +719,98 @@ export default function Chat() {
         strict_mode: strictMode,
         temperature: temperature,
         reasoning_effort: reasoningEffort !== 'auto' ? reasoningEffort : undefined
-      }, {
-        timeout: 600000 // 10 minutes timeout for local AI compute & multi-turn tool calling
+      };
+
+      const response = await fetch(api.defaults.baseURL + '/chat/stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(payload)
       });
 
-      let cleanAnswer = res.data.answer || 'No response generated.';
-      let thinkingProcess = res.data.thinking || null;
+      if (!response.ok) {
+        throw new Error(`HTTP Error: ${response.status} ${response.statusText}`);
+      }
 
-      // Extract client-side <think>...</think> in case any leaked through
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let done = false;
+      let buffer = '';
+
+      let aiMessage = {
+        id: `assistant-${Date.now()}`,
+        role: 'assistant',
+        content: '',
+        thinking: null,
+        sources: [],
+        entities: [],
+        tools_executed: [],
+        face_recognition: null,
+        model_used: selectedModelName || 'Qwen3.6-35B',
+        backend_name: selectedBackendId ? 'Loading...' : null,
+        metrics: null,
+        context_rot_guard: null,
+        timestamp: formatTimeWIB(new Date())
+      };
+
+      setMessages(prev => [...prev, aiMessage]);
+
+      while (!done) {
+        const { value, done: doneReading } = await reader.read();
+        done = doneReading;
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop(); // keep the last incomplete line
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const dataStr = line.substring(6).trim();
+              if (dataStr === '[DONE]') {
+                done = true;
+                break;
+              }
+              try {
+                const parsed = JSON.parse(dataStr);
+                const delta = parsed.choices?.[0]?.delta || {};
+                const finishReason = parsed.choices?.[0]?.finish_reason;
+
+                if (delta.content) {
+                  aiMessage.content += delta.content;
+                }
+
+                if (delta.status) {
+                  aiMessage.status_updates = aiMessage.status_updates || [];
+                  aiMessage.status_updates.push(delta.status);
+                }
+
+                if (finishReason === 'stop' || parsed.usage || parsed.sources) {
+                  if (parsed.sources) aiMessage.sources = parsed.sources;
+                  if (parsed.entities) aiMessage.entities = parsed.entities;
+                  if (parsed.tools_executed) aiMessage.tools_executed = parsed.tools_executed;
+                  if (parsed.metrics) aiMessage.metrics = parsed.metrics;
+                  if (parsed.face_recognition) aiMessage.face_recognition = parsed.face_recognition;
+                  if (parsed.backend_name) aiMessage.backend_name = parsed.backend_name;
+                  if (parsed.model) aiMessage.model_used = parsed.model;
+                  if (parsed.context_rot_guard) aiMessage.context_rot_guard = parsed.context_rot_guard;
+                  if (parsed.thinking) aiMessage.thinking = parsed.thinking;
+                }
+
+                // Force update UI
+                setMessages(prev => prev.map(m => m.id === aiMessage.id ? { ...aiMessage } : m));
+              } catch (e) {
+                // Ignore parse errors on partial chunks
+              }
+            }
+          }
+        }
+      }
+
+      // Post-process <think> tags if any leaked into content
+      let cleanAnswer = aiMessage.content || 'No response generated.';
+      let thinkingProcess = aiMessage.thinking || null;
       const thinkMatch = cleanAnswer.match(/<think>([\s\S]*?)<\/think>/i);
       if (thinkMatch) {
         if (!thinkingProcess) {
@@ -733,24 +818,11 @@ export default function Chat() {
         }
         cleanAnswer = cleanAnswer.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
       }
+      aiMessage.content = cleanAnswer;
+      aiMessage.thinking = thinkingProcess;
+      setMessages(prev => prev.map(m => m.id === aiMessage.id ? { ...aiMessage } : m));
 
-      const aiMessage = {
-        id: `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: cleanAnswer,
-        thinking: thinkingProcess,
-        sources: res.data.sources || [],
-        entities: res.data.entities || [],
-        tools_executed: res.data.tools_executed || [],
-        face_recognition: res.data.face_recognition || null,
-        model_used: res.data.model_used,
-        backend_name: res.data.backend_name,
-        metrics: res.data.metrics || null,
-        context_rot_guard: res.data.context_rot_guard || null,
-        timestamp: formatTimeWIB(new Date())
-      };
-
-      setMessages(prev => [...prev, aiMessage]);
+      const res = { data: aiMessage };
       
       // Auto-open GeoJSON modal if polygons are detected
       const extractedPolygons = (res.data.tools_executed || []).flatMap(t => extractPolygonsFromData(t.data));
@@ -1465,7 +1537,14 @@ export default function Chat() {
 
   const renderFormattedContent = (text) => {
     if (!text) return null;
-    const blocks = parseMarkdownBlocks(text);
+    
+    // Strip suggestions tag from being displayed in the main chat bubble
+    let cleanText = text.replace(/<suggestions>[\s\S]*?<\/suggestions>/gi, '');
+    // Strip raw tool_call tags that might be generated by models like vLLM/Qwen
+    cleanText = cleanText.replace(/<tool_call>[\s\S]*?(?:<\/tool_call>|$)/gi, '');
+    cleanText = cleanText.trim();
+    
+    const blocks = parseMarkdownBlocks(cleanText);
 
     return blocks.map((block, idx) => {
       switch (block.type) {
@@ -3513,6 +3592,38 @@ export default function Chat() {
                     />
                   )}
 
+                  {/* Real-time ReAct Loop Visualizer */}
+                  {isAssistant && msg.status_updates && msg.status_updates.length > 0 && (
+                    <div style={{
+                      marginBottom: '12px',
+                      background: 'rgba(30, 41, 59, 0.4)',
+                      borderRadius: '8px',
+                      padding: '12px',
+                      border: '1px solid rgba(148, 163, 184, 0.2)',
+                      fontFamily: 'monospace',
+                      fontSize: '12px',
+                      color: '#94a3b8',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px'
+                    }}>
+                      {msg.status_updates.map((update, idx) => {
+                        const isLast = idx === msg.status_updates.length - 1;
+                        const isSpinning = isLast && loading;
+                        return (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {isSpinning ? (
+                              <Loader2 size={12} className="animate-spin" style={{ color: '#60a5fa' }} />
+                            ) : (
+                              <Check size={12} style={{ color: '#10b981' }} />
+                            )}
+                            <span>{update.replace(/\n/g, '')}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   {renderFormattedContent(msg.content)}
 
                   {/* Starter recommendations for new conversation (Welcome state) */}
@@ -4535,7 +4646,7 @@ export default function Chat() {
         })}
 
         {/* Loading Indicator */}
-        {loading && (
+        {loading && messages[messages.length - 1]?.role !== 'assistant' && (
           <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
             <div style={{
               width: '34px',

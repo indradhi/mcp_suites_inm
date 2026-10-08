@@ -1,6 +1,7 @@
 import os
 import time
 import re
+import uuid
 import json
 import logging
 from typing import List, Dict, Any, Optional
@@ -112,6 +113,7 @@ class ChatService:
         reasoning_effort: Optional[str] = None,
         user: Optional[str] = None,
         n: Optional[int] = None,
+        stream_callback: Optional[callable] = None,
     ) -> Dict[str, Any]:
         """
         Executes hybrid RAG:
@@ -919,7 +921,8 @@ Instructions:
 - INTEGRITAS KESIMPULAN & DISAMBIGUASI NAMA (ANTI-CONFLATION): Jika hasil pencarian basis data resmi memuat beberapa individu berbeda dengan nama serupa (memiliki NIK/TTL/Alamat berbeda), pisahkan rincian aset secara tegas per NIK. DILARANG KERAS menyimpulkan bahwa semua aset tersebut milik satu orang yang sama.
 - ZERO-SPECULATION IN CONCLUSIONS: Pada bagian simpulan atau ringkasan, hanya sampaikan fakta yang tertera dalam data resmi (nomor sertifikat, NIK, luas m2, wilayah). DILARANG menambahkan dugaan spekulatif yang tidak berdasar.
 - ANTI-CONTENT-ROT: Dilarang mengaitkan atau memasukkan kembali data/aset milik orang lain dari sesi percakapan sebelumnya ke dalam simpulan subjek saat ini.
-- When tool results or context contain photos, render the photo in Markdown image tag `![Foto Profil - NAMA_LENGKAP](foto_resmi)` ONLY IF the photo strictly belongs to the specific person or entity being profiled (matching NIK or Full Name). The system backend will automatically replace (foto_resmi) with the verified image. NEVER output raw base64 strings manually in the answer."""
+- When tool results or context contain photos, render the photo in Markdown image tag `![Foto Profil - NAMA_LENGKAP](foto_resmi)` ONLY IF the photo strictly belongs to the specific person or entity being profiled (matching NIK or Full Name). The system backend will automatically replace (foto_resmi) with the verified image. NEVER output raw base64 strings manually in the answer.
+- FOLLOW-UP QUESTIONS: At the very end of your response, you MUST provide 3 smart, context-aware follow-up questions that the user might want to ask next based strictly on the CURRENT topic of conversation and the user's latest query. DILARANG KERAS mengambil atau menebak pertanyaan lanjutan dari isi data bank yang tidak terkait langsung dengan percakapan saat ini. Output them as a JSON array of strings wrapped in a <suggestions> tag. Example: <suggestions>["Question 1", "Question 2", "Question 3"]</suggestions>"""
         else:
             if not has_real_context and strict_mode:
                 prompt_content = f"""Context Information from Knowledge Base:
@@ -951,7 +954,8 @@ Patuhi aturan:
 5. FOTO PROFIL: Untuk setiap orang/anggota keluarga yang memiliki foto dalam basis data, sertakan tag Markdown: `![Foto Profil - NAMA_LENGKAP](foto_resmi)`. DILARANG KERAS menyalin atau menuliskan kode base64 mentah dalam teks jawaban.
 6. INTEGRITAS KESIMPULAN (ANTI-CONTENT-ROT): Bagian kesimpulan/ringkasan wajib murni 100% dari data yang terverifikasi. Dilarang mengarang asumsi atau spekulasi.
 7. DISAMBIGUASI NAMA (ANTI-CONFLATION): Jika terdapat banyak entitas dengan nama sama namun NIK/TTL/Alamat berbeda, pisahkan secara tegas dan jangan menyimpulkan aset mereka sebagai satu orang.
-8. ISOLASI KONTEN RIWAYAT: Jangan pernah membawa masuk data subjek percakapan sebelumnya ke dalam jawaban subjek saat ini."""
+8. ISOLASI KONTEN RIWAYAT: Jangan pernah membawa masuk data subjek percakapan sebelumnya ke dalam jawaban subjek saat ini.
+9. FOLLOW-UP QUESTIONS: Di akhir jawaban, berikan 3 pertanyaan lanjutan yang SANGAT RELEVAN HANYA dengan topik yang dibicarakan saat ini. DILARANG KERAS menyarankan pertanyaan dari data bank yang tidak berkaitan dengan konteks saat ini. Format sebagai JSON array berisi string di dalam tag <suggestions>. Contoh: <suggestions>["Q1", "Q2", "Q3"]</suggestions>"""
 
         # ── ANTI-CONTEXT-ROT GUARD (Poisoning, Distraction, Confusion Prevention) ──
         sanitized_history, rot_metrics = context_rot_guard.sanitize_and_compact_history(
@@ -1082,11 +1086,56 @@ Patuhi aturan:
             msg = response.choices[0].message
             tool_calls = getattr(msg, "tool_calls", None) or []
 
+            # --- Fallback parser for raw XML <tool_call> output (Qwen/vLLM compat) ---
+            if msg.content and "<tool_call>" in msg.content:
+                if not tool_calls:
+                    class DummyFunction:
+                        def __init__(self, name, arguments):
+                            self.name = name
+                            self.arguments = arguments
+                    class DummyToolCall:
+                        def __init__(self, fn_name, fn_args):
+                            self.id = f"call_{uuid.uuid4().hex[:12]}"
+                            self.type = "function"
+                            self.function = DummyFunction(fn_name, fn_args)
+                    
+                    # Extract all <tool_call> blocks
+                    tc_blocks = re.findall(r'<tool_call>([\s\S]*?)</tool_call>', msg.content, re.IGNORECASE)
+                    for tc_block in tc_blocks:
+                        fn_match = re.search(r'<function=([^>]+)>', tc_block, re.IGNORECASE)
+                        if fn_match:
+                            fn_name = fn_match.group(1).strip()
+                            fn_args = {}
+                            # Extract parameters
+                            param_matches = re.findall(r'<parameter=([^>]+)>([\s\S]*?)</parameter>', tc_block, re.IGNORECASE)
+                            for p_name, p_value in param_matches:
+                                fn_args[p_name.strip()] = p_value.strip()
+                            
+                            tool_calls.append(DummyToolCall(fn_name, json.dumps(fn_args)))
+                
+                # Remove the raw tool_call blocks from the display text so it doesn't look ugly
+                msg.content = re.sub(r'<tool_call>[\s\S]*?(?:</tool_call>|$)', '', msg.content, flags=re.IGNORECASE).strip()
+
+
             # Process LLM tool calls if requested
             if tool_calls:
                 from services.ingestion.api_ingester import api_ingester
-                # Append assistant's tool_calls message
-                messages.append(msg)
+                # Append assistant's tool_calls message manually to avoid Pydantic serialization/schema errors
+                msg_dict = {
+                    "role": "assistant",
+                    "content": msg.content or "",
+                    "tool_calls": [
+                        {
+                            "id": getattr(tc, "id", f"call_{uuid.uuid4().hex[:12]}"),
+                            "type": "function",
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments
+                            }
+                        } for tc in tool_calls
+                    ]
+                }
+                messages.append(msg_dict)
 
                 for tc in tool_calls:
                     fn_name = tc.function.name
@@ -1103,6 +1152,8 @@ Patuhi aturan:
                                 fn_args[k] = context_rot_guard.clean_person_name(fn_args[k])
 
                     logger.info(f"AI requested tool call: {fn_name} with arguments: {fn_args}")
+                    if stream_callback:
+                        stream_callback(f"🔍 Executing (tools/call: {fn_name})...\n")
                     matched_source = tool_dispatch_map.get(fn_name)
                     if matched_source:
                         source_cfg = matched_source.config or {}
@@ -1297,6 +1348,9 @@ Patuhi aturan:
                             "error": exec_res.get("error") if not success else (None if not is_empty_or_failed else "Data tidak ditemukan"),
                             "data": [] if is_empty_or_failed else (payload_data if (isinstance(payload_data, (list, dict)) and len(str(payload_data)) < 150000) else None)
                         })
+                        
+                        if stream_callback:
+                            stream_callback(f"⚡ Finished (tools/call: {fn_name}).\n")
                     else:
                         tool_output_str = json.dumps({"error": f"Tool '{fn_name}' is not recognized"})
                         executed_tools_info.append({
@@ -1313,6 +1367,9 @@ Patuhi aturan:
                         "name": fn_name,
                         "content": str(tool_output_str)[:60000]
                     })
+
+                if stream_callback:
+                    stream_callback(f"✍️ Generating optimized code...\n\n")
 
                 # Follow-up completion with tool output
                 try:
@@ -1348,6 +1405,10 @@ Patuhi aturan:
                                     max_completion_tokens=4500
                                 )
                             else:
+                                with open(r"D:\sourcecode\MCP_SERVER_IN_CEC\services\backoffice_api\error_log.txt", "a") as f:
+                                    import traceback
+                                    f.write("ERROR in followup_resp:\n" + traceback.format_exc() + "\n")
+                                    f.write("MESSAGES:\n" + str(messages) + "\n\n")
                                 raise follow_p_err
                     msg = followup_resp.choices[0].message
                 except Exception as follow_err:
@@ -1416,6 +1477,11 @@ Patuhi aturan:
                     thinking_process += "\n\n" + trailing_thought
                 else:
                     thinking_process = trailing_thought
+
+            # Remove any raw tool_call xml that the model hallucinates into the answer text
+            clean_answer = re.sub(r'<tool_call>[\s\S]*?(?:</tool_call>|$)', '', clean_answer, flags=re.IGNORECASE).strip()
+            if not clean_answer and tool_calls:
+                clean_answer = "Data berhasil diproses."
 
             # 5. Entity-Aware Photo Extraction & Source-Grounded Auto-Healing
             try:
