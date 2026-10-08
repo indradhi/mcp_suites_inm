@@ -179,8 +179,7 @@ export default function NetworkExplorer() {
     try {
       setIsRemapping(true);
       const res = await api.post('/graph/remap?clear_existing=true');
-      alert(`Re-mapping berhasil!
-${res.data.entities_created} Entitas dan ${res.data.relationships_created} Relasi baru terbentuk dari ${res.data.chunks_processed} dokumen.`);
+      alert(`Re-mapping berhasil!\n${res.data.entities_created} Entitas dan ${res.data.relationships_created} Relasi baru terbentuk dari ${res.data.chunks_processed} dokumen.`);
       
       // Refresh the graph data after remapping
       fetchGraph();
@@ -189,6 +188,55 @@ ${res.data.entities_created} Entitas dan ${res.data.relationships_created} Relas
     } catch (err) {
       console.error('Error remapping graph:', err);
       alert('Gagal melakukan re-mapping. Silakan periksa log server.');
+    } finally {
+      setIsRemapping(false);
+    }
+  };
+
+  const handleClearGraph = async () => {
+    if (!window.confirm("Yakin ingin menghapus seluruh node dan relasi dalam graf (Clear Graph)?")) return;
+    try {
+      setLoading(true);
+      await api.delete('/graph/clear');
+      alert('Graph berhasil dikosongkan.');
+      fetchGraph();
+      fetchMetrics();
+      fetchInsights();
+    } catch (err) {
+      console.error('Error clearing graph:', err);
+      alert('Gagal membersihkan graph.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleContinueMapping = async () => {
+    if (!window.confirm("Yakin ingin melanjutkan mapping (tanpa menghapus graph yang ada)?")) return;
+    try {
+      setIsRemapping(true);
+      const res = await api.post('/graph/remap?clear_existing=false');
+      alert(`Mapping lanjutan berhasil!\n${res.data.entities_created} Entitas dan ${res.data.relationships_created} Relasi baru terbentuk.`);
+      fetchGraph();
+      fetchMetrics();
+      fetchInsights();
+    } catch (err) {
+      console.error('Error continuing mapping:', err);
+      alert('Gagal melanjutkan mapping.');
+    } finally {
+      setIsRemapping(false);
+    }
+  };
+
+  const handleTestMapping = async () => {
+    try {
+      setIsRemapping(true);
+      const res = await api.post('/graph/test-mapping');
+      alert('Test Mapping dieksekusi: ' + res.data.message);
+      fetchGraph();
+      fetchMetrics();
+    } catch (err) {
+      console.error('Error test mapping:', err);
+      alert('Gagal melakukan test mapping.');
     } finally {
       setIsRemapping(false);
     }
@@ -273,28 +321,101 @@ ${res.data.entities_created} Entitas dan ${res.data.relationships_created} Relas
 
         {/* Actions & Tab Switcher */}
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-          <button
-            onClick={handleRemapGraph}
-            disabled={isRemapping}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: '600',
-              border: '1px solid rgba(239, 68, 68, 0.4)',
-              cursor: isRemapping ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: isRemapping ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.15)',
-              color: '#fca5a5',
-              transition: 'all 0.15s ease',
-              opacity: isRemapping ? 0.7 : 1
-            }}
-          >
-            <RefreshCw size={14} className={isRemapping ? 'spin-animation' : ''} />
-            {isRemapping ? 'Memproses Re-Map...' : 'Remap Graph'}
-          </button>
+          {/* Graph Action Buttons Group */}
+          <div style={{ display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+            <button
+              onClick={handleClearGraph}
+              disabled={loading || isRemapping}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: '600',
+                border: '1px solid rgba(239, 68, 68, 0.4)',
+                cursor: (loading || isRemapping) ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'rgba(239, 68, 68, 0.1)',
+                color: '#fca5a5',
+                transition: 'all 0.15s ease',
+                opacity: (loading || isRemapping) ? 0.6 : 1
+              }}
+              title="Hapus semua graph"
+            >
+              <X size={13} />
+              Clear Graph
+            </button>
+            <button
+              onClick={handleRemapGraph}
+              disabled={isRemapping}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: '600',
+                border: '1px solid rgba(245, 158, 11, 0.4)',
+                cursor: isRemapping ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'rgba(245, 158, 11, 0.1)',
+                color: '#fcd34d',
+                transition: 'all 0.15s ease',
+                opacity: isRemapping ? 0.6 : 1
+              }}
+              title="Re-map ulang (menghapus yang lama)"
+            >
+              <RefreshCw size={13} className={isRemapping ? 'spin-animation' : ''} />
+              Remap Graph
+            </button>
+            <button
+              onClick={handleContinueMapping}
+              disabled={isRemapping}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: '600',
+                border: '1px solid rgba(16, 185, 129, 0.4)',
+                cursor: isRemapping ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'rgba(16, 185, 129, 0.1)',
+                color: '#6ee7b7',
+                transition: 'all 0.15s ease',
+                opacity: isRemapping ? 0.6 : 1
+              }}
+              title="Lanjutkan mapping tanpa menghapus yang ada"
+            >
+              <Layers size={13} />
+              Continue Mapping
+            </button>
+            <button
+              onClick={handleTestMapping}
+              disabled={isRemapping}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: '600',
+                border: '1px solid rgba(56, 189, 248, 0.4)',
+                cursor: isRemapping ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'rgba(56, 189, 248, 0.1)',
+                color: '#7dd3fc',
+                transition: 'all 0.15s ease',
+                opacity: isRemapping ? 0.6 : 1
+              }}
+              title="Test pembuatan graph"
+            >
+              <Sparkles size={13} />
+              Test Mapping
+            </button>
+          </div>
 
           <div style={{ display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.3)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
           <button

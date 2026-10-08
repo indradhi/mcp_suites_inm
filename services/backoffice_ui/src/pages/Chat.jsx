@@ -3524,6 +3524,180 @@ export default function Chat() {
                     />
                   )}
 
+                {/* Like / Dislike Feedback Row (assistant messages only, not welcome) */}
+                {isAssistant && msg.id !== 'welcome-msg' && (
+                  <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        Apakah jawaban ini membantu?
+                      </span>
+
+                      {/* Like button */}
+                      <button
+                        id={`feedback-like-${msg.id}`}
+                        onClick={() => { if (feedbackState[msg.id] !== 'like') submitFeedback(msg, 'like'); }}
+                        disabled={pendingFeedback[msg.id]}
+                        title="Jawaban ini membantu"
+                        style={{
+                          background: feedbackState[msg.id] === 'like' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                          border: feedbackState[msg.id] === 'like' ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '8px',
+                          padding: '4px 10px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          fontSize: '12px',
+                          color: feedbackState[msg.id] === 'like' ? '#34d399' : 'var(--text-muted)',
+                          cursor: feedbackState[msg.id] === 'like' ? 'default' : 'pointer',
+                          transition: 'all 0.2s',
+                          fontWeight: feedbackState[msg.id] === 'like' ? '700' : '400'
+                        }}
+                        onMouseEnter={(e) => { if (feedbackState[msg.id] !== 'like') { e.currentTarget.style.color = '#34d399'; e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.4)'; } }}
+                        onMouseLeave={(e) => { if (feedbackState[msg.id] !== 'like') { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; } }}
+                      >
+                        <ThumbsUp size={13} />
+                        {feedbackState[msg.id] === 'like' ? 'Liked! ✓' : 'Like'}
+                      </button>
+
+                      {/* Dislike button */}
+                      <button
+                        id={`feedback-dislike-${msg.id}`}
+                        onClick={() => { if (feedbackState[msg.id] !== 'dislike') setFeedbackState(prev => ({ ...prev, [msg.id]: 'dislike_pending' })); }}
+                        disabled={pendingFeedback[msg.id]}
+                        title="Jawaban perlu diperbaiki"
+                        style={{
+                          background: feedbackState[msg.id] === 'dislike' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                          border: feedbackState[msg.id] === 'dislike' ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '8px',
+                          padding: '4px 10px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          fontSize: '12px',
+                          color: feedbackState[msg.id] === 'dislike' ? '#f87171' : 'var(--text-muted)',
+                          cursor: feedbackState[msg.id] === 'dislike' ? 'default' : 'pointer',
+                          transition: 'all 0.2s',
+                          fontWeight: feedbackState[msg.id] === 'dislike' ? '700' : '400'
+                        }}
+                        onMouseEnter={(e) => { if (feedbackState[msg.id] !== 'dislike') { e.currentTarget.style.color = '#f87171'; e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.35)'; } }}
+                        onMouseLeave={(e) => { if (feedbackState[msg.id] !== 'dislike') { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; } }}
+                      >
+                        <ThumbsDown size={13} />
+                        {feedbackState[msg.id] === 'dislike' ? 'Tercatat' : 'Dislike'}
+                      </button>
+
+                      {/* Salin Respon button in feedback bar */}
+                      <button
+                        type="button"
+                        id={`copy-resp-bar-${msg.id}`}
+                        onClick={() => handleCopyResponse(msg.id, msg.content)}
+                        title="Salin isi respon AI ke clipboard"
+                        style={{
+                          background: copiedResponseId === msg.id ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                          border: copiedResponseId === msg.id ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '8px',
+                          padding: '4px 10px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          fontSize: '12px',
+                          color: copiedResponseId === msg.id ? '#34d399' : 'var(--text-muted)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          fontWeight: copiedResponseId === msg.id ? '700' : '400'
+                        }}
+                        onMouseEnter={(e) => { if (copiedResponseId !== msg.id) { e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.25)'; } }}
+                        onMouseLeave={(e) => { if (copiedResponseId !== msg.id) { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; } }}
+                      >
+                        {copiedResponseId === msg.id ? <Check size={13} color="#34d399" /> : <Copy size={13} />}
+                        <span>{copiedResponseId === msg.id ? 'Tersalin! ✓' : 'Salin'}</span>
+                      </button>
+
+                      {feedbackState[msg.id] === 'like' && (
+                        <span style={{ fontSize: '11px', color: '#34d399', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Check size={12} /> Terima kasih! Response ini akan dipelajari AI.
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Dislike note input */}
+                    {feedbackState[msg.id] === 'dislike_pending' && (
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                        padding: '10px 12px',
+                        background: 'rgba(239, 68, 68, 0.06)',
+                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        borderRadius: '10px'
+                      }}>
+                        <label style={{ fontSize: '11px', color: '#f87171', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <MessageSquare size={12} /> Apa yang kurang tepat? (opsional)
+                        </label>
+                        <textarea
+                          placeholder="Contoh: jawaban salah, tidak lengkap, bahasa tidak sesuai..."
+                          value={dislikeNotes[msg.id] || ''}
+                          onChange={(e) => setDislikeNotes(prev => ({ ...prev, [msg.id]: e.target.value }))}
+                          rows={2}
+                          style={{
+                            width: '100%',
+                            background: 'rgba(0, 0, 0, 0.3)',
+                            border: '1px solid rgba(239, 68, 68, 0.2)',
+                            borderRadius: '6px',
+                            padding: '6px 8px',
+                            color: '#e2e8f0',
+                            fontSize: '12px',
+                            fontFamily: 'inherit',
+                            resize: 'none',
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={() => submitFeedback(msg, 'dislike', dislikeNotes[msg.id] || '')}
+                            disabled={pendingFeedback[msg.id]}
+                            style={{
+                              background: 'rgba(239, 68, 68, 0.2)',
+                              border: '1px solid rgba(239, 68, 68, 0.4)',
+                              borderRadius: '6px',
+                              padding: '4px 12px',
+                              fontSize: '12px',
+                              color: '#f87171',
+                              cursor: 'pointer',
+                              fontWeight: '600'
+                            }}
+                          >
+                            {pendingFeedback[msg.id] ? 'Mengirim...' : 'Kirim Feedback'}
+                          </button>
+                          <button
+                            onClick={() => setFeedbackState(prev => ({ ...prev, [msg.id]: null }))}
+                            style={{
+                              background: 'transparent',
+                              border: '1px solid rgba(255, 255, 255, 0.1)',
+                              borderRadius: '6px',
+                              padding: '4px 12px',
+                              fontSize: '12px',
+                              color: 'var(--text-muted)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Batal
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Contextual Recommendation Chips */}
+                    <RecommendationChips
+                      variant="contextual"
+                      suggestions={generateContextualRecommendations(msg)}
+                      disabled={loading}
+                      onSelectPrompt={(p) => handleSend(p)}
+                    />
+                  </div>
+                )}
+
                   {/* Biometric Face Recognition Result Card (Assistant only) */}
                   {isAssistant && msg.face_recognition && (() => {
                     const isFaceOpen = Boolean(expandedFace[msg.id]);
@@ -4338,180 +4512,6 @@ export default function Chat() {
                     </div>
                   )}
                 </div>
-
-                {/* Like / Dislike Feedback Row (assistant messages only, not welcome) */}
-                {isAssistant && msg.id !== 'welcome-msg' && (
-                  <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        Apakah jawaban ini membantu?
-                      </span>
-
-                      {/* Like button */}
-                      <button
-                        id={`feedback-like-${msg.id}`}
-                        onClick={() => { if (feedbackState[msg.id] !== 'like') submitFeedback(msg, 'like'); }}
-                        disabled={pendingFeedback[msg.id]}
-                        title="Jawaban ini membantu"
-                        style={{
-                          background: feedbackState[msg.id] === 'like' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                          border: feedbackState[msg.id] === 'like' ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
-                          borderRadius: '8px',
-                          padding: '4px 10px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          fontSize: '12px',
-                          color: feedbackState[msg.id] === 'like' ? '#34d399' : 'var(--text-muted)',
-                          cursor: feedbackState[msg.id] === 'like' ? 'default' : 'pointer',
-                          transition: 'all 0.2s',
-                          fontWeight: feedbackState[msg.id] === 'like' ? '700' : '400'
-                        }}
-                        onMouseEnter={(e) => { if (feedbackState[msg.id] !== 'like') { e.currentTarget.style.color = '#34d399'; e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.4)'; } }}
-                        onMouseLeave={(e) => { if (feedbackState[msg.id] !== 'like') { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; } }}
-                      >
-                        <ThumbsUp size={13} />
-                        {feedbackState[msg.id] === 'like' ? 'Liked! ✓' : 'Like'}
-                      </button>
-
-                      {/* Dislike button */}
-                      <button
-                        id={`feedback-dislike-${msg.id}`}
-                        onClick={() => { if (feedbackState[msg.id] !== 'dislike') setFeedbackState(prev => ({ ...prev, [msg.id]: 'dislike_pending' })); }}
-                        disabled={pendingFeedback[msg.id]}
-                        title="Jawaban perlu diperbaiki"
-                        style={{
-                          background: feedbackState[msg.id] === 'dislike' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                          border: feedbackState[msg.id] === 'dislike' ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
-                          borderRadius: '8px',
-                          padding: '4px 10px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          fontSize: '12px',
-                          color: feedbackState[msg.id] === 'dislike' ? '#f87171' : 'var(--text-muted)',
-                          cursor: feedbackState[msg.id] === 'dislike' ? 'default' : 'pointer',
-                          transition: 'all 0.2s',
-                          fontWeight: feedbackState[msg.id] === 'dislike' ? '700' : '400'
-                        }}
-                        onMouseEnter={(e) => { if (feedbackState[msg.id] !== 'dislike') { e.currentTarget.style.color = '#f87171'; e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.35)'; } }}
-                        onMouseLeave={(e) => { if (feedbackState[msg.id] !== 'dislike') { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; } }}
-                      >
-                        <ThumbsDown size={13} />
-                        {feedbackState[msg.id] === 'dislike' ? 'Tercatat' : 'Dislike'}
-                      </button>
-
-                      {/* Salin Respon button in feedback bar */}
-                      <button
-                        type="button"
-                        id={`copy-resp-bar-${msg.id}`}
-                        onClick={() => handleCopyResponse(msg.id, msg.content)}
-                        title="Salin isi respon AI ke clipboard"
-                        style={{
-                          background: copiedResponseId === msg.id ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                          border: copiedResponseId === msg.id ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
-                          borderRadius: '8px',
-                          padding: '4px 10px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          fontSize: '12px',
-                          color: copiedResponseId === msg.id ? '#34d399' : 'var(--text-muted)',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          fontWeight: copiedResponseId === msg.id ? '700' : '400'
-                        }}
-                        onMouseEnter={(e) => { if (copiedResponseId !== msg.id) { e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.25)'; } }}
-                        onMouseLeave={(e) => { if (copiedResponseId !== msg.id) { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; } }}
-                      >
-                        {copiedResponseId === msg.id ? <Check size={13} color="#34d399" /> : <Copy size={13} />}
-                        <span>{copiedResponseId === msg.id ? 'Tersalin! ✓' : 'Salin'}</span>
-                      </button>
-
-                      {feedbackState[msg.id] === 'like' && (
-                        <span style={{ fontSize: '11px', color: '#34d399', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Check size={12} /> Terima kasih! Response ini akan dipelajari AI.
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Dislike note input */}
-                    {feedbackState[msg.id] === 'dislike_pending' && (
-                      <div style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '6px',
-                        padding: '10px 12px',
-                        background: 'rgba(239, 68, 68, 0.06)',
-                        border: '1px solid rgba(239, 68, 68, 0.25)',
-                        borderRadius: '10px'
-                      }}>
-                        <label style={{ fontSize: '11px', color: '#f87171', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <MessageSquare size={12} /> Apa yang kurang tepat? (opsional)
-                        </label>
-                        <textarea
-                          placeholder="Contoh: jawaban salah, tidak lengkap, bahasa tidak sesuai..."
-                          value={dislikeNotes[msg.id] || ''}
-                          onChange={(e) => setDislikeNotes(prev => ({ ...prev, [msg.id]: e.target.value }))}
-                          rows={2}
-                          style={{
-                            width: '100%',
-                            background: 'rgba(0, 0, 0, 0.3)',
-                            border: '1px solid rgba(239, 68, 68, 0.2)',
-                            borderRadius: '6px',
-                            padding: '6px 8px',
-                            color: '#e2e8f0',
-                            fontSize: '12px',
-                            fontFamily: 'inherit',
-                            resize: 'none',
-                            outline: 'none',
-                            boxSizing: 'border-box'
-                          }}
-                        />
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button
-                            onClick={() => submitFeedback(msg, 'dislike', dislikeNotes[msg.id] || '')}
-                            disabled={pendingFeedback[msg.id]}
-                            style={{
-                              background: 'rgba(239, 68, 68, 0.2)',
-                              border: '1px solid rgba(239, 68, 68, 0.4)',
-                              borderRadius: '6px',
-                              padding: '4px 12px',
-                              fontSize: '12px',
-                              color: '#f87171',
-                              cursor: 'pointer',
-                              fontWeight: '600'
-                            }}
-                          >
-                            {pendingFeedback[msg.id] ? 'Mengirim...' : 'Kirim Feedback'}
-                          </button>
-                          <button
-                            onClick={() => setFeedbackState(prev => ({ ...prev, [msg.id]: null }))}
-                            style={{
-                              background: 'transparent',
-                              border: '1px solid rgba(255, 255, 255, 0.1)',
-                              borderRadius: '6px',
-                              padding: '4px 12px',
-                              fontSize: '12px',
-                              color: 'var(--text-muted)',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Batal
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Contextual Recommendation Chips */}
-                    <RecommendationChips
-                      variant="contextual"
-                      suggestions={generateContextualRecommendations(msg)}
-                      disabled={loading}
-                      onSelectPrompt={(p) => handleSend(p)}
-                    />
-                  </div>
-                )}
 
                 {/* User Avatar */}
                 {isUser && (

@@ -72,3 +72,24 @@ async def remap_graph(
         logger.error(f"Graph remapping failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.delete("/clear")
+def clear_graph_endpoint(user = Depends(get_current_user)):
+    try:
+        from services.graph.neo4j_client import neo4j_client
+        neo4j_client.execute_write("MATCH (n) DETACH DELETE n")
+        return {"status": "success", "message": "Graph cleared successfully"}
+    except Exception as e:
+        logger.error(f"Failed to clear graph: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/test-mapping")
+def test_mapping_endpoint(user = Depends(get_current_user)):
+    try:
+        from services.graph.graph_builder import graph_builder
+        entities = [{"id": "Test Node", "type": "OTHER", "description": "This is a test node for testing mapping."}]
+        graph_builder.upsert_entities(entities, 0, "Test")
+        return {"status": "success", "message": "Test mapping executed successfully"}
+    except Exception as e:
+        logger.error(f"Failed test mapping: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
