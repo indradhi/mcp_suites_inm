@@ -6,6 +6,7 @@ from typing import List, Dict, Any, Optional, Union
 from pydantic import BaseModel, Field, ConfigDict
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Request
 from fastapi.responses import StreamingResponse
+from fastapi.encoders import jsonable_encoder
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -589,7 +590,7 @@ async def chat_stream_endpoint(
                         "model": model_used,
                         "choices": [{"index": 0, "delta": {"content": chunk_text}, "finish_reason": None}]
                     }
-                    yield f"data: {json.dumps(content_chunk, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps(jsonable_encoder(content_chunk), ensure_ascii=False)}\n\n"
 
                 final_chunk = {
                     "id": chat_id,
@@ -607,7 +608,7 @@ async def chat_stream_endpoint(
                     "backend_name": data.get("backend_name"),
                     "thinking": data.get("thinking")
                 }
-                yield f"data: {json.dumps(final_chunk, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps(jsonable_encoder(final_chunk), ensure_ascii=False)}\n\n"
                 break
 
         yield "data: [DONE]\n\n"
