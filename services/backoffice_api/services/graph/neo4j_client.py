@@ -43,6 +43,9 @@ class Neo4jClient:
         """
         queries = [
             "CREATE CONSTRAINT entity_name_unique IF NOT EXISTS FOR (e:Entity) REQUIRE e.name IS UNIQUE",
+            "CREATE CONSTRAINT orang_nik_unique IF NOT EXISTS FOR (o:Orang) REQUIRE o.name IS UNIQUE",
+            "CREATE CONSTRAINT perusahaan_nama_unique IF NOT EXISTS FOR (p:Perusahaan) REQUIRE p.name IS UNIQUE",
+            "CREATE CONSTRAINT telepon_msisdn_unique IF NOT EXISTS FOR (t:Telepon) REQUIRE t.name IS UNIQUE",
             "CREATE INDEX entity_type_idx IF NOT EXISTS FOR (e:Entity) ON (e.type)"
         ]
         with self._driver.session() as session:

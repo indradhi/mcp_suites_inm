@@ -10,7 +10,34 @@ class GraphBuilder:
         if not entities:
             return 0
 
-        query = """
+        clean_batch = []
+        for ent in entities:
+            resolved = entity_resolver.resolve_entity(ent)
+            if resolved["name"]:
+                clean_batch.append(resolved)
+
+        if not clean_batch:
+            return 0
+            
+        types_map = {
+            "Orang": [],
+            "Perusahaan": [],
+            "Telepon": [],
+            "Other": []
+        }
+        
+        for item in clean_batch:
+            t = str(item.get("type", "")).upper()
+            if t == "ORANG":
+                types_map["Orang"].append(item)
+            elif t == "PERUSAHAAN":
+                types_map["Perusahaan"].append(item)
+            elif t in ["TELEPON", "MSISDN"]:
+                types_map["Telepon"].append(item)
+            else:
+                types_map["Other"].append(item)
+
+        base_query = """
         UNWIND $batch AS item
         MERGE (e:Entity {name: item.name})
         ON CREATE SET 
@@ -23,21 +50,31 @@ class GraphBuilder:
             e.type = CASE WHEN e.type = 'UNKNOWN' THEN item.type ELSE e.type END,
             e.updated_at = datetime()
         """
-        clean_batch = []
-        for ent in entities:
-            resolved = entity_resolver.resolve_entity(ent)
-            if resolved["name"]:
-                clean_batch.append(resolved)
+        neo4j_client.execute_write(
+            base_query,
+            {
+                "batch": clean_batch,
+                "source_id": source_id,
+                "source_name": source_name
+            }
+        )
 
-        if clean_batch:
-            neo4j_client.execute_write(
-                query,
-                {
-                    "batch": clean_batch,
-                    "source_id": source_id,
-                    "source_name": source_name
-                }
-            )
+        # Apply specific labels and identifiers for the new entity schema
+        for label, batch in types_map.items():
+            if label != "Other" and batch:
+                set_clause = ""
+                if label == "Orang":
+                    set_clause = ", e.nik = item.name"
+                elif label == "Telepon":
+                    set_clause = ", e.msisdn = item.name"
+                
+                label_query = f"""
+                UNWIND $batch AS item
+                MATCH (e:Entity {{name: item.name}})
+                SET e:{label} {set_clause}
+                """
+                neo4j_client.execute_write(label_query, {"batch": batch})
+
         return len(clean_batch)
 
     def upsert_relationships(self, relationships: List[Dict[str, Any]], source_id: int) -> int:

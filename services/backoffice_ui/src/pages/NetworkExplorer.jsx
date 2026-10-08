@@ -122,6 +122,7 @@ export default function NetworkExplorer() {
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isRemapping, setIsRemapping] = useState(false);
 
   const layoutDropdownRef = useRef(null);
   const typeDropdownRef = useRef(null);
@@ -167,6 +168,29 @@ export default function NetworkExplorer() {
       console.error('Error fetching graph:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRemapGraph = async () => {
+    if (!window.confirm("Apakah Anda yakin ingin melakukan re-mapping? Proses ini akan menghapus data graf yang ada dan mencetaknya ulang dari vector database.")) {
+      return;
+    }
+    
+    try {
+      setIsRemapping(true);
+      const res = await api.post('/graph/remap?clear_existing=true');
+      alert(`Re-mapping berhasil!
+${res.data.entities_created} Entitas dan ${res.data.relationships_created} Relasi baru terbentuk dari ${res.data.chunks_processed} dokumen.`);
+      
+      // Refresh the graph data after remapping
+      fetchGraph();
+      fetchMetrics();
+      fetchInsights();
+    } catch (err) {
+      console.error('Error remapping graph:', err);
+      alert('Gagal melakukan re-mapping. Silakan periksa log server.');
+    } finally {
+      setIsRemapping(false);
     }
   };
 
@@ -247,8 +271,32 @@ export default function NetworkExplorer() {
           </p>
         </div>
 
-        {/* Tab Switcher */}
-        <div style={{ display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.3)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+        {/* Actions & Tab Switcher */}
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          <button
+            onClick={handleRemapGraph}
+            disabled={isRemapping}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: '600',
+              border: '1px solid rgba(239, 68, 68, 0.4)',
+              cursor: isRemapping ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: isRemapping ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.15)',
+              color: '#fca5a5',
+              transition: 'all 0.15s ease',
+              opacity: isRemapping ? 0.7 : 1
+            }}
+          >
+            <RefreshCw size={14} className={isRemapping ? 'spin-animation' : ''} />
+            {isRemapping ? 'Memproses Re-Map...' : 'Remap Graph'}
+          </button>
+
+          <div style={{ display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.3)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
           <button
             onClick={() => setActiveTab('graph')}
             style={{
@@ -306,6 +354,7 @@ export default function NetworkExplorer() {
           >
             <Sparkles size={15} /> AI Insights
           </button>
+        </div>
         </div>
       </div>
 

@@ -6,6 +6,7 @@ from database import get_db
 from security import get_current_user
 from services.graph.analytics import graph_analytics
 from services.graph.insight_generator import insight_generator
+from services.graph.graph_remapper import graph_remapper
 
 logger = logging.getLogger(__name__)
 
@@ -58,3 +59,16 @@ def find_connections(
 async def get_insights(db: Session = Depends(get_db), user = Depends(get_current_user)):
     insights = await insight_generator.generate_network_insights(db)
     return {"insights": insights}
+
+@router.post("/remap")
+async def remap_graph(
+    clear_existing: bool = Query(True, description="Clear existing neo4j nodes before mapping"),
+    user = Depends(get_current_user)
+):
+    try:
+        result = graph_remapper.remap_all(clear_existing=clear_existing)
+        return result
+    except Exception as e:
+        logger.error(f"Graph remapping failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+

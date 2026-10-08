@@ -153,8 +153,22 @@ class LLMService:
         prompt = f"""You are an expert Knowledge Graph Information Extraction system.
 Analyze the following text and extract significant entities and the relationships between them.
 
-Entities can be: PERSON, ORGANIZATION, LOCATION, DATABASE_RECORD, API_ENDPOINT, DOCUMENT, SYSTEM, PRODUCT, CONCEPT, EVENT.
-Relationships should be clear verbs or semantic connections like WORKS_FOR, LOCATED_IN, CONNECTED_TO, OWNS, USES, CONTAINS, PART_OF, RELATED_TO.
+# Entity Guidelines (STRICTLY FOLLOW THESE RULES):
+1. "Orang" (Person): MUST be uniquely identified by NIK if available (use NIK as the entity `name`). If NIK is unknown, use their full name. Node Type: "Orang".
+2. "Perusahaan" (Company/Organization): Uniquely identified by its Name (e.g., PT, CV, Yayasan). Node Type: "Perusahaan".
+3. "Telepon" (Phone Number): Uniquely identified by MSISDN. Node Type: "Telepon".
+4. Other entities can be LOCATION, DOCUMENT, CONCEPT, etc.
+
+# Relationship Guidelines (USE EXACT RELATION NAMES IF APPLICABLE):
+1. "Orang" -> "Orang" (Family): ISTRI, ANAK, SUAMI, AYAH, IBU.
+2. "Orang" -> "Orang" (Social): TEMAN, REKAN_BISNIS.
+3. "Orang" -> "Location/Address": ALAMAT_KTP, DOMISILI.
+4. "Orang" -> "Telepon": MEMILIKI_TELEPON.
+5. "Orang" -> "Perusahaan": BEKERJA_SEBAGAI, PEMILIK, PESAHAM, PENANGGUNG_JAWAB, PENERIMA_MANFAAT.
+6. "Perusahaan" -> "Orang" or "Perusahaan": PEMILIK, PESAHAM, PENANGGUNG_JAWAB, PENERIMA_MANFAAT.
+7. "Telepon" -> "Telepon": MENGHUBUNGI_TELEPON, MENGHUBUNGI_SMS, WA_CHAT, VOICE.
+8. "Telepon" -> "Location/IP/Web": IPDR.
+9. You may use generic relationships (RELATED_TO, etc.) if they do not fit the above.
 
 Focus on the top 8-12 most significant entities and up to 10 relationships.
 Keep descriptions concise (under 15 words).
@@ -164,10 +178,10 @@ IMPORTANT: Output strictly a valid JSON object. Do NOT include thinking, reasoni
 Schema:
 {{
   "entities": [
-    {{"name": "Entity Name", "type": "ENTITY_TYPE", "description": "brief description"}}
+    {{"name": "Entity ID or Name (e.g., NIK or Company Name)", "type": "Orang|Perusahaan|Telepon|etc", "description": "brief description"}}
   ],
   "relationships": [
-    {{"source": "Entity A", "relation": "RELATION_TYPE", "target": "Entity B", "properties": {{"context": "brief info"}}}}
+    {{"source": "Entity A Name/ID", "relation": "RELATION_TYPE", "target": "Entity B Name/ID", "properties": {{"context": "brief info"}}}}
   ]
 }}
 
@@ -184,7 +198,7 @@ Text to analyze:
                     "messages": [
                         {"role": "user", "content": f"You are a precise data extraction assistant that outputs strictly valid JSON only.\n\n{prompt}"}
                     ],
-                    "max_completion_tokens": 2500
+                    "max_completion_tokens": 8192
                 }
             else:
                 kwargs = {
@@ -194,7 +208,7 @@ Text to analyze:
                         {"role": "user", "content": prompt}
                     ],
                     "temperature": 0.1,
-                    "max_tokens": 2500
+                    "max_tokens": 8192
                 }
 
             # Disable thinking/reasoning mode on vLLM/Qwen to prevent token exhaustion by thinking traces
@@ -218,8 +232,11 @@ Text to analyze:
 
             msg = response.choices[0].message
             raw_content = (msg.content or "").strip()
-            if not raw_content and hasattr(msg, "reasoning") and msg.reasoning:
-                raw_content = msg.reasoning.strip()
+            
+            # Deepseek uses reasoning_content
+            reasoning = getattr(msg, "reasoning_content", getattr(msg, "reasoning", ""))
+            if not raw_content and reasoning:
+                raw_content = reasoning.strip()
 
             # Remove thinking block if present
             raw_content = re.sub(r"<think>.*?</think>", "", raw_content, flags=re.DOTALL).strip()
@@ -241,6 +258,7 @@ Text to analyze:
                 raw_content = raw_content[start_idx:end_idx]
 
             parsed = None
+            print("DEBUG RAW CONTENT INSIDE EXTRACT:", repr(raw_content))
             try:
                 parsed = json.loads(raw_content)
             except Exception as e_json:
