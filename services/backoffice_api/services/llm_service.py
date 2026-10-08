@@ -157,7 +157,8 @@ Analyze the following text and extract significant entities and the relationship
 1. "Orang" (Person): MUST be uniquely identified by NIK if available (use NIK as the entity `name`). If NIK is unknown, use their full name. Node Type: "Orang".
 2. "Perusahaan" (Company/Organization): Uniquely identified by its Name (e.g., PT, CV, Yayasan). Node Type: "Perusahaan".
 3. "Telepon" (Phone Number): Uniquely identified by MSISDN. Node Type: "Telepon".
-4. Other entities can be LOCATION, DOCUMENT, CONCEPT, etc.
+4. "Rekening" (Bank Account): Uniquely identified by Account Number. Node Type: "Rekening".
+5. Other entities can be LOCATION, DOCUMENT, CONCEPT, etc.
 
 # Relationship Guidelines (USE EXACT RELATION NAMES IF APPLICABLE):
 1. "Orang" -> "Orang" (Family): ISTRI, ANAK, SUAMI, AYAH, IBU.
@@ -168,7 +169,9 @@ Analyze the following text and extract significant entities and the relationship
 6. "Perusahaan" -> "Orang" or "Perusahaan": PEMILIK, PESAHAM, PENANGGUNG_JAWAB, PENERIMA_MANFAAT.
 7. "Telepon" -> "Telepon": MENGHUBUNGI_TELEPON, MENGHUBUNGI_SMS, WA_CHAT, VOICE.
 8. "Telepon" -> "Location/IP/Web": IPDR.
-9. You may use generic relationships (RELATED_TO, etc.) if they do not fit the above.
+9. "Rekening" -> "Rekening": TRANSFER_DANA, MUTASI.
+10. "Orang" / "Perusahaan" -> "Rekening": MEMILIKI_REKENING.
+11. You may use generic relationships (RELATED_TO, etc.) if they do not fit the above.
 
 Focus on the top 8-12 most significant entities and up to 10 relationships.
 Keep descriptions concise (under 15 words).

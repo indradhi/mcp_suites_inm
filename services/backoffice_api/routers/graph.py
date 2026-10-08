@@ -1,6 +1,7 @@
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, Query, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from database import get_db
 from security import get_current_user
@@ -82,13 +83,58 @@ def clear_graph_endpoint(user = Depends(get_current_user)):
         logger.error(f"Failed to clear graph: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+class TestMappingRequest(BaseModel):
+    mapping_type: str
+
 @router.post("/test-mapping")
-def test_mapping_endpoint(user = Depends(get_current_user)):
+def test_mapping_endpoint(req: TestMappingRequest, user = Depends(get_current_user)):
     try:
-        from services.graph.graph_builder import graph_builder
-        entities = [{"id": "Test Node", "type": "OTHER", "description": "This is a test node for testing mapping."}]
-        graph_builder.upsert_entities(entities, 0, "Test")
-        return {"status": "success", "message": "Test mapping executed successfully"}
+        from services.vector_store import vector_store
+        from services.llm_service import llm_service
+        from database import SessionLocal
+        
+        # 1. Fetch a document based on mapping_type (simple keyword heuristic)
+        collection = vector_store.get_collection()
+        docs = collection.get(limit=50)
+        documents = docs.get("documents", [])
+        
+        target_doc = None
+        kw = ""
+        if req.mapping_type == "Pemetaan Orang":
+            kw = "bapak|ibu|nama"
+        elif req.mapping_type == "Perusahaan":
+            kw = "pt|cv|perusahaan|corp|tbk"
+        elif req.mapping_type == "Komunikasi":
+            kw = "email|telepon|pesan|surat|whatsapp|chat"
+        elif req.mapping_type == "Data Bank":
+            kw = "bank|rekening|transfer|mutasi|saldo"
+            
+        import re
+        if kw:
+            for d in documents:
+                if re.search(kw, d, re.IGNORECASE):
+                    target_doc = d
+                    break
+                    
+        if not target_doc and documents:
+            target_doc = documents[0] # fallback
+        elif not target_doc:
+            target_doc = f"Contoh data dummy untuk test mapping {req.mapping_type} karena vector store kosong."
+            
+        # 2. Extract using LLM Service
+        db = SessionLocal()
+        try:
+            extracted = llm_service.extract_entities_and_relations(target_doc, db=db)
+        finally:
+            db.close()
+            
+        return {
+            "status": "success", 
+            "mapping_type": req.mapping_type,
+            "source_data": target_doc,
+            "entities": extracted.get("entities", []),
+            "relationships": extracted.get("relationships", [])
+        }
     except Exception as e:
         logger.error(f"Failed test mapping: {e}")
         raise HTTPException(status_code=500, detail=str(e))

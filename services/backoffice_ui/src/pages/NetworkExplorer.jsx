@@ -124,6 +124,12 @@ export default function NetworkExplorer() {
   const [loading, setLoading] = useState(true);
   const [isRemapping, setIsRemapping] = useState(false);
 
+  // Test Mapping Modal State
+  const [showTestModal, setShowTestModal] = useState(false);
+  const [testMappingType, setTestMappingType] = useState('Pemetaan Orang');
+  const [testMappingResult, setTestMappingResult] = useState(null);
+  const [isTestMappingLoading, setIsTestMappingLoading] = useState(false);
+
   const layoutDropdownRef = useRef(null);
   const typeDropdownRef = useRef(null);
   const searchContainerRef = useRef(null);
@@ -227,18 +233,21 @@ export default function NetworkExplorer() {
     }
   };
 
-  const handleTestMapping = async () => {
+  const handleTestMapping = () => {
+    setTestMappingResult(null);
+    setShowTestModal(true);
+  };
+
+  const executeTestMapping = async () => {
     try {
-      setIsRemapping(true);
-      const res = await api.post('/graph/test-mapping');
-      alert('Test Mapping dieksekusi: ' + res.data.message);
-      fetchGraph();
-      fetchMetrics();
+      setIsTestMappingLoading(true);
+      const res = await api.post('/graph/test-mapping', { mapping_type: testMappingType });
+      setTestMappingResult(res.data);
     } catch (err) {
       console.error('Error test mapping:', err);
       alert('Gagal melakukan test mapping.');
     } finally {
-      setIsRemapping(false);
+      setIsTestMappingLoading(false);
     }
   };
 
@@ -1124,6 +1133,154 @@ export default function NetworkExplorer() {
           </div>
         </div>
       )}
+
+      {/* Test Mapping Modal */}
+      {showTestModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+          zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div style={{
+            background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px',
+            width: '800px', maxWidth: '90vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+          }}>
+            {/* Header */}
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sparkles size={16} color="#7dd3fc" /> Test Pemetaan Otomatis (LLM)
+              </h3>
+              <button onClick={() => setShowTestModal(false)} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div style={{ padding: '20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {!testMappingResult ? (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '500' }}>Pilih Jenis Mapping:</label>
+                    <select 
+                      value={testMappingType}
+                      onChange={(e) => setTestMappingType(e.target.value)}
+                      style={{
+                        padding: '10px 12px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px',
+                        color: '#f8fafc', fontSize: '14px', outline: 'none'
+                      }}
+                    >
+                      <option value="Pemetaan Orang">Pemetaan Orang</option>
+                      <option value="Perusahaan">Perusahaan</option>
+                      <option value="Komunikasi">Komunikasi</option>
+                      <option value="Data Bank">Data Bank</option>
+                    </select>
+                  </div>
+                  
+                  <div style={{ background: 'rgba(56, 189, 248, 0.1)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(56, 189, 248, 0.2)' }}>
+                    <p style={{ margin: 0, fontSize: '12px', color: '#bae6fd', lineHeight: '1.5' }}>
+                      Mode ini akan mengambil salah satu sampel potongan teks (chunk) dari Vector DB yang relevan dengan tipe di atas, kemudian mengekstrak Entitas (Nodes) dan Relasinya (Edges) menggunakan AI tanpa menyimpannya ke database Neo4j.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                   {/* Source Data */}
+                   <div>
+                     <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#94a3b8' }}>Sumber Data Teks (Chunk):</h4>
+                     <div style={{ background: '#1e293b', padding: '12px', borderRadius: '8px', fontSize: '13px', color: '#cbd5e1', whiteSpace: 'pre-wrap', maxHeight: '150px', overflowY: 'auto', border: '1px solid #334155' }}>
+                       {testMappingResult.source_data}
+                     </div>
+                   </div>
+                   
+                   {/* Extracted Nodes */}
+                   <div>
+                     <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#34d399' }}>Entitas (Nodes) yang Ditemukan ({testMappingResult.entities.length}):</h4>
+                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                       {testMappingResult.entities.length === 0 ? <span style={{fontSize:'12px', color:'#64748b'}}>Tidak ada entitas ditemukan.</span> : testMappingResult.entities.map((ent, idx) => (
+                         <div key={idx} style={{ background: 'rgba(52, 211, 153, 0.1)', border: '1px solid rgba(52, 211, 153, 0.3)', padding: '6px 10px', borderRadius: '6px', fontSize: '12px' }}>
+                           <strong style={{ color: '#6ee7b7' }}>{ent.name || ent.id}</strong> <span style={{ color: '#94a3b8', fontSize: '11px' }}>({ent.type})</span>
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+                   
+                   {/* Extracted Edges */}
+                   <div>
+                     <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#fcd34d' }}>Relasi (Edges) yang Ditemukan ({testMappingResult.relationships.length}):</h4>
+                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '120px', overflowY: 'auto' }}>
+                       {testMappingResult.relationships.length === 0 ? <span style={{fontSize:'12px', color:'#64748b'}}>Tidak ada relasi ditemukan.</span> : testMappingResult.relationships.map((rel, idx) => (
+                         <div key={idx} style={{ background: 'rgba(251, 191, 36, 0.1)', border: '1px solid rgba(251, 191, 36, 0.3)', padding: '6px 10px', borderRadius: '6px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                           <span style={{ color: '#e2e8f0' }}>{rel.source}</span>
+                           <span style={{ color: '#fbbf24', fontSize: '10px', background: 'rgba(251, 191, 36, 0.2)', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>{rel.relation || rel.type}</span>
+                           <span style={{ color: '#e2e8f0' }}>{rel.target}</span>
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+
+                   {/* Graph Visualization */}
+                   <div>
+                     <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#7dd3fc' }}>Visualisasi Graph:</h4>
+                     <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', height: '300px', overflow: 'hidden', position: 'relative' }}>
+                       <CytoscapeGraph 
+                         elements={[
+                           ...(testMappingResult.entities.map(ent => ({
+                             data: {
+                               id: ent.name || ent.id,
+                               label: ent.name || ent.id,
+                               type: (ent.type || 'OTHER').toUpperCase()
+                             }
+                           }))),
+                           ...(testMappingResult.relationships.map((rel, idx) => ({
+                             data: {
+                               id: `test_rel_${idx}`,
+                               source: rel.source,
+                               target: rel.target,
+                               label: rel.relation || rel.type || ''
+                             }
+                           })))
+                         ]}
+                         layoutName="cose"
+                       />
+                     </div>
+                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '16px 20px', borderTop: '1px solid #1e293b', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              {testMappingResult ? (
+                <button
+                  onClick={() => setTestMappingResult(null)}
+                  style={{ padding: '8px 16px', background: 'transparent', border: '1px solid #334155', color: '#f8fafc', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}
+                >
+                  Uji Ulang
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowTestModal(false)}
+                  style={{ padding: '8px 16px', background: 'transparent', border: '1px solid transparent', color: '#94a3b8', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}
+                >
+                  Batal
+                </button>
+              )}
+              
+              {!testMappingResult && (
+                <button
+                  onClick={executeTestMapping}
+                  disabled={isTestMappingLoading}
+                  style={{ padding: '8px 16px', background: '#3b82f6', border: 'none', color: '#ffffff', borderRadius: '6px', cursor: isTestMappingLoading ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: '600', opacity: isTestMappingLoading ? 0.7 : 1 }}
+                >
+                  {isTestMappingLoading ? 'Memproses LLM...' : 'Eksekusi Mapping'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

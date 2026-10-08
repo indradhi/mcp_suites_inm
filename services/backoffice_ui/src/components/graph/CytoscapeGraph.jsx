@@ -10,6 +10,7 @@ const ENTITY_LEGEND = [
   { type: 'LOCATION', label: 'Lokasi / Wilayah', color: '#10b981' },
   { type: 'DATABASE_RECORD', label: 'Data Record', color: '#14b8a6' },
   { type: 'API_ENDPOINT', label: 'API Endpoint', color: '#f97316' },
+  { type: 'REKENING', label: 'Rekening Bank', color: '#eab308' },
   { type: 'OTHER', label: 'Lainnya', color: '#8b5cf6' }
 ];
 
@@ -54,6 +55,7 @@ export default function CytoscapeGraph({
               if (type === 'LOCATION') return '#10b981';
               if (type === 'DATABASE_RECORD') return '#14b8a6';
               if (type === 'API_ENDPOINT') return '#f97316';
+              if (type === 'REKENING') return '#eab308';
               return '#8b5cf6';
             },
             'width': 28,
