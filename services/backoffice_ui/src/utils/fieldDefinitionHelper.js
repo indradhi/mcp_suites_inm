@@ -527,7 +527,7 @@ export function generateWhereClause(dbType = 'mysql', currentQuery = '', paramet
     if (orConditions.length === 1) {
       return JSON.stringify(orConditions[0], null, 2);
     }
-    return JSON.stringify({ "$or": orConditions }, null, 2);
+    return JSON.stringify({ "$and": orConditions }, null, 2);
   }
 
   // SQL Databases
@@ -565,11 +565,10 @@ export function generateWhereClause(dbType = 'mysql', currentQuery = '', paramet
 
     let baseCond = '';
     if (isTextSearch) {
-      if (lowerDb === 'mssql') {
-        baseCond = `${pName} LIKE '%' + :${pName} + '%'`;
-      } else {
-        baseCond = `${pName} LIKE CONCAT('%', :${pName}, '%')`;
-      }
+      // Case-insensitive partial match: UPPER(field) LIKE UPPER('%:param%')
+      baseCond = `UPPER(${pName}) LIKE UPPER('%:${pName}%')`;
+    } else if (pType === 'string' || !pType) {
+      baseCond = `UPPER(${pName}) = UPPER(:${pName})`;
     } else {
       baseCond = `${pName} = :${pName}`;
     }
@@ -580,7 +579,7 @@ export function generateWhereClause(dbType = 'mysql', currentQuery = '', paramet
     return baseCond;
   });
 
-  const whereBody = conditions.join('\n  OR ');
+  const whereBody = conditions.join('\n  AND ');
 
   if (lowerDb === 'mssql') {
     return `SELECT TOP 50 ${selectFields} FROM ${tableName}\nWHERE ${whereBody}`;

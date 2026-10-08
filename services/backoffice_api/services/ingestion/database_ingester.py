@@ -1,4 +1,7 @@
 import logging
+import re
+import json
+import yaml
 from typing import List, Dict, Any
 from services.ingestion.db_adapters.mysql_adapter import MySQLAdapter
 from services.ingestion.db_adapters.postgres_adapter import PostgresAdapter
@@ -14,8 +17,205 @@ ADAPTERS = {
     "mssql": MSSQLAdapter,
     "sqlserver": MSSQLAdapter,
     "mongodb": MongoDBAdapter,
-
 }
+
+
+def _process_mongo_query(raw_query: str, parameters_def: List[Dict[str, Any]], arguments: Dict[str, Any]) -> str:
+    """Processes a MongoDB query or filter template.
+    Substitutes parameters, safely eliminates unfilled/empty parameters (preventing $regex null errors),
+    preserves collection prefixes e.g. db.coll.find({...}), and auto-generates filters if query is empty."""
+    raw = (raw_query or "").strip().rstrip(";").strip()
+    coll_prefix = ""
+    coll_suffix = ""
+    m_find = re.match(r'^((?:db\.)?[a-zA-Z0-9_\-]+\.find\s*\()(.*)(\)\s*)$', raw, re.DOTALL)
+    if m_find:
+        coll_prefix = m_find.group(1)
+        raw = m_find.group(2).strip()
+        coll_suffix = m_find.group(3)
+
+    if not raw or raw == "{}":
+        parsed = {}
+    else:
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            token_pattern = re.compile(r'("(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\')|([^"\'\n]+)')
+            parts = []
+            for match in token_pattern.finditer(raw):
+                s = match.group(1)
+                c = match.group(2)
+                if s is not None:
+                    parts.append(s)
+                elif c is not None:
+                    parts.append(re.sub(r':(?!\s)', r': ', c))
+                else:
+                    parts.append(match.group(0))
+            raw_clean = "".join(parts).strip()
+            try:
+                parsed = yaml.safe_load(raw_clean)
+            except Exception:
+                parsed = None
+
+    # Map parameters and values
+    param_map = {}
+    for p in (parameters_def or []):
+        p_name = p.get("name")
+        if not p_name:
+            continue
+        p_type = (p.get("type") or "string").lower()
+        val = arguments.get(p_name)
+        if (val is None or str(val).strip() == "") and p.get("default") is not None and str(p.get("default")).strip() != "":
+            val = p.get("default")
+
+        is_empty = val is None or str(val).strip() == ""
+        typed_val = None
+        if not is_empty:
+            if p_type in ["int", "integer"]:
+                try:
+                    typed_val = int(val)
+                except Exception:
+                    typed_val = str(val)
+            elif p_type in ["float", "number"]:
+                try:
+                    typed_val = float(val)
+                except Exception:
+                    typed_val = str(val)
+            elif p_type in ["bool", "boolean"]:
+                typed_val = True if str(val).lower() in ["true", "1", "yes"] else False
+            else:
+                typed_val = str(val)
+
+        param_map[p_name] = {
+            "type": p_type,
+            "val": typed_val,
+            "is_empty": is_empty,
+            "tokens": [f":{p_name}", f"{{{p_name}}}", f":${p_name}", f"{{${p_name}}}", f"${p_name}"]
+        }
+
+    def substitute_and_prune(node):
+        if isinstance(node, dict):
+            # Special check: regex object e.g. {"$regex": ":nama", "$options": "i"}
+            if "$regex" in node:
+                regex_val = str(node["$regex"])
+                for p_name, p_info in param_map.items():
+                    if any(tok in regex_val for tok in p_info["tokens"]):
+                        if p_info["is_empty"]:
+                            return None  # Unfilled regex -> drop completely!
+                        else:
+                            rep_str = str(p_info["val"])
+                            new_r = regex_val
+                            for tok in p_info["tokens"]:
+                                new_r = new_r.replace(tok, rep_str)
+                            node["$regex"] = new_r
+                return node
+
+            out = {}
+            for k, v in node.items():
+                if v is None:
+                    continue
+                # Direct unfilled token check
+                is_unfilled_token = False
+                for p_name, p_info in param_map.items():
+                    if p_info["is_empty"] and any(tok == str(v).strip() for tok in p_info["tokens"]):
+                        is_unfilled_token = True
+                        break
+                if is_unfilled_token:
+                    continue  # drop this field
+
+                new_v = substitute_and_prune(v)
+                if new_v is None or new_v == {} or (new_v == [] and k in ("$and", "$or", "$nor")):
+                    if k in ("$and", "$or", "$nor") or isinstance(v, (dict, list)):
+                        continue
+                out[k] = new_v
+            return out
+
+        elif isinstance(node, list):
+            items = []
+            for item in node:
+                new_item = substitute_and_prune(item)
+                if new_item is not None and new_item != {}:
+                    items.append(new_item)
+            return items
+
+        elif isinstance(node, str):
+            res_str = node
+            for p_name, p_info in param_map.items():
+                if not p_info["is_empty"]:
+                    for tok in p_info["tokens"]:
+                        if tok == res_str:
+                            return p_info["val"]
+                        elif tok in res_str:
+                            res_str = res_str.replace(tok, str(p_info["val"]))
+            return res_str
+
+        return node
+
+    if isinstance(parsed, dict):
+        raw_str_check = json.dumps(parsed)
+        has_any_placeholder = any(
+            any(tok in raw_str_check for tok in p_info["tokens"])
+            for p_info in param_map.values()
+        )
+
+        if has_any_placeholder:
+            result_dict = substitute_and_prune(parsed) or {}
+        else:
+            # Auto-generate filter from filled params if query is {} or doesn't have placeholders
+            auto_conditions = []
+            for p_name, p_info in param_map.items():
+                if not p_info["is_empty"]:
+                    if p_info["type"] == "string":
+                        auto_conditions.append({p_name: {"$regex": str(p_info["val"]), "$options": "i"}})
+                    else:
+                        auto_conditions.append({p_name: p_info["val"]})
+            if auto_conditions:
+                if len(auto_conditions) == 1:
+                    result_dict = auto_conditions[0]
+                else:
+                    result_dict = {"$and": auto_conditions}
+            else:
+                result_dict = parsed or {}
+
+        if isinstance(result_dict, dict) and "$and" in result_dict and isinstance(result_dict["$and"], list):
+            if len(result_dict["$and"]) == 1:
+                result_dict = result_dict["$and"][0]
+            elif len(result_dict["$and"]) == 0:
+                del result_dict["$and"]
+
+        out_json = json.dumps(result_dict, ensure_ascii=False)
+        if coll_prefix:
+            return f"{coll_prefix}{out_json}{coll_suffix}"
+        return out_json
+
+    return raw_query
+
+
+def _neutralize_param_condition(sql: str, p_name: str) -> str:
+    """Replace every condition that uses an empty parameter (e.g. `col = :p`,
+    `UPPER(col) LIKE UPPER('%:p%')`) with `1=1`, keeping parentheses balanced."""
+    ph = re.escape(p_name)
+    pat = re.compile(
+        r'(?:UPPER\(\s*)?[\w."]+\s*\)?\s*'
+        r'(?:NOT\s+LIKE|LIKE|ILIKE|IN|>=|<=|<>|!=|=|>|<)\s*'
+        r'(?P<u>UPPER\(\s*)?(?P<p>\(\s*)?[\'"%]*(?::\s*\{' + ph + r'\}|:' + ph + r'(?!\w)|\{' + ph + r'\})[\'"%]*',
+        re.IGNORECASE
+    )
+    pos = 0
+    while True:
+        m = pat.search(sql, pos)
+        if not m:
+            return sql
+        opens = (1 if m.group('u') else 0) + (1 if m.group('p') else 0)
+        end = m.end()
+        while opens > 0:
+            t = re.match(r'\s*\)', sql[end:])
+            if not t:
+                break
+            end += t.end()
+            opens -= 1
+        sql = sql[:m.start()] + ' 1=1 ' + sql[end:]
+        pos = m.start() + 5
+
 
 class DatabaseIngester:
     def get_adapter(self, db_type: str):
@@ -86,6 +286,7 @@ class DatabaseIngester:
         import json
 
         interpolated = (query or "").strip()
+        raw_query = interpolated
         arguments = arguments or {}
 
         # Check required params and defaults
@@ -107,7 +308,9 @@ class DatabaseIngester:
             reverse=True
         )
 
-        is_mongo = db_type.lower() == "mongodb"
+        if db_type.lower() == "mongodb":
+            return _process_mongo_query(raw_query, parameters_def, arguments)
+
         auto_where_conditions = []
 
         for p in sorted_params:
@@ -118,172 +321,98 @@ class DatabaseIngester:
                 val = p.get("default")
 
             val_to_use = val
+            # SQL databases
+            has_placeholder = False
+            for token in [f":{p_name}", f"{{{p_name}}}", f":${p_name}", f"{{${p_name}}}"]:
+                if token in raw_query:
+                    has_placeholder = True
+                    break
 
-            if is_mongo:
-                MONGO_OPERATORS = {
-                    '$match', '$project', '$group', '$sort', '$limit', '$skip',
-                    '$unwind', '$lookup', '$in', '$nin', '$gt', '$gte', '$lt',
-                    '$lte', '$ne', '$eq', '$all', '$size', '$exists', '$type',
-                    '$mod', '$regex', '$options', '$text', '$where', '$elemMatch',
-                    '$and', '$or', '$not', '$nor', '$set', '$unset', '$push', '$pull', '$inc'
-                }
+            is_empty = val_to_use is None or str(val_to_use).strip() == ""
 
-                if val_to_use is None or str(val_to_use).strip() == "":
-                    rep_val = "null"
-                    is_quoted = False
-                elif p_type in ["int", "integer"]:
-                    try:
-                        rep_val = str(int(val_to_use))
-                    except Exception:
-                        rep_val = "0"
-                    is_quoted = False
-                elif p_type in ["float", "number"]:
-                    try:
-                        rep_val = str(float(val_to_use))
-                    except Exception:
-                        rep_val = "0.0"
-                    is_quoted = False
-                elif p_type in ["bool", "boolean"]:
-                    rep_val = "true" if str(val_to_use).lower() in ["true", "1", "yes"] else "false"
-                    is_quoted = False
+            if not has_placeholder and not is_empty:
+                if p_type in ["int", "integer", "float", "number", "bool", "boolean"]:
+                    if p_type in ["bool", "boolean"]:
+                        b_str = "1" if str(val_to_use).lower() in ["true", "1", "yes"] else "0"
+                        auto_where_conditions.append(f"{p_name} = {b_str}")
+                    else:
+                        try:
+                            num_str = str(val_to_use)
+                        except Exception:
+                            num_str = "0"
+                        auto_where_conditions.append(f"{p_name} = {num_str}")
                 else:
-                    # String type: includes quotes e.g. "Budi"
-                    rep_val = json.dumps(str(val_to_use))
-                    is_quoted = True
+                    escaped = str(val_to_use).replace("'", "''").replace("\\", "\\\\")
+                    auto_where_conditions.append(f"UPPER({p_name}) = UPPER('{escaped}')")
+                continue
 
-                # 1. First replace explicitly quoted placeholders:
-                # e.g. ":param", ":$param", "{param}", "{$param}", and "$param" (if not a reserved Mongo operator)
-                quoted_patterns = [
-                    r'["\']:' + re.escape(p_name) + r'["\']',
-                    r'["\']:\$' + re.escape(p_name) + r'["\']',
-                    r'["\']\{' + re.escape(p_name) + r'\}["\']',
-                    r'["\']\{\$' + re.escape(p_name) + r'\}["\']'
-                ]
-                if f"${p_name}" not in MONGO_OPERATORS:
-                    quoted_patterns.append(r'["\']\$' + re.escape(p_name) + r'["\']')
+            if is_empty:
+                # Remove the entire condition involving this parameter by replacing it with 1=1
+                # This supports queries where missing parameters shouldn't filter the results
+                interpolated = _neutralize_param_condition(interpolated, p_name)
 
-                for qp in quoted_patterns:
-                    interpolated = re.sub(qp, rep_val, interpolated)
+                # Fallback for bare placeholders
+                for bare_pattern in [f"':{p_name}'", f"'{{{p_name}}}'", f":{p_name}", f"{{{p_name}}}"]:
+                    interpolated = interpolated.replace(bare_pattern, "NULL")
+                continue
 
-                # 2. Check if inside regex literal, e.g. /:param/ or /:param/i
-                if is_quoted:
-                    inside_val = json.dumps(str(val_to_use))[1:-1]
-                    regex_tokens = [f":{p_name}", f":${p_name}", f"{{{p_name}}}", f"{{${p_name}}}"]
-                    if f"${p_name}" not in MONGO_OPERATORS:
-                        regex_tokens.append(f"${p_name}")
-                    for tok in regex_tokens:
-                        interpolated = re.sub(r'/' + re.escape(tok) + r'/([imsux]*)', lambda m: f'/{inside_val}/{m.group(1)}', interpolated)
+            if p_type in ["int", "integer"]:
+                try:
+                    num_str = str(int(val_to_use))
+                except Exception:
+                    num_str = "0"
+                for pattern in [f"':{p_name}'", f"'{{{p_name}}}'", f":{p_name}", f"{{{p_name}}}"]:
+                    interpolated = interpolated.replace(pattern, num_str)
 
-                # 3. Replace unquoted placeholders with boundary check
-                unquoted_tokens = [
-                    r':' + re.escape(p_name),
-                    r':\$' + re.escape(p_name),
-                    r'\{' + re.escape(p_name) + r'\}',
-                    r'\{\$' + re.escape(p_name) + r'\}'
-                ]
-                if f"${p_name}" not in MONGO_OPERATORS:
-                    unquoted_tokens.append(r'\$' + re.escape(p_name))
+            elif p_type in ["float", "number"]:
+                try:
+                    num_str = str(float(val_to_use))
+                except Exception:
+                    num_str = "0.0"
+                for pattern in [f"':{p_name}'", f"'{{{p_name}}}'", f":{p_name}", f"{{{p_name}}}"]:
+                    interpolated = interpolated.replace(pattern, num_str)
 
-                for tok in unquoted_tokens:
-                    pat = re.compile(r'([^a-zA-Z0-9_\'"]|^)' + tok + r'([^a-zA-Z0-9_\'"]|$)')
-                    def repl(m, current_rep=rep_val):
-                        prefix = m.group(1) or ""
-                        suffix = m.group(2) or ""
-                        return f"{prefix}{current_rep}{suffix}"
-                    interpolated = pat.sub(repl, interpolated)
+            elif p_type in ["bool", "boolean"]:
+                b_str = "1" if str(val_to_use).lower() in ["true", "1", "yes"] else "0"
+                for pattern in [f"':{p_name}'", f"'{{{p_name}}}'", f":{p_name}", f"{{{p_name}}}"]:
+                    interpolated = interpolated.replace(pattern, b_str)
 
             else:
-                # SQL databases
-                has_placeholder = False
-                for token in [f":{p_name}", f"{{{p_name}}}", f":${p_name}", f"{{${p_name}}}"]:
-                    if token in raw_query:
-                        has_placeholder = True
-                        break
-                
-                is_empty = val_to_use is None or str(val_to_use).strip() == ""
-                
-                if not has_placeholder and not is_empty:
-                    if p_type in ["int", "integer", "float", "number", "bool", "boolean"]:
-                        if p_type in ["bool", "boolean"]:
-                            b_str = "1" if str(val_to_use).lower() in ["true", "1", "yes"] else "0"
-                            auto_where_conditions.append(f"{p_name} = {b_str}")
-                        else:
-                            try: num_str = str(val_to_use)
-                            except: num_str = "0"
-                            auto_where_conditions.append(f"{p_name} = {num_str}")
+                raw_str = str(val_to_use)
+                escaped = raw_str.replace("'", "''").replace("\\", "\\\\")
+
+                # Case-insensitive support: UPPER(column) <op> UPPER(placeholder)
+                ph = re.escape(p_name)
+                ci_pattern = re.compile(
+                    r'(?<![\w.(])((?:[a-zA-Z_][\w]*\.)?[a-zA-Z_][\w]*|"[^"]+")\s*(=|<>|!=|NOT\s+LIKE|LIKE|ILIKE)\s*'
+                    r"((?:'?%?)(?::" + ph + r"|\{" + ph + r"\})(?:%?'?))",
+                    re.IGNORECASE
+                )
+                interpolated = ci_pattern.sub(
+                    lambda m: f"UPPER({m.group(1)}) {m.group(2)} UPPER({m.group(3)})",
+                    interpolated
+                )
+
+                # If user explicitly wrote ':param' or '{param}'
+                interpolated = interpolated.replace(f"':{p_name}'", f"'{escaped}'")
+                interpolated = interpolated.replace(f"'{{{p_name}}}'", f"'{escaped}'")
+
+                # Handle occurrences where placeholder might be inside wildcards %:param% or bare :param
+                def repl_placeholder(m):
+                    prefix = m.group(1) or ""
+                    suffix = m.group(2) or ""
+                    if prefix in ["'", "%"] or suffix in ["'", "%"]:
+                        return f"{prefix}{escaped}{suffix}"
                     else:
-                        escaped = str(val_to_use).replace("'", "''").replace("\\", "\\\\")
-                        auto_where_conditions.append(f"UPPER({p_name}) = UPPER('{escaped}')")
-                    continue
-                
-                if is_empty:
-                    # Remove the entire condition involving this parameter by replacing it with 1=1
-                    # This supports queries where missing parameters shouldn't filter the results
-                    pattern = r'[a-zA-Z0-9_.]+\s*(?:=|LIKE|ILIKE|IN|>|<|>=|<=|<>|!=)\s*\(?\s*[\'\"%]*(?::' + p_name + r'|:\s*\{' + p_name + r'\}|\{' + p_name + r'\})[\'\"%]*\s*\)?'
-                    interpolated = re.sub(pattern, ' 1=1 ', interpolated, flags=re.IGNORECASE)
-                    
-                    # Fallback for bare placeholders
-                    for bare_pattern in [f"':{p_name}'", f"'{{{p_name}}}'", f":{p_name}", f"{{{p_name}}}"]:
-                        interpolated = interpolated.replace(bare_pattern, "NULL")
-                    continue
+                        return f"{prefix}'{escaped}'{suffix}"
 
-                if p_type in ["int", "integer"]:
-                    try:
-                        num_str = str(int(val_to_use))
-                    except Exception:
-                        num_str = "0"
-                    for pattern in [f"':{p_name}'", f"'{{{p_name}}}'", f":{p_name}", f"{{{p_name}}}"]:
-                        interpolated = interpolated.replace(pattern, num_str)
+                pattern_colon = re.compile(r"([^a-zA-Z0-9_]|^):" + re.escape(p_name) + r"([^a-zA-Z0-9_]|$)")
+                interpolated = pattern_colon.sub(repl_placeholder, interpolated)
 
-                elif p_type in ["float", "number"]:
-                    try:
-                        num_str = str(float(val_to_use))
-                    except Exception:
-                        num_str = "0.0"
-                    for pattern in [f"':{p_name}'", f"'{{{p_name}}}'", f":{p_name}", f"{{{p_name}}}"]:
-                        interpolated = interpolated.replace(pattern, num_str)
+                pattern_brace = re.compile(r"([^a-zA-Z0-9_]|^)\{" + re.escape(p_name) + r"\}([^a-zA-Z0-9_]|$)")
+                interpolated = pattern_brace.sub(repl_placeholder, interpolated)
 
-                elif p_type in ["bool", "boolean"]:
-                    b_str = "1" if str(val_to_use).lower() in ["true", "1", "yes"] else "0"
-                    for pattern in [f"':{p_name}'", f"'{{{p_name}}}'", f":{p_name}", f"{{{p_name}}}"]:
-                        interpolated = interpolated.replace(pattern, b_str)
-
-                else:
-                    raw_str = str(val_to_use)
-                    escaped = raw_str.replace("'", "''").replace("\\", "\\\\")
-
-                    # Case-insensitive support: UPPER(column) <op> UPPER(placeholder)
-                    ph = re.escape(p_name)
-                    ci_pattern = re.compile(
-                        r'(?<![\w.(])((?:[a-zA-Z_][\w]*\.)?[a-zA-Z_][\w]*|"[^"]+")\s*(=|<>|!=|NOT\s+LIKE|LIKE|ILIKE)\s*'
-                        r"((?:'?%?)(?::" + ph + r"|\{" + ph + r"\})(?:%?'?))",
-                        re.IGNORECASE
-                    )
-                    interpolated = ci_pattern.sub(
-                        lambda m: f"UPPER({m.group(1)}) {m.group(2)} UPPER({m.group(3)})",
-                        interpolated
-                    )
-
-                    # If user explicitly wrote ':param' or '{param}'
-                    interpolated = interpolated.replace(f"':{p_name}'", f"'{escaped}'")
-                    interpolated = interpolated.replace(f"'{{{p_name}}}'", f"'{escaped}'")
-
-                    # Handle occurrences where placeholder might be inside wildcards %:param% or bare :param
-                    def repl_placeholder(m):
-                        prefix = m.group(1) or ""
-                        suffix = m.group(2) or ""
-                        if prefix in ["'", "%"] or suffix in ["'", "%"]:
-                            return f"{prefix}{escaped}{suffix}"
-                        else:
-                            return f"{prefix}'{escaped}'{suffix}"
-
-                    pattern_colon = re.compile(r"([^a-zA-Z0-9_]|^):" + re.escape(p_name) + r"([^a-zA-Z0-9_]|$)")
-                    interpolated = pattern_colon.sub(repl_placeholder, interpolated)
-
-                    pattern_brace = re.compile(r"([^a-zA-Z0-9_]|^)\{" + re.escape(p_name) + r"\}([^a-zA-Z0-9_]|$)")
-                    interpolated = pattern_brace.sub(repl_placeholder, interpolated)
-
-        if not is_mongo and auto_where_conditions:
+        if auto_where_conditions:
             parts = re.split(r'(?i)(\s+(?:ORDER\s+BY|GROUP\s+BY|LIMIT\b|OFFSET\b))', interpolated, maxsplit=1)
             base_query = parts[0]
             
