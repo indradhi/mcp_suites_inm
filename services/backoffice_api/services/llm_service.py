@@ -154,26 +154,24 @@ class LLMService:
 Analyze the following text and extract significant entities and the relationships between them.
 
 # Entity Guidelines (STRICTLY FOLLOW THESE RULES):
-1. "Orang" (Person): MUST be uniquely identified by NIK if available (use NIK as the entity `name`). If NIK is unknown, use their full name. Node Type: "Orang".
-2. "Perusahaan" (Company/Organization): Uniquely identified by its Name (e.g., PT, CV, Yayasan). Node Type: "Perusahaan".
-3. "Telepon" (Phone Number): Uniquely identified by MSISDN. Node Type: "Telepon".
-4. "Rekening" (Bank Account): Uniquely identified by Account Number. Node Type: "Rekening".
-5. Other entities can be LOCATION, DOCUMENT, CONCEPT, etc.
+1. "Orang" (Person): MUST be uniquely identified by NIK if available (use NIK as the entity `name`). If NIK is unknown, use their full name. Node Type: "Orang". 
+   - CRITICAL: If you use NIK as the identifier, you MUST also extract the person's actual full name as a separate entity (Node Type: "Nama") and link them with relation "MEMILIKI_NAMA".
+2. "Dokumen" (Document/Identity): Uniquely identified by KK number (e.g., "KK: 360..."). Node Type: "Dokumen".
+3. "Perusahaan" (Company/Organization): Uniquely identified by its Name (e.g., PT, CV, Yayasan). Node Type: "Perusahaan".
+4. "Telepon" (Phone Number): Uniquely identified by MSISDN. Node Type: "Telepon".
+5. "Rekening" (Bank Account): Uniquely identified by Account Number. Node Type: "Rekening".
+6. Other entities can be LOCATION, CONCEPT, dll.
 
-# Relationship Guidelines (USE EXACT RELATION NAMES IF APPLICABLE):
-1. "Orang" -> "Orang" (Family): ISTRI, ANAK, SUAMI, AYAH, IBU.
-2. "Orang" -> "Orang" (Social): TEMAN, REKAN_BISNIS.
-3. "Orang" -> "Location/Address": ALAMAT_KTP, DOMISILI.
-4. "Orang" -> "Telepon": MEMILIKI_TELEPON.
-5. "Orang" -> "Perusahaan": BEKERJA_SEBAGAI, PEMILIK, PESAHAM, PENANGGUNG_JAWAB, PENERIMA_MANFAAT.
-6. "Perusahaan" -> "Orang" or "Perusahaan": PEMILIK, PESAHAM, PENANGGUNG_JAWAB, PENERIMA_MANFAAT.
-7. "Telepon" -> "Telepon": MENGHUBUNGI_TELEPON, MENGHUBUNGI_SMS, WA_CHAT, VOICE.
-8. "Telepon" -> "Location/IP/Web": IPDR.
-9. "Rekening" -> "Rekening": TRANSFER_DANA, MUTASI.
-10. "Orang" / "Perusahaan" -> "Rekening": MEMILIKI_REKENING.
-11. You may use generic relationships (RELATED_TO, etc.) if they do not fit the above.
+# Relationship Guidelines:
+1. Extract relationships EXACTLY as they are described in the text. DO NOT hallucinate or assume relationships (e.g., do not assume parents live in the same KK unless stated).
+2. Use simple, descriptive relationship names derived directly from the text (e.g., AYAH, IBU, DOMISILI, LAHIR_DI, BEKERJA_SEBAGAI, PEMILIK, MENGHUBUNGI).
+3. Extract administrative regions (Kelurahan/Desa, Kecamatan, Kabupaten/Kota, Provinsi) as distinct entities (Node Type: "Location") and relate them to the central person using relationship names like: KELURAHAN, KECAMATAN, KABUPATEN_KOTA, PROVINSI.
+4. "Orang" -> "Dokumen" (Identity): MEMILIKI_NIK.
+5. "Orang" / "Perusahaan" -> "Rekening": MEMILIKI_REKENING.
+6. "Rekening" -> "Rekening": TRANSFER_DANA, MUTASI.
+7. You may use generic relationships (RELATED_TO, dll.) if needed.
 
-Focus on the top 8-12 most significant entities and up to 10 relationships.
+Focus on the top 12-15 most significant entities and up to 15 relationships.
 Keep descriptions concise (under 15 words).
 
 IMPORTANT: Output strictly a valid JSON object. Do NOT include thinking, reasoning, markdown or conversational text.

@@ -11,6 +11,7 @@ const ENTITY_LEGEND = [
   { type: 'DATABASE_RECORD', label: 'Data Record', color: '#14b8a6' },
   { type: 'API_ENDPOINT', label: 'API Endpoint', color: '#f97316' },
   { type: 'REKENING', label: 'Rekening Bank', color: '#eab308' },
+  { type: 'NAMA', label: 'Nama Lengkap', color: '#3b82f6' },
   { type: 'OTHER', label: 'Lainnya', color: '#8b5cf6' }
 ];
 
@@ -48,14 +49,15 @@ export default function CytoscapeGraph({
             'text-margin-y': 6,
             'background-color': (ele) => {
               const type = (ele.data('type') || '').toUpperCase();
-              if (type === 'PERSON') return '#6366f1';
-              if (type === 'ORGANIZATION') return '#06b6d4';
-              if (type === 'DOCUMENT') return '#ec4899';
-              if (type === 'ASSET') return '#f59e0b';
-              if (type === 'LOCATION') return '#10b981';
+              if (type === 'PERSON' || type === 'ORANG') return '#6366f1';
+              if (type === 'ORGANIZATION' || type === 'PERUSAHAAN') return '#06b6d4';
+              if (type === 'DOCUMENT' || type === 'DOKUMEN') return '#ec4899';
+              if (type === 'ASSET' || type === 'ASET') return '#f59e0b';
+              if (type === 'LOCATION' || type === 'LOKASI') return '#10b981';
               if (type === 'DATABASE_RECORD') return '#14b8a6';
               if (type === 'API_ENDPOINT') return '#f97316';
               if (type === 'REKENING') return '#eab308';
+              if (type === 'NAMA') return '#3b82f6';
               return '#8b5cf6';
             },
             'width': 28,

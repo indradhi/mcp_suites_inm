@@ -13,12 +13,13 @@ class EntityResolver:
 
     @staticmethod
     def resolve_entity(entity: Dict[str, Any]) -> Dict[str, Any]:
-        norm_name = EntityResolver.normalize_name(entity.get("name", ""))
+        name_val = entity.get("name") or entity.get("id") or ""
+        norm_name = EntityResolver.normalize_name(str(name_val))
         entity_type = entity.get("type", "UNKNOWN").upper().strip()
         return {
             "name": norm_name,
             "type": entity_type,
-            "description": entity.get("description", "").strip()
+            "description": str(entity.get("description", "")).strip()
         }
 
 entity_resolver = EntityResolver()

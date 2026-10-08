@@ -34,6 +34,18 @@ class GraphBuilder:
                 types_map["Perusahaan"].append(item)
             elif t in ["TELEPON", "MSISDN"]:
                 types_map["Telepon"].append(item)
+            elif t == "REKENING":
+                if "Rekening" not in types_map:
+                    types_map["Rekening"] = []
+                types_map["Rekening"].append(item)
+            elif t == "NAMA":
+                if "Nama" not in types_map:
+                    types_map["Nama"] = []
+                types_map["Nama"].append(item)
+            elif t == "DOKUMEN":
+                if "Dokumen" not in types_map:
+                    types_map["Dokumen"] = []
+                types_map["Dokumen"].append(item)
             else:
                 types_map["Other"].append(item)
 
@@ -85,7 +97,8 @@ class GraphBuilder:
         for rel in relationships:
             src = entity_resolver.normalize_name(rel.get("source", ""))
             dst = entity_resolver.normalize_name(rel.get("target", ""))
-            rel_type = rel.get("relation", "RELATED_TO").upper().replace(" ", "_").replace("-", "_")
+            rel_type_raw = rel.get("relation") or rel.get("type") or "RELATED_TO"
+            rel_type = str(rel_type_raw).upper().replace(" ", "_").replace("-", "_")
 
             # Sanitize rel_type for Cypher
             rel_type = "".join(c for c in rel_type if c.isalnum() or c == "_")

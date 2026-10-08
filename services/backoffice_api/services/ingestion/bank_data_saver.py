@@ -343,11 +343,7 @@ def extract_structured_entities_and_relations(
             org_from_person = raw_person
         else:
             person_name = raw_person
-            entities.append({
-                "name": person_name,
-                "type": "PERSON",
-                "description": f"Individu tercatat pada {source.name}"
-            })
+            # We defer entity creation for the person until we check for NIK.
 
     # 2. Identify Corporate / Organization
     raw_org = _get_field(
@@ -381,14 +377,25 @@ def extract_structured_entities_and_relations(
     nik_val = _get_field(record, 'NIK', 'nik', 'pemilik_nik', 'nik_pemilik', 'no_ktp', 'ktp')
     doc_nik: Optional[str] = None
     if nik_val and len(re.sub(r'\D', '', nik_val)) >= 6:
-        doc_nik = f"NIK: {nik_val}"
+        doc_nik = f"NIK:{nik_val}"
         entities.append({
             "name": doc_nik,
-            "type": "DOCUMENT",
-            "description": f"Nomor Induk Kependudukan ({person_name or 'Individu'})"
+            "type": "ORANG",
+            "description": f"Individu dengan NIK {doc_nik}"
         })
         if person_name:
-            relationships.append({"source": person_name, "relation": "MEMILIKI_NIK", "target": doc_nik})
+            entities.append({
+                "name": person_name,
+                "type": "NAMA",
+                "description": "Nama Lengkap"
+            })
+            relationships.append({"source": doc_nik, "relation": "MEMILIKI_NAMA", "target": person_name})
+    elif person_name:
+        entities.append({
+            "name": person_name,
+            "type": "ORANG",
+            "description": f"Individu tercatat pada {source.name}"
+        })
 
     # NO_KK
     kk_val = _get_field(record, 'NO_KK', 'no_kk', 'nomor_kk', 'nkk')
@@ -523,6 +530,8 @@ def extract_structured_entities_and_relations(
     if prop_val:
         loc_parts.append(prop_val)
 
+    central_node = doc_nik if doc_nik else person_name
+    
     if loc_parts:
         loc_str = ", ".join(loc_parts)
         loc_ent = f"LOKASI: {loc_str}"
@@ -531,60 +540,86 @@ def extract_structured_entities_and_relations(
             "type": "LOCATION",
             "description": f"Wilayah: {loc_str}"
         })
-        if person_name:
-            relationships.append({"source": person_name, "relation": "BERALAMAT_DI", "target": loc_ent})
+        if central_node:
+            relationships.append({"source": central_node, "relation": "DOMISILI", "target": loc_ent})
         if asset_tanah:
             relationships.append({"source": asset_tanah, "relation": "BERLOKASI_DI", "target": loc_ent})
 
+    # Hierarchical / Regional Relations
+    if kel_val:
+        kel_ent = f"KELURAHAN {kel_val.upper()}"
+        entities.append({"name": kel_ent, "type": "LOCATION", "description": "Kelurahan/Desa"})
+        if central_node:
+            relationships.append({"source": central_node, "relation": "KELURAHAN", "target": kel_ent})
+    if kec_val:
+        kec_ent = f"KECAMATAN {kec_val.upper()}"
+        entities.append({"name": kec_ent, "type": "LOCATION", "description": "Kecamatan"})
+        if central_node:
+            relationships.append({"source": central_node, "relation": "KECAMATAN", "target": kec_ent})
+    if kab_val:
+        kab_ent = f"KABUPATEN/KOTA {kab_val.upper()}"
+        entities.append({"name": kab_ent, "type": "LOCATION", "description": "Kabupaten/Kota"})
+        if central_node:
+            relationships.append({"source": central_node, "relation": "KABUPATEN_KOTA", "target": kab_ent})
+    if prop_val:
+        prop_ent = f"PROVINSI {prop_val.upper()}"
+        entities.append({"name": prop_ent, "type": "LOCATION", "description": "Provinsi"})
+        if central_node:
+            relationships.append({"source": central_node, "relation": "PROVINSI", "target": prop_ent})
+
     # 6. Family Relationships (Dukcapil)
+
     # Ayah
     ayah_val = _get_field(record, 'NAMA_LGKP_AYAH', 'NAMA_AYAH', 'AYAH', 'ayah')
-    if ayah_val and person_name and ayah_val.upper() != person_name.upper():
+    if ayah_val and central_node and ayah_val.upper() != str(central_node).upper():
         entities.append({
             "name": ayah_val,
-            "type": "PERSON",
-            "description": f"Ayah dari {person_name}"
+            "type": "ORANG",
+            "description": f"Ayah"
         })
-        relationships.append({"source": person_name, "relation": "ANAK_DARI", "target": ayah_val})
-        relationships.append({"source": ayah_val, "relation": "ORANG_TUA_DARI", "target": person_name})
+        relationships.append({"source": central_node, "relation": "AYAH", "target": ayah_val})
 
         nik_ayah = _get_field(record, 'NIK_AYAH', 'nik_ayah')
         if nik_ayah and len(re.sub(r'\D', '', nik_ayah)) >= 6:
-            nik_ayah_ent = f"NIK: {nik_ayah}"
+            nik_ayah_ent = f"NIK:{nik_ayah}"
             entities.append({
                 "name": nik_ayah_ent,
-                "type": "DOCUMENT",
-                "description": f"NIK Ayah ({ayah_val})"
+                "type": "ORANG",
+                "description": f"Ayah"
             })
-            relationships.append({"source": ayah_val, "relation": "MEMILIKI_NIK", "target": nik_ayah_ent})
-        if doc_kk:
-            relationships.append({"source": ayah_val, "relation": "TERDAFTAR_DALAM_KK", "target": doc_kk})
+            entities.append({
+                "name": ayah_val,
+                "type": "NAMA",
+                "description": "Nama Ayah"
+            })
+            relationships.append({"source": nik_ayah_ent, "relation": "MEMILIKI_NAMA", "target": ayah_val})
+            relationships.append({"source": central_node, "relation": "AYAH", "target": nik_ayah_ent})
 
     # Ibu
     ibu_val = _get_field(record, 'NAMA_LGKP_IBU', 'NAMA_IBU', 'IBU', 'ibu')
-    if ibu_val and person_name and ibu_val.upper() != person_name.upper():
+    if ibu_val and central_node and ibu_val.upper() != str(central_node).upper():
         entities.append({
             "name": ibu_val,
-            "type": "PERSON",
-            "description": f"Ibu dari {person_name}"
+            "type": "ORANG",
+            "description": f"Ibu"
         })
-        relationships.append({"source": person_name, "relation": "ANAK_DARI", "target": ibu_val})
-        relationships.append({"source": ibu_val, "relation": "ORANG_TUA_DARI", "target": person_name})
+        relationships.append({"source": central_node, "relation": "IBU", "target": ibu_val})
 
         nik_ibu = _get_field(record, 'NIK_IBU', 'nik_ibu')
         if nik_ibu and len(re.sub(r'\D', '', nik_ibu)) >= 6:
-            nik_ibu_ent = f"NIK: {nik_ibu}"
+            nik_ibu_ent = f"NIK:{nik_ibu}"
             entities.append({
                 "name": nik_ibu_ent,
-                "type": "DOCUMENT",
-                "description": f"NIK Ibu ({ibu_val})"
+                "type": "ORANG",
+                "description": f"Ibu"
             })
-            relationships.append({"source": ibu_val, "relation": "MEMILIKI_NIK", "target": nik_ibu_ent})
-        if doc_kk:
-            relationships.append({"source": ibu_val, "relation": "TERDAFTAR_DALAM_KK", "target": doc_kk})
-
-    if ayah_val and ibu_val and ayah_val.upper() != ibu_val.upper():
-        relationships.append({"source": ayah_val, "relation": "PASANGAN_DARI", "target": ibu_val})
+            entities.append({
+                "name": ibu_val,
+                "type": "NAMA",
+                "description": "Nama Ibu"
+            })
+            relationships.append({"source": nik_ibu_ent, "relation": "MEMILIKI_NAMA", "target": ibu_val})
+            relationships.append({"source": central_node, "relation": "IBU", "target": nik_ibu_ent})
 
     # 7. BPN Catatan / Akta PPAT
     riwayat_cat = _get_field(record, 'riwayat_catatan', 'catatan')
