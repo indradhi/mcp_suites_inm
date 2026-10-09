@@ -19,35 +19,17 @@ class GraphBuilder:
         if not clean_batch:
             return 0
             
-        types_map = {
-            "Orang": [],
-            "Perusahaan": [],
-            "Telepon": [],
-            "Other": []
-        }
-        
+        types_map = {}
         for item in clean_batch:
-            t = str(item.get("type", "")).upper()
-            if t == "ORANG":
-                types_map["Orang"].append(item)
-            elif t == "PERUSAHAAN":
-                types_map["Perusahaan"].append(item)
-            elif t in ["TELEPON", "MSISDN"]:
-                types_map["Telepon"].append(item)
-            elif t == "REKENING":
-                if "Rekening" not in types_map:
-                    types_map["Rekening"] = []
-                types_map["Rekening"].append(item)
-            elif t == "NAMA":
-                if "Nama" not in types_map:
-                    types_map["Nama"] = []
-                types_map["Nama"].append(item)
-            elif t == "DOKUMEN":
-                if "Dokumen" not in types_map:
-                    types_map["Dokumen"] = []
-                types_map["Dokumen"].append(item)
-            else:
-                types_map["Other"].append(item)
+            t_raw = str(item.get("type", "UNKNOWN"))
+            # Make label safe for Neo4j (alphanumeric only)
+            label = "".join(c for c in t_raw if c.isalnum() or c == "_")
+            if not label:
+                label = "Other"
+                
+            if label not in types_map:
+                types_map[label] = []
+            types_map[label].append(item)
 
         base_query = """
         UNWIND $batch AS item
