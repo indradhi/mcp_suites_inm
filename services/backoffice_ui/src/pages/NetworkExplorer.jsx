@@ -127,6 +127,7 @@ export default function NetworkExplorer() {
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isRemapping, setIsRemapping] = useState(false);
+  const [remapStatus, setRemapStatus] = useState(null);
 
   // Test Mapping Modal State
   const [showTestModal, setShowTestModal] = useState(false);
@@ -142,6 +143,35 @@ export default function NetworkExplorer() {
     fetchGraph();
     fetchMetrics();
     fetchInsights();
+  }, []);
+
+  // Poll for remap status in the background
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const res = await api.get('/graph/remap/status');
+        setRemapStatus(res.data);
+        
+        setIsRemapping(prev => {
+          if (res.data.is_running && !prev) {
+            return true;
+          } else if (!res.data.is_running && prev) {
+            // Finished running! Refresh graph data automatically
+            fetchGraph();
+            fetchMetrics();
+            fetchInsights();
+            return false;
+          }
+          return prev;
+        });
+      } catch (err) {
+        console.error('Error fetching remap status:', err);
+      }
+    };
+
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 2000);
+    return () => clearInterval(interval);
   }, []);
 
   // Sync searchQuery when URL params change
@@ -188,17 +218,11 @@ export default function NetworkExplorer() {
     
     try {
       setIsRemapping(true);
-      const res = await api.post('/graph/remap?clear_existing=true');
-      alert(`Re-mapping berhasil!\n${res.data.entities_created} Entitas dan ${res.data.relationships_created} Relasi baru terbentuk dari ${res.data.chunks_processed} dokumen.`);
-      
-      // Refresh the graph data after remapping
-      fetchGraph();
-      fetchMetrics();
-      fetchInsights();
+      await api.post('/graph/remap?clear_existing=true');
+      alert(`Proses re-mapping dimulai di background. Indikator di pojok kanan atas akan menunjukkan statusnya.`);
     } catch (err) {
       console.error('Error remapping graph:', err);
       alert('Gagal melakukan re-mapping. Silakan periksa log server.');
-    } finally {
       setIsRemapping(false);
     }
   };
@@ -224,15 +248,11 @@ export default function NetworkExplorer() {
     if (!window.confirm("Yakin ingin melanjutkan mapping (tanpa menghapus graph yang ada)?")) return;
     try {
       setIsRemapping(true);
-      const res = await api.post('/graph/remap?clear_existing=false');
-      alert(`Mapping lanjutan berhasil!\n${res.data.entities_created} Entitas dan ${res.data.relationships_created} Relasi baru terbentuk.`);
-      fetchGraph();
-      fetchMetrics();
-      fetchInsights();
+      await api.post('/graph/remap?clear_existing=false');
+      alert(`Mapping lanjutan dimulai di background. Indikator di atas akan menunjukkan statusnya.`);
     } catch (err) {
       console.error('Error continuing mapping:', err);
       alert('Gagal melanjutkan mapping.');
-    } finally {
       setIsRemapping(false);
     }
   };
@@ -335,7 +355,19 @@ export default function NetworkExplorer() {
         {/* Actions & Tab Switcher */}
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
           {/* Graph Action Buttons Group */}
-          <div style={{ display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+          <div style={{ display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)', alignItems: 'center' }}>
+            {isRemapping && remapStatus && (
+              <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#fcd34d', padding: '0 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                 <RefreshCw size={13} className="spin-animation" />
+                 {remapStatus.status} 
+                 {remapStatus.progress?.total > 0 && ` (${remapStatus.progress.current}/${remapStatus.progress.total})`}
+              </div>
+            )}
+            {!isRemapping && (
+              <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#10b981', padding: '0 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                 <Check size={13} /> Grafik Siap
+              </div>
+            )}
             <button
               onClick={handleClearGraph}
               disabled={loading || isRemapping}

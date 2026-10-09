@@ -10,99 +10,126 @@ from database import SessionLocal
 logger = logging.getLogger(__name__)
 
 class GraphRemapper:
+    def __init__(self):
+        self.is_running = False
+        self.status = "Idle"
+        self.progress = {"current": 0, "total": 0, "entities": 0, "relationships": 0}
+
+    def get_status(self) -> Dict[str, Any]:
+        return {
+            "is_running": self.is_running,
+            "status": self.status,
+            "progress": self.progress
+        }
+
     def remap_all(self, clear_existing: bool = True) -> Dict[str, Any]:
-        """
-        Fetches all text chunks from vector store, re-extracts entities using the updated
-        strict LLM schema, and upserts them back to Neo4j.
+        if self.is_running:
+            return {"status": "error", "message": "Remapping is already in progress"}
+            
+        self.is_running = True
+        self.status = "Starting..."
+        self.progress = {"current": 0, "total": 0, "entities": 0, "relationships": 0}
         
-        Args:
-            clear_existing (bool): If True, deletes all nodes in Neo4j before re-mapping 
-                                   to ensure a completely clean state.
-        """
         logger.info("Starting comprehensive graph re-mapping...")
         
-        collection = vector_store.get_collection()
-        all_documents = []
-        all_metadatas = []
-        
-        offset = 0
-        limit = 100
-        
         try:
-            while True:
-                res = collection.get(limit=limit, offset=offset)
-                docs = res.get("documents", [])
-                metas = res.get("metadatas", [])
-                
-                if not docs:
-                    break
-                    
-                all_documents.extend(docs)
-                all_metadatas.extend(metas)
-                
-                if len(docs) < limit:
-                    break
-                    
-                offset += limit
-        except Exception as e:
-            logger.error(f"Failed to fetch data from vector store: {e}")
-            # Fallback if limit/offset is not perfectly supported
+            collection = vector_store.get_collection()
+            all_documents = []
+            all_metadatas = []
+            
+            offset = 0
+            limit = 100
+            
             try:
-                res = collection.get()
-                all_documents = res.get("documents", [])
-                all_metadatas = res.get("metadatas", [])
-            except Exception as e2:
-                return {"status": "error", "message": f"Vector fetch failed: {e2}"}
-
-        total_chunks = len(all_documents)
-        logger.info(f"Found {total_chunks} chunks to remap.")
-
-        if clear_existing:
-            try:
-                neo4j_client.execute_write("MATCH (n) DETACH DELETE n")
-                logger.info("Cleared existing Neo4j graph for fresh re-mapping.")
+                self.status = "Fetching documents from vector store..."
+                while True:
+                    res = collection.get(limit=limit, offset=offset)
+                    docs = res.get("documents", [])
+                    metas = res.get("metadatas", [])
+                    
+                    if not docs:
+                        break
+                        
+                    all_documents.extend(docs)
+                    all_metadatas.extend(metas)
+                    
+                    if len(docs) < limit:
+                        break
+                        
+                    offset += limit
             except Exception as e:
-                logger.error(f"Failed to clear Neo4j: {e}")
+                logger.error(f"Failed to fetch data from vector store: {e}")
+                # Fallback if limit/offset is not perfectly supported
+                try:
+                    res = collection.get()
+                    all_documents = res.get("documents", [])
+                    all_metadatas = res.get("metadatas", [])
+                except Exception as e2:
+                    self.status = f"Error: Vector fetch failed: {e2}"
+                    return {"status": "error", "message": f"Vector fetch failed: {e2}"}
 
-        total_entities = 0
-        total_rels = 0
-        
-        # We need a DB session for llm_service
-        db = SessionLocal()
-        
-        try:
-            for i, (doc, meta) in enumerate(zip(all_documents, all_metadatas)):
-                if not doc:
-                    continue
+            total_chunks = len(all_documents)
+            self.progress["total"] = total_chunks
+            logger.info(f"Found {total_chunks} chunks to remap.")
+
+            if clear_existing:
+                try:
+                    self.status = "Clearing existing graph..."
+                    neo4j_client.execute_write("MATCH (n) DETACH DELETE n")
+                    logger.info("Cleared existing Neo4j graph for fresh re-mapping.")
+                except Exception as e:
+                    logger.error(f"Failed to clear Neo4j: {e}")
+
+            total_entities = 0
+            total_rels = 0
+            
+            # We need a DB session for llm_service
+            db = SessionLocal()
+            
+            try:
+                for i, (doc, meta) in enumerate(zip(all_documents, all_metadatas)):
+                    if not doc:
+                        continue
+                        
+                    # The meta might be None in some DBs
+                    meta = meta or {}
+                    source_id = meta.get("source_id", 0)
+                    source_name = meta.get("source_name", "Remapper")
                     
-                # The meta might be None in some DBs
-                meta = meta or {}
-                source_id = meta.get("source_id", 0)
-                source_name = meta.get("source_name", "Remapper")
-                
-                logger.info(f"Remapping chunk {i+1}/{total_chunks} (Source: {source_name})")
-                
-                # Re-extract
-                extracted = llm_service.extract_entities_and_relations(doc, db=db)
-                entities = extracted.get("entities", [])
-                relationships = extracted.get("relationships", [])
-                
-                # Re-insert
-                if entities:
-                    inserted_ents = graph_builder.upsert_entities(entities, source_id, source_name)
-                    total_entities += inserted_ents
-                if relationships:
-                    inserted_rels = graph_builder.upsert_relationships(relationships, source_id)
-                    total_rels += inserted_rels
+                    self.status = f"Remapping chunk {i+1}/{total_chunks}"
+                    self.progress["current"] = i + 1
+                    logger.info(f"Remapping chunk {i+1}/{total_chunks} (Source: {source_name})")
+                    
+                    # Re-extract
+                    extracted = llm_service.extract_entities_and_relations(doc, db=db)
+                    entities = extracted.get("entities", [])
+                    relationships = extracted.get("relationships", [])
+                    
+                    # Re-insert
+                    if entities:
+                        inserted_ents = graph_builder.upsert_entities(entities, source_id, source_name)
+                        total_entities += inserted_ents
+                        self.progress["entities"] = total_entities
+                    if relationships:
+                        inserted_rels = graph_builder.upsert_relationships(relationships, source_id)
+                        total_rels += inserted_rels
+                        self.progress["relationships"] = total_rels
+            finally:
+                db.close()
+                    
+            logger.info(f"Graph remapping completed. Inserted {total_entities} entities and {total_rels} relationships.")
+            self.status = "Completed"
+            return {
+                "status": "success",
+                "chunks_processed": total_chunks,
+                "entities_created": total_entities,
+                "relationships_created": total_rels
+            }
+        except Exception as ex:
+            self.status = f"Error: {ex}"
+            logger.error(f"Remapping error: {ex}")
+            raise ex
         finally:
-            db.close()
-                
-        logger.info(f"Graph remapping completed. Inserted {total_entities} entities and {total_rels} relationships.")
-        return {
-            "status": "success",
-            "chunks_processed": total_chunks,
-            "entities_created": total_entities,
-            "relationships_created": total_rels
-        }
+            self.is_running = False
 
 graph_remapper = GraphRemapper()

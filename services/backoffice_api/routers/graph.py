@@ -82,6 +82,10 @@ async def remap_graph(
         logger.error(f"Graph remapping failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/remap/status")
+async def remap_status(user = Depends(get_current_user)):
+    return graph_remapper.get_status()
+
 @router.delete("/clear")
 def clear_graph_endpoint(user = Depends(get_current_user)):
     try:
