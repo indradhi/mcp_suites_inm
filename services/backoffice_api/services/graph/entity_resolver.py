@@ -31,8 +31,10 @@ class EntityResolver:
             entity_type = "Nama"
         elif t_upper == "DOKUMEN":
             entity_type = "Dokumen"
-        elif t_upper == "ASET":
+        elif t_upper in ["ASET", "TANAH", "RANMOR", "KENDARAAN", "PROPERTI", "BANGUNAN"]:
             entity_type = "Aset"
+        elif t_upper in ["LOKASI", "ALAMAT", "TEMPAT"]:
+            entity_type = "Lokasi"
         else:
             entity_type = entity_type_raw.title() if entity_type_raw else "UNKNOWN"
             

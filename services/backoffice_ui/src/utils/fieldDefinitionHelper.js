@@ -568,7 +568,7 @@ export function generateWhereClause(dbType = 'mysql', currentQuery = '', paramet
       // Case-insensitive partial match: UPPER(field) LIKE UPPER('%:param%')
       baseCond = `UPPER(${pName}) LIKE UPPER('%:${pName}%')`;
     } else if (pType === 'string' || !pType) {
-      baseCond = `UPPER(${pName}) = UPPER(:${pName})`;
+      baseCond = `UPPER(${pName}) LIKE UPPER(:${pName})`;
     } else {
       baseCond = `${pName} = :${pName}`;
     }

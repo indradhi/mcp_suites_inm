@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20-slim AS build
+FROM node:20.17.0-slim AS build
 WORKDIR /app
 COPY package.json ./
 RUN npm config set fetch-retries 5 \
