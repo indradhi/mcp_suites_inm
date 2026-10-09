@@ -61,14 +61,23 @@ async def get_insights(db: Session = Depends(get_db), user = Depends(get_current
     insights = await insight_generator.generate_network_insights(db)
     return {"insights": insights}
 
+from fastapi import BackgroundTasks
+
 @router.post("/remap")
 async def remap_graph(
+    background_tasks: BackgroundTasks,
     clear_existing: bool = Query(True, description="Clear existing neo4j nodes before mapping"),
     user = Depends(get_current_user)
 ):
     try:
-        result = graph_remapper.remap_all(clear_existing=clear_existing)
-        return result
+        # Menjalankan task yang berat di background agar tidak 504 Timeout
+        background_tasks.add_task(graph_remapper.remap_all, clear_existing)
+        return {
+            "status": "success",
+            "chunks_processed": "Berjalan di background",
+            "entities_created": "[Sedang diproses]",
+            "relationships_created": "[Sedang diproses]"
+        }
     except Exception as e:
         logger.error(f"Graph remapping failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
