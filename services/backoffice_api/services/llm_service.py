@@ -160,16 +160,19 @@ Analyze the following text and extract significant entities and the relationship
 3. "Perusahaan" (Company/Organization): Uniquely identified by its Name (e.g., PT, CV, Yayasan). Node Type: "Perusahaan".
 4. "Telepon" (Phone Number): Uniquely identified by MSISDN. Node Type: "Telepon".
 5. "Rekening" (Bank Account): Uniquely identified by Account Number. Node Type: "Rekening".
-6. Other entities can be LOCATION, CONCEPT, dll.
+6. "Aset" (Asset/Property/Vehicle): Land, buildings, cars, motorcycles, or other valuable items. Node Type: "Aset".
+7. "Lokasi" (Location): Cities, regions, addresses, or specific places. Node Type: "Lokasi".
+8. Other entities can be CONCEPT, dll.
 
 # Relationship Guidelines:
 1. Extract relationships EXACTLY as they are described in the text. DO NOT hallucinate or assume relationships (e.g., do not assume parents live in the same KK unless stated).
 2. Use simple, descriptive relationship names derived directly from the text (e.g., AYAH, IBU, DOMISILI, LAHIR_DI, BEKERJA_SEBAGAI, PEMILIK, MENGHUBUNGI).
-3. Extract administrative regions (Kelurahan/Desa, Kecamatan, Kabupaten/Kota, Provinsi) as distinct entities (Node Type: "Location") and relate them to the central person using relationship names like: KELURAHAN, KECAMATAN, KABUPATEN_KOTA, PROVINSI.
+3. Extract administrative regions (Kelurahan/Desa, Kecamatan, Kabupaten/Kota, Provinsi) as distinct entities (Node Type: "Lokasi") and relate them to the central person using relationship names like: KELURAHAN, KECAMATAN, KABUPATEN_KOTA, PROVINSI.
 4. "Orang" -> "Dokumen" (Identity): MEMILIKI_NIK.
 5. "Orang" / "Perusahaan" -> "Rekening": MEMILIKI_REKENING.
-6. "Rekening" -> "Rekening": TRANSFER_DANA, MUTASI.
-7. You may use generic relationships (RELATED_TO, dll.) if needed.
+6. "Orang" / "Perusahaan" -> "Aset": MEMILIKI_ASET, MEMBELI_ASET.
+7. "Rekening" -> "Rekening": TRANSFER_DANA, MUTASI.
+8. You may use generic relationships (RELATED_TO, dll.) if needed.
 
 Focus on the top 12-15 most significant entities and up to 15 relationships.
 Keep descriptions concise (under 15 words).
