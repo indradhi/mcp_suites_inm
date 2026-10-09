@@ -3,11 +3,11 @@ import cytoscape from 'cytoscape';
 import { ZoomIn, ZoomOut, Maximize2, RotateCcw } from 'lucide-react';
 
 const ENTITY_LEGEND = [
-  { type: 'PERSON', label: 'Orang / Individu', color: '#6366f1' },
-  { type: 'ORGANIZATION', label: 'Organisasi / Korporasi', color: '#06b6d4' },
-  { type: 'DOCUMENT', label: 'Dokumen / Identitas', color: '#ec4899' },
-  { type: 'ASSET', label: 'Aset / Tanah / Ranmor', color: '#f59e0b' },
-  { type: 'LOCATION', label: 'Lokasi / Wilayah', color: '#10b981' },
+  { type: 'ORANG', label: 'Orang / Individu', color: '#6366f1' },
+  { type: 'PERUSAHAAN', label: 'Organisasi / Korporasi', color: '#06b6d4' },
+  { type: 'DOKUMEN', label: 'Dokumen / Identitas', color: '#ec4899' },
+  { type: 'ASET', label: 'Aset / Tanah / Ranmor', color: '#f59e0b' },
+  { type: 'LOKASI', label: 'Lokasi / Wilayah', color: '#10b981' },
   { type: 'DATABASE_RECORD', label: 'Data Record', color: '#14b8a6' },
   { type: 'API_ENDPOINT', label: 'API Endpoint', color: '#f97316' },
   { type: 'REKENING', label: 'Rekening Bank', color: '#eab308' },

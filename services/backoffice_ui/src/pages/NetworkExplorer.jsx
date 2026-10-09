@@ -28,11 +28,15 @@ import PathFinderPanel from '../components/graph/PathFinderPanel';
 
 const ENTITY_TYPES = [
   { id: 'ALL', label: 'Semua Tipe', color: '#94a3b8' },
-  { id: 'PERSON', label: 'Orang / Individu', color: '#6366f1' },
-  { id: 'ORGANIZATION', label: 'Organisasi / Korporasi', color: '#06b6d4' },
-  { id: 'DATABASE_RECORD', label: 'Data Record', color: '#10b981' },
-  { id: 'API_ENDPOINT', label: 'API Endpoint', color: '#f59e0b' },
-  { id: 'DOCUMENT', label: 'Dokumen', color: '#ec4899' },
+  { id: 'ORANG', label: 'Orang / Individu', color: '#6366f1' },
+  { id: 'PERUSAHAAN', label: 'Organisasi / Korporasi', color: '#06b6d4' },
+  { id: 'DOKUMEN', label: 'Dokumen', color: '#ec4899' },
+  { id: 'ASET', label: 'Aset / Tanah / Ranmor', color: '#f59e0b' },
+  { id: 'LOKASI', label: 'Lokasi / Wilayah', color: '#10b981' },
+  { id: 'REKENING', label: 'Rekening Bank', color: '#eab308' },
+  { id: 'NAMA', label: 'Nama Lengkap', color: '#3b82f6' },
+  { id: 'DATABASE_RECORD', label: 'Data Record', color: '#14b8a6' },
+  { id: 'API_ENDPOINT', label: 'API Endpoint', color: '#f97316' },
   { id: 'OTHER', label: 'Lainnya', color: '#8b5cf6' }
 ];
 
