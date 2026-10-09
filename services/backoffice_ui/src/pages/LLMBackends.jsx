@@ -19,7 +19,9 @@ import {
   X,
   Server,
   Cloud,
-  ShieldCheck
+  ShieldCheck,
+  Download,
+  Upload
 } from 'lucide-react';
 import api from '../api/client';
 
@@ -391,6 +393,44 @@ export default function LLMBackends() {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      const res = await api.get('/llm/export');
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(res.data, null, 2));
+      const downloadAnchorNode = document.createElement('a');
+      downloadAnchorNode.setAttribute("href",     dataStr);
+      downloadAnchorNode.setAttribute("download", "llm_connections_export.json");
+      document.body.appendChild(downloadAnchorNode);
+      downloadAnchorNode.click();
+      downloadAnchorNode.remove();
+    } catch (err) {
+      alert('Gagal mengekspor data: ' + (err.response?.data?.detail || err.message));
+    }
+  };
+
+  const handleImport = () => {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.json';
+    fileInput.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const json = JSON.parse(event.target.result);
+          const res = await api.post('/llm/import', json);
+          alert(res.data.message || 'Import berhasil');
+          fetchData();
+        } catch (err) {
+          alert('Gagal mengimpor data: ' + (err?.response?.data?.detail || err.message));
+        }
+      };
+      reader.readAsText(file);
+    };
+    fileInput.click();
+  };
+
   const getProviderMeta = (type) => {
     return providers.find(p => p.id === type) || {
       id: type,
@@ -430,13 +470,29 @@ export default function LLMBackends() {
           </p>
         </div>
 
-        <button
-          className="btn-primary"
-          style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', fontSize: '13px', fontWeight: '600' }}
-          onClick={() => handleOpenAddModal('groq')}
-        >
-          <Plus size={16} /> Hubungkan Model / Cloud Backend
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button
+            className="btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', fontSize: '13px', fontWeight: '600' }}
+            onClick={handleImport}
+          >
+            <Upload size={16} /> Import
+          </button>
+          <button
+            className="btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', fontSize: '13px', fontWeight: '600' }}
+            onClick={handleExport}
+          >
+            <Download size={16} /> Export
+          </button>
+          <button
+            className="btn-primary"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', fontSize: '13px', fontWeight: '600' }}
+            onClick={() => handleOpenAddModal('groq')}
+          >
+            <Plus size={16} /> Hubungkan Model / Cloud Backend
+          </button>
+        </div>
       </div>
 
       {/* Cloud Presets Fast Bar */}

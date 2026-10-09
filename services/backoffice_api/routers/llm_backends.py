@@ -360,3 +360,97 @@ def update_assignment(
 
     db.commit()
     return {"message": f"Model assignment for '{payload.task}' updated to '{payload.model_name}'"}
+
+class ImportData(BaseModel):
+    backends: List[Dict[str, Any]]
+    assignments: List[Dict[str, Any]]
+
+@router.get("/export")
+def export_llm_config(db: Session = Depends(get_db), user = Depends(require_role(["admin", "editor"]))):
+    backends = db.query(LLMBackend).all()
+    assignments = db.query(ModelAssignment).all()
+    
+    export_data = {
+        "backends": [],
+        "assignments": []
+    }
+    
+    for b in backends:
+        export_data["backends"].append({
+            "name": b.name,
+            "backend_type": b.backend_type,
+            "api_base": b.api_base,
+            "api_key": b.api_key,
+            "is_active": b.is_active,
+            "available_models": b.available_models,
+            "description": b.description
+        })
+        
+    for a in assignments:
+        backend_name = a.backend.name if a.backend else None
+        export_data["assignments"].append({
+            "task": a.task,
+            "backend_name": backend_name,
+            "model_name": a.model_name,
+            "parameters": a.parameters
+        })
+        
+    return export_data
+
+@router.post("/import")
+def import_llm_config(
+    payload: ImportData, 
+    db: Session = Depends(get_db), 
+    user = Depends(require_role(["admin", "editor"]))
+):
+    try:
+        for b_data in payload.backends:
+            existing = db.query(LLMBackend).filter(LLMBackend.name == b_data["name"]).first()
+            if existing:
+                if "backend_type" in b_data: existing.backend_type = b_data["backend_type"]
+                if "api_base" in b_data: existing.api_base = b_data["api_base"]
+                if b_data.get("api_key") and b_data["api_key"] != "***":
+                    existing.api_key = b_data["api_key"]
+                if "is_active" in b_data: existing.is_active = b_data["is_active"]
+                if "available_models" in b_data: existing.available_models = b_data["available_models"]
+                if "description" in b_data: existing.description = b_data["description"]
+            else:
+                new_b = LLMBackend(
+                    name=b_data["name"],
+                    backend_type=b_data.get("backend_type", "custom"),
+                    api_base=b_data.get("api_base", ""),
+                    api_key=b_data.get("api_key") if b_data.get("api_key") != "***" else "",
+                    is_active=b_data.get("is_active", True),
+                    available_models=b_data.get("available_models", []),
+                    description=b_data.get("description")
+                )
+                db.add(new_b)
+        db.commit()
+
+        for a_data in payload.assignments:
+            backend_name = a_data.get("backend_name")
+            if not backend_name:
+                continue
+            backend = db.query(LLMBackend).filter(LLMBackend.name == backend_name).first()
+            if not backend:
+                continue
+                
+            task = a_data["task"]
+            assignment = db.query(ModelAssignment).filter(ModelAssignment.task == task).first()
+            if not assignment:
+                assignment = ModelAssignment(
+                    task=task,
+                    backend_id=backend.id,
+                    model_name=a_data.get("model_name", ""),
+                    parameters=a_data.get("parameters")
+                )
+                db.add(assignment)
+            else:
+                assignment.backend_id = backend.id
+                if "model_name" in a_data: assignment.model_name = a_data["model_name"]
+                if "parameters" in a_data: assignment.parameters = a_data["parameters"]
+        db.commit()
+        return {"message": "Import berhasil. Silakan muat ulang halaman."}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"Import failed: {str(e)}")
