@@ -343,7 +343,7 @@ class DatabaseIngester:
                         auto_where_conditions.append(f"{p_name} = {num_str}")
                 else:
                     escaped = str(val_to_use).replace("'", "''").replace("\\", "\\\\")
-                    auto_where_conditions.append(f"UPPER({p_name}) = UPPER('{escaped}')")
+                    auto_where_conditions.append(f"UPPER({p_name}) LIKE UPPER('%{escaped}%')")
                 continue
 
             if is_empty:
