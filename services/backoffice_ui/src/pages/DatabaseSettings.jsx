@@ -247,7 +247,7 @@ export default function DatabaseSettings() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
         <div>
-          <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#ffffff', marginBottom: '8px', letterSpacing: '-0.02em' }}>Database Config</h1>
+          <h1 style={{ fontSize: '28px', fontWeight: '700', color: 'var(--text-main)', marginBottom: '8px', letterSpacing: '-0.02em' }}>Database Config</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '15px' }}>Manage endpoints, vector replication, and cross-database data synchronization.</p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
@@ -255,9 +255,9 @@ export default function DatabaseSettings() {
             onClick={handleTest}
             disabled={testing || saving}
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              color: '#fff',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              background: 'var(--bg-glass-light)',
+              color: 'var(--text-main)',
+              border: '1px solid var(--border-subtle)',
               padding: '10px 16px',
               borderRadius: '8px',
               cursor: testing ? 'not-allowed' : 'pointer',
@@ -268,8 +268,8 @@ export default function DatabaseSettings() {
               transition: 'all 0.2s',
               opacity: (testing || saving) ? 0.7 : 1
             }}
-            onMouseEnter={(e) => !testing && (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)')}
-            onMouseLeave={(e) => !testing && (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)')}
+            onMouseEnter={(e) => !testing && (e.currentTarget.style.background = 'var(--border-subtle)')}
+            onMouseLeave={(e) => !testing && (e.currentTarget.style.background = 'var(--bg-glass-light)')}
           >
             <Activity size={18} />
             {testing ? 'Testing...' : 'Test Connection'}
@@ -279,9 +279,9 @@ export default function DatabaseSettings() {
             onClick={handleSave}
             disabled={saving || testing}
             style={{
-              background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+              background: 'linear-gradient(135deg, #2b394e 0%, #172233 100%)',
               color: '#fff',
-              border: 'none',
+              border: '1px solid rgba(255, 255, 255, 0.16)',
               padding: '10px 20px',
               borderRadius: '8px',
               cursor: saving ? 'not-allowed' : 'pointer',
@@ -289,7 +289,7 @@ export default function DatabaseSettings() {
               alignItems: 'center',
               gap: '8px',
               fontWeight: '600',
-              boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+              boxShadow: '0 4px 12px rgba(15, 23, 42, 0.25)',
               transition: 'all 0.2s',
               opacity: (saving || testing) ? 0.7 : 1
             }}
@@ -311,7 +311,7 @@ export default function DatabaseSettings() {
               <Database size={24} color="#818cf8" />
             </div>
             <div>
-              <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#ffffff' }}>Graph Database</h2>
+              <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-main)' }}>Graph Database</h2>
               <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '2px' }}>Neo4j connection settings</p>
             </div>
           </div>
@@ -341,7 +341,7 @@ export default function DatabaseSettings() {
               <Server size={24} color="#c084fc" />
             </div>
             <div>
-              <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#ffffff' }}>Vector Database</h2>
+              <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-main)' }}>Vector Database</h2>
               <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '2px' }}>Embedding store settings & active provider</p>
             </div>
           </div>
@@ -361,8 +361,8 @@ export default function DatabaseSettings() {
               alignItems: 'flex-start',
               gap: '12px',
               padding: '14px 16px',
-              background: settings.VECTOR_DB_DUAL_WRITE ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255, 255, 255, 0.02)',
-              border: `1px solid ${settings.VECTOR_DB_DUAL_WRITE ? 'rgba(99, 102, 241, 0.3)' : 'rgba(255, 255, 255, 0.06)'}`,
+              background: settings.VECTOR_DB_DUAL_WRITE ? 'rgba(99, 102, 241, 0.12)' : 'var(--bg-glass-light)',
+              border: `1px solid ${settings.VECTOR_DB_DUAL_WRITE ? 'rgba(99, 102, 241, 0.3)' : 'var(--bg-glass-light)'}`,
               borderRadius: '10px',
               transition: 'all 0.2s ease'
             }}>
@@ -375,7 +375,7 @@ export default function DatabaseSettings() {
                 style={{ width: '18px', height: '18px', accentColor: '#6366f1', marginTop: '2px', cursor: 'pointer' }}
               />
               <label htmlFor="vector_db_dual_write" style={{ cursor: 'pointer', userSelect: 'none', flex: 1 }}>
-                <div style={{ fontSize: '13px', fontWeight: '600', color: settings.VECTOR_DB_DUAL_WRITE ? '#818cf8' : '#ffffff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ fontSize: '13px', fontWeight: '600', color: settings.VECTOR_DB_DUAL_WRITE ? '#818cf8' : 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Zap size={14} /> Enable Real-Time Dual-Write (Replication)
                 </div>
                 <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '3px', lineHeight: '1.4' }}>
@@ -385,7 +385,7 @@ export default function DatabaseSettings() {
             </div>
 
             {provider === 'chromadb' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '18px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '18px', background: 'var(--bg-glass-2)', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px', gap: '14px' }}>
                   <div>
                     <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-secondary)', fontSize: '13px' }}>Host / IP Address</label>
@@ -404,7 +404,7 @@ export default function DatabaseSettings() {
             )}
 
             {provider === 'qdrant' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '18px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '18px', background: 'var(--bg-glass-2)', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px', gap: '14px' }}>
                   <div>
                     <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-secondary)', fontSize: '13px' }}>Host / IP Address</label>
@@ -423,7 +423,7 @@ export default function DatabaseSettings() {
                   <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-secondary)', fontSize: '13px' }}>API Key (Optional)</label>
                   <input type="password" name="QDRANT_API_KEY" value={settings.QDRANT_API_KEY || ''} onChange={handleChange} className="input-field" placeholder="Secret Key" style={{ width: '100%', fontSize: '14px' }} />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', background: 'var(--bg-glass-light)', borderRadius: '8px' }}>
                   <input type="checkbox" name="QDRANT_HTTPS" checked={settings.QDRANT_HTTPS || false} onChange={handleChange} id="qdrant_https" style={{ width: '16px', height: '16px', accentColor: 'var(--accent-primary)' }} />
                   <label htmlFor="qdrant_https" style={{ color: 'var(--text-secondary)', fontSize: '13px', cursor: 'pointer', userSelect: 'none' }}>
                     Connect via HTTPS (TLS/SSL)
@@ -446,7 +446,7 @@ export default function DatabaseSettings() {
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#ffffff' }}>Vector DB Synchronization & Migration</h2>
+                <h2 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-main)' }}>Vector DB Synchronization & Migration</h2>
                 {vectorStats && (
                   <span style={{
                     fontSize: '12px',
@@ -484,7 +484,7 @@ export default function DatabaseSettings() {
             onClick={fetchVectorStats}
             disabled={loadingStats || syncing}
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: 'var(--bg-glass-light)',
               color: 'var(--text-secondary)',
               border: '1px solid rgba(255, 255, 255, 0.1)',
               padding: '8px 14px',
@@ -511,8 +511,8 @@ export default function DatabaseSettings() {
           <div style={{
             padding: '20px',
             borderRadius: '12px',
-            background: 'rgba(255, 255, 255, 0.02)',
-            border: `1px solid ${settings.VECTOR_DB_PROVIDER === 'chromadb' ? 'rgba(99, 102, 241, 0.4)' : 'rgba(255, 255, 255, 0.06)'}`,
+            background: 'var(--bg-glass-light)',
+            border: `1px solid ${settings.VECTOR_DB_PROVIDER === 'chromadb' ? 'rgba(99, 102, 241, 0.4)' : 'var(--bg-glass-light)'}`,
             position: 'relative',
             overflow: 'hidden'
           }}>
@@ -522,7 +522,7 @@ export default function DatabaseSettings() {
               </div>
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-              <span style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff' }}>ChromaDB</span>
+              <span style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)' }}>ChromaDB</span>
               {vectorStats?.chromadb?.connected ? (
                 <span style={{ fontSize: '11px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }}></span> Connected
@@ -535,7 +535,7 @@ export default function DatabaseSettings() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '8px' }}>
-              <span style={{ fontSize: '32px', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.03em' }}>
+              <span style={{ fontSize: '32px', fontWeight: '800', color: 'var(--text-main)', letterSpacing: '-0.03em' }}>
                 {vectorStats?.chromadb?.count ?? '—'}
               </span>
               <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Indexed Chunks</span>
@@ -554,7 +554,7 @@ export default function DatabaseSettings() {
               width: '42px',
               height: '42px',
               borderRadius: '50%',
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: 'var(--bg-glass-light)',
               border: '1px solid rgba(255, 255, 255, 0.1)',
               display: 'flex',
               alignItems: 'center',
@@ -577,8 +577,8 @@ export default function DatabaseSettings() {
           <div style={{
             padding: '20px',
             borderRadius: '12px',
-            background: 'rgba(255, 255, 255, 0.02)',
-            border: `1px solid ${settings.VECTOR_DB_PROVIDER === 'qdrant' ? 'rgba(99, 102, 241, 0.4)' : 'rgba(255, 255, 255, 0.06)'}`,
+            background: 'var(--bg-glass-light)',
+            border: `1px solid ${settings.VECTOR_DB_PROVIDER === 'qdrant' ? 'rgba(99, 102, 241, 0.4)' : 'var(--bg-glass-light)'}`,
             position: 'relative',
             overflow: 'hidden'
           }}>
@@ -588,7 +588,7 @@ export default function DatabaseSettings() {
               </div>
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-              <span style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff' }}>Qdrant</span>
+              <span style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)' }}>Qdrant</span>
               {vectorStats?.qdrant?.connected ? (
                 <span style={{ fontSize: '11px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }}></span> Connected
@@ -601,7 +601,7 @@ export default function DatabaseSettings() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '8px' }}>
-              <span style={{ fontSize: '32px', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.03em' }}>
+              <span style={{ fontSize: '32px', fontWeight: '800', color: 'var(--text-main)', letterSpacing: '-0.03em' }}>
                 {vectorStats?.qdrant?.count ?? '—'}
               </span>
               <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Indexed Points</span>
@@ -619,14 +619,14 @@ export default function DatabaseSettings() {
         <div style={{
           padding: '20px',
           borderRadius: '12px',
-          background: 'rgba(0, 0, 0, 0.25)',
-          border: '1px solid rgba(255, 255, 255, 0.05)',
+          background: 'var(--bg-glass-2)',
+          border: '1px solid var(--border-subtle)',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px'
         }}>
           <div>
-            <label style={{ display: 'block', marginBottom: '10px', fontSize: '13px', fontWeight: '600', color: '#ffffff' }}>
+            <label style={{ display: 'block', marginBottom: '10px', fontSize: '13px', fontWeight: '600', color: 'var(--text-main)' }}>
               Select Synchronization Mode
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
@@ -637,8 +637,8 @@ export default function DatabaseSettings() {
                   padding: '14px 16px',
                   borderRadius: '10px',
                   cursor: 'pointer',
-                  border: `1.5px solid ${syncDirection === 'chromadb_to_qdrant' ? '#6366f1' : 'rgba(255, 255, 255, 0.08)'}`,
-                  background: syncDirection === 'chromadb_to_qdrant' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255, 255, 255, 0.02)',
+                  border: `1.5px solid ${syncDirection === 'chromadb_to_qdrant' ? '#6366f1' : 'var(--bg-glass-light)'}`,
+                  background: syncDirection === 'chromadb_to_qdrant' ? 'rgba(99, 102, 241, 0.12)' : 'var(--bg-glass-light)',
                   transition: 'all 0.2s ease'
                 }}
               >
@@ -660,8 +660,8 @@ export default function DatabaseSettings() {
                   padding: '14px 16px',
                   borderRadius: '10px',
                   cursor: 'pointer',
-                  border: `1.5px solid ${syncDirection === 'qdrant_to_chromadb' ? '#6366f1' : 'rgba(255, 255, 255, 0.08)'}`,
-                  background: syncDirection === 'qdrant_to_chromadb' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255, 255, 255, 0.02)',
+                  border: `1.5px solid ${syncDirection === 'qdrant_to_chromadb' ? '#6366f1' : 'var(--bg-glass-light)'}`,
+                  background: syncDirection === 'qdrant_to_chromadb' ? 'rgba(99, 102, 241, 0.12)' : 'var(--bg-glass-light)',
                   transition: 'all 0.2s ease'
                 }}
               >
@@ -683,8 +683,8 @@ export default function DatabaseSettings() {
                   padding: '14px 16px',
                   borderRadius: '10px',
                   cursor: 'pointer',
-                  border: `1.5px solid ${syncDirection === 'bidirectional' ? '#6366f1' : 'rgba(255, 255, 255, 0.08)'}`,
-                  background: syncDirection === 'bidirectional' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255, 255, 255, 0.02)',
+                  border: `1.5px solid ${syncDirection === 'bidirectional' ? '#6366f1' : 'var(--bg-glass-light)'}`,
+                  background: syncDirection === 'bidirectional' ? 'rgba(99, 102, 241, 0.12)' : 'var(--bg-glass-light)',
                   transition: 'all 0.2s ease'
                 }}
               >
@@ -737,9 +737,9 @@ export default function DatabaseSettings() {
               onClick={handleSync}
               disabled={syncing || (vectorStats && (!vectorStats.chromadb?.connected || !vectorStats.qdrant?.connected))}
               style={{
-                background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)',
+                background: 'linear-gradient(135deg, #2b394e 0%, #172233 100%)',
                 color: '#fff',
-                border: 'none',
+                border: '1px solid rgba(255, 255, 255, 0.16)',
                 padding: '10px 22px',
                 borderRadius: '8px',
                 cursor: syncing ? 'not-allowed' : 'pointer',
@@ -748,7 +748,7 @@ export default function DatabaseSettings() {
                 gap: '8px',
                 fontWeight: '600',
                 fontSize: '14px',
-                boxShadow: '0 4px 14px rgba(6, 182, 212, 0.3)',
+                boxShadow: '0 4px 14px rgba(15, 23, 42, 0.25)',
                 transition: 'all 0.2s',
                 opacity: syncing ? 0.7 : 1
               }}
@@ -793,11 +793,11 @@ export default function DatabaseSettings() {
               </div>
 
               {syncResult.status === 'success' && (
-                <div style={{ display: 'flex', gap: '20px', fontSize: '12px', color: 'var(--text-muted)', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px' }}>
-                  <span>Source Chunks: <strong style={{ color: '#fff' }}>{syncResult.source_count}</strong></span>
-                  <span>Synced: <strong style={{ color: '#34d399' }}>{syncResult.synced_count}</strong></span>
-                  <span>Target Before: <strong style={{ color: '#fff' }}>{syncResult.target_count_before}</strong></span>
-                  <span>Target After: <strong style={{ color: '#fff' }}>{syncResult.target_count_after}</strong></span>
+                <div style={{ display: 'flex', gap: '20px', fontSize: '12px', color: 'var(--text-muted)', borderTop: '1px solid var(--border-subtle)', paddingTop: '8px', flexWrap: 'wrap' }}>
+                  <span>Source Chunks: <strong style={{ color: 'var(--text-main)' }}>{syncResult.source_count}</strong></span>
+                  <span>Synced: <strong style={{ color: 'var(--accent-emerald)' }}>{syncResult.synced_count}</strong></span>
+                  <span>Target Before: <strong style={{ color: 'var(--text-main)' }}>{syncResult.target_count_before}</strong></span>
+                  <span>Target After: <strong style={{ color: 'var(--text-main)' }}>{syncResult.target_count_after}</strong></span>
                 </div>
               )}
             </div>

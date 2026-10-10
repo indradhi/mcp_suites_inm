@@ -229,7 +229,7 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
               <UploadCloud size={20} color="var(--accent-primary)" />
             </div>
             <div>
-              <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#ffffff', letterSpacing: '-0.02em' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
                 Import Knowledge Base Catalog
               </h2>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
@@ -288,15 +288,15 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                 gap: '10px',
                 marginTop: '6px'
               }}>
-                <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ background: 'var(--bg-glass-3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Dibuat Baru</div>
                   <div style={{ fontSize: '20px', fontWeight: '800', color: '#34d399', marginTop: '4px' }}>{resultSummary.created_count}</div>
                 </div>
-                <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ background: 'var(--bg-glass-3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Diperbarui</div>
                   <div style={{ fontSize: '20px', fontWeight: '800', color: '#60a5fa', marginTop: '4px' }}>{resultSummary.updated_count}</div>
                 </div>
-                <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ background: 'var(--bg-glass-3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Dilewati</div>
                   <div style={{ fontSize: '20px', fontWeight: '800', color: '#fca5a5', marginTop: '4px' }}>{resultSummary.skipped_count}</div>
                 </div>
@@ -304,21 +304,21 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
 
               {resultSummary.created_sources?.length > 0 && (
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  <strong style={{ color: '#ffffff' }}>Sumber baru: </strong>
+                  <strong style={{ color: 'var(--text-main)' }}>Sumber baru: </strong>
                   {resultSummary.created_sources.join(', ')}
                 </div>
               )}
 
               {resultSummary.updated_sources?.length > 0 && (
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  <strong style={{ color: '#ffffff' }}>Sumber diperbarui: </strong>
+                  <strong style={{ color: 'var(--text-main)' }}>Sumber diperbarui: </strong>
                   {resultSummary.updated_sources.join(', ')}
                 </div>
               )}
 
               {resultSummary.skipped_sources?.length > 0 && (
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  <strong style={{ color: '#ffffff' }}>Sumber dilewati: </strong>
+                  <strong style={{ color: 'var(--text-main)' }}>Sumber dilewati: </strong>
                   {resultSummary.skipped_sources.join(', ')}
                 </div>
               )}
@@ -370,7 +370,7 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                     width: '52px',
                     height: '52px',
                     borderRadius: '14px',
-                    background: 'rgba(255, 255, 255, 0.04)',
+                    background: 'var(--bg-glass-light)',
                     border: '1px solid var(--border-color)',
                     display: 'flex',
                     alignItems: 'center',
@@ -379,7 +379,7 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                     <UploadCloud size={28} color="var(--accent-primary)" />
                   </div>
                   <div>
-                    <span style={{ fontSize: '14px', fontWeight: '600', color: '#ffffff' }}>
+                    <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-main)' }}>
                       Pilih atau tarik file berkas JSON katalog ke sini
                     </span>
                     <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -432,7 +432,7 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <FileText size={18} color="var(--accent-primary)" />
                       <div>
-                        <div style={{ fontSize: '13px', fontWeight: '700', color: '#ffffff' }}>
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-main)' }}>
                           {file?.name || 'knowledge_catalog.json'}
                         </div>
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
@@ -452,12 +452,12 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
 
                   {/* Collision Strategy Options */}
                   <div style={{
-                    background: 'rgba(255, 255, 255, 0.02)',
+                    background: 'var(--bg-glass-light)',
                     border: '1px solid var(--border-color)',
                     borderRadius: '10px',
                     padding: '14px 16px'
                   }}>
-                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '10px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '10px' }}>
                       Strategi Penanganan Duplikasi Nama
                     </label>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
@@ -481,7 +481,7 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                           style={{ marginTop: '2px' }}
                         />
                         <div>
-                          <div style={{ fontSize: '12px', fontWeight: '600', color: '#ffffff' }}>Rename (Salin Baru)</div>
+                          <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-main)' }}>Rename (Salin Baru)</div>
                           <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
                             Beri akhiran <code>(Import)</code> pada nama duplikat
                           </div>
@@ -508,7 +508,7 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                           style={{ marginTop: '2px' }}
                         />
                         <div>
-                          <div style={{ fontSize: '12px', fontWeight: '600', color: '#ffffff' }}>Overwrite (Timpa)</div>
+                          <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-main)' }}>Overwrite (Timpa)</div>
                           <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
                             Perbarui konfigurasi sumber yang sudah ada
                           </div>
@@ -535,7 +535,7 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                           style={{ marginTop: '2px' }}
                         />
                         <div>
-                          <div style={{ fontSize: '12px', fontWeight: '600', color: '#ffffff' }}>Skip (Lewati)</div>
+                          <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-main)' }}>Skip (Lewati)</div>
                           <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
                             Abaikan sumber yang sudah ada di katalog
                           </div>
@@ -551,7 +551,7 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                           checked={autoSync}
                           onChange={(e) => setAutoSync(e.target.checked)}
                         />
-                        <span style={{ fontSize: '12px', color: '#ffffff', fontWeight: '500' }}>
+                        <span style={{ fontSize: '12px', color: 'var(--text-main)', fontWeight: '500' }}>
                           ⚡ Otomatis jalankan sinkronisasi data / ingestion untuk sumber yang diimpor
                         </span>
                       </label>
@@ -568,7 +568,7 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                           onChange={selectAll}
                           style={{ cursor: 'pointer', width: '15px', height: '15px', accentColor: 'var(--accent-primary)' }}
                         />
-                        <span style={{ fontSize: '12px', fontWeight: '700', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                           Pilih Sumber untuk Diimpor ({selectedIndices.length} dari {parsedData.sources.length} dipilih)
                         </span>
                       </label>
@@ -628,7 +628,7 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                               />
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 {getSourceIcon(src.source_type)}
-                                <span style={{ fontSize: '13px', fontWeight: '600', color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {src.name}
                                 </span>
                               </div>
@@ -656,7 +656,7 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                                 fontSize: '11px',
                                 textTransform: 'uppercase',
                                 color: 'var(--text-muted)',
-                                background: 'rgba(255,255,255,0.05)',
+                                background: 'var(--bg-glass-light)',
                                 padding: '2px 6px',
                                 borderRadius: '4px'
                               }}>

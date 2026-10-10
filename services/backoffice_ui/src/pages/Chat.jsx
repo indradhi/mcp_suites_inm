@@ -1064,9 +1064,9 @@ export default function Chat() {
                   gap: '6px',
                   margin: '4px 6px',
                   padding: '3px 6px',
-                  background: 'rgba(15, 23, 42, 0.7)',
+                  background: 'var(--bg-glass-2)',
                   borderRadius: '8px',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  border: '1px solid var(--border-subtle)',
                   cursor: 'pointer',
                   verticalAlign: 'middle'
                 }}
@@ -1107,9 +1107,9 @@ export default function Chat() {
                   gap: '6px',
                   margin: '4px 6px',
                   padding: '3px 6px',
-                  background: 'rgba(15, 23, 42, 0.7)',
+                  background: 'var(--bg-glass-2)',
                   borderRadius: '8px',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  border: '1px solid var(--border-subtle)',
                   cursor: 'pointer',
                   verticalAlign: 'middle'
                 }}
@@ -1146,9 +1146,9 @@ export default function Chat() {
               gap: '8px',
               margin: '6px 0',
               padding: '4px 8px',
-              background: 'rgba(15, 23, 42, 0.8)',
+              background: 'var(--bg-glass-2)',
               borderRadius: '8px',
-              border: '1px solid rgba(6, 182, 212, 0.3)',
+              border: '1px solid var(--border-subtle)',
               cursor: 'pointer',
               verticalAlign: 'middle'
             }}
@@ -1220,7 +1220,7 @@ export default function Chat() {
 
       // Bold: **text**
       if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={i} style={{ color: '#ffffff', fontWeight: '600' }}>{part.slice(2, -2)}</strong>;
+        return <strong key={i} style={{ color: 'var(--text-main)', fontWeight: '600' }}>{part.slice(2, -2)}</strong>;
       }
 
       // Code: `code`
@@ -1251,7 +1251,7 @@ export default function Chat() {
         }
         return (
           <code key={i} style={{
-            background: 'rgba(255, 255, 255, 0.08)',
+            background: 'var(--bg-glass-light)',
             padding: '2px 6px',
             borderRadius: '4px',
             fontFamily: 'JetBrains Mono, monospace',
@@ -1265,7 +1265,7 @@ export default function Chat() {
 
       // Italic: *text* or _text_
       if ((part.startsWith('*') && part.endsWith('*')) || (part.startsWith('_') && part.endsWith('_'))) {
-        return <em key={i} style={{ color: '#e2e8f0', fontStyle: 'italic' }}>{part.slice(1, -1)}</em>;
+        return <em key={i} style={{ color: 'inherit', fontStyle: 'italic' }}>{part.slice(1, -1)}</em>;
       }
 
       return part;
@@ -1554,9 +1554,9 @@ export default function Chat() {
               margin: '12px 0',
               overflowX: 'auto',
               borderRadius: '8px',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              background: 'rgba(10, 15, 29, 0.65)',
-              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.25)'
+              border: '1px solid var(--border-subtle)',
+              background: 'var(--bg-glass-1)',
+              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.08)'
             }}>
               <table style={{
                 width: '100%',
@@ -1566,7 +1566,7 @@ export default function Chat() {
               }}>
                 <thead>
                   <tr style={{
-                    background: 'linear-gradient(90deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.9) 100%)',
+                    background: 'var(--bg-glass-2)',
                     borderBottom: '2px solid rgba(99, 102, 241, 0.4)'
                   }}>
                     {block.headers.map((h, i) => (
@@ -1575,7 +1575,7 @@ export default function Chat() {
                         style={{
                           padding: '10px 14px',
                           fontWeight: '700',
-                          color: '#ffffff',
+                          color: 'var(--text-main)',
                           textAlign: block.alignments[i] || 'left',
                           letterSpacing: '0.02em',
                           whiteSpace: 'nowrap'
@@ -1591,12 +1591,12 @@ export default function Chat() {
                     <tr
                       key={rIdx}
                       style={{
-                        background: rIdx % 2 === 0 ? 'transparent' : 'rgba(255, 255, 255, 0.02)',
-                        borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+                        background: rIdx % 2 === 0 ? 'transparent' : 'var(--bg-glass-light)',
+                        borderBottom: '1px solid var(--border-subtle)',
                         transition: 'background 0.15s'
                       }}
                       onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.08)'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = rIdx % 2 === 0 ? 'transparent' : 'rgba(255, 255, 255, 0.02)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = rIdx % 2 === 0 ? 'transparent' : 'var(--bg-glass-light)'}
                     >
                       {row.map((cell, cIdx) => {
                         const cellTrimmed = (cell || '').trim();
@@ -1631,7 +1631,7 @@ export default function Chat() {
                                   alignItems: 'center',
                                   gap: '8px',
                                   cursor: 'pointer',
-                                  background: 'rgba(0,0,0,0.4)',
+                                  background: 'var(--bg-glass-3)',
                                   padding: '4px 8px',
                                   borderRadius: '8px',
                                   border: '1px solid rgba(255, 255, 255, 0.15)'
@@ -1682,9 +1682,9 @@ export default function Chat() {
                 flexDirection: 'column',
                 borderRadius: '12px',
                 overflow: 'hidden',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                background: 'rgba(5, 7, 15, 0.85)',
-                boxShadow: '0 6px 22px rgba(0, 0, 0, 0.4)',
+                border: '1px solid var(--border-subtle)',
+                background: 'var(--bg-glass-1)',
+                boxShadow: '0 6px 22px rgba(0, 0, 0, 0.15)',
                 maxWidth: '100%'
               }}>
                 {/* Image Viewport */}
@@ -1692,7 +1692,7 @@ export default function Chat() {
                   style={{
                     position: 'relative',
                     cursor: 'pointer',
-                    background: 'rgba(0, 0, 0, 0.45)',
+                    background: 'var(--bg-glass-2)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -1730,8 +1730,8 @@ export default function Chat() {
                   padding: '8px 12px',
                   fontSize: '11px',
                   color: 'var(--text-secondary)',
-                  background: 'rgba(15, 23, 42, 0.95)',
-                  borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                  background: 'var(--bg-glass-2)',
+                  borderTop: '1px solid var(--border-subtle)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -1739,7 +1739,7 @@ export default function Chat() {
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     <ImageIcon size={13} color="var(--accent-cyan)" />
-                    <span style={{ fontWeight: '600', color: '#ffffff' }}>{block.alt || 'Image'}</span>
+                    <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>{block.alt || 'Image'}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                     <span style={{
@@ -1759,7 +1759,7 @@ export default function Chat() {
                         setLightboxImage({ src: normSrc, alt: block.alt || 'Image' });
                       }}
                       style={{
-                        background: 'rgba(255, 255, 255, 0.08)',
+                        background: 'var(--bg-glass-light)',
                         border: 'none',
                         color: '#94a3b8',
                         padding: '3px 8px',
@@ -1786,19 +1786,19 @@ export default function Chat() {
               margin: '10px 0',
               borderRadius: '8px',
               overflow: 'hidden',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              background: 'rgba(5, 7, 15, 0.85)',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)'
+              border: '1px solid var(--border-subtle)',
+              background: 'var(--bg-glass-2)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)'
             }}>
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 padding: '6px 12px',
-                background: 'rgba(255, 255, 255, 0.04)',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+                background: 'var(--bg-glass-light)',
+                borderBottom: '1px solid var(--border-subtle)',
                 fontSize: '11px',
-                color: '#94a3b8'
+                color: 'var(--text-muted)'
               }}>
                 <span style={{ fontFamily: 'JetBrains Mono, monospace', textTransform: 'lowercase' }}>
                   {block.lang || 'code'}
@@ -1808,14 +1808,14 @@ export default function Chat() {
                   style={{
                     background: 'transparent',
                     border: 'none',
-                    color: '#94a3b8',
+                    color: 'var(--text-muted)',
                     cursor: 'pointer',
                     fontSize: '11px',
                     padding: '2px 6px',
                     borderRadius: '4px'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.color = '#ffffff'}
-                  onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
+                  onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-main)'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
                 >
                   Copy
                 </button>
@@ -1827,7 +1827,7 @@ export default function Chat() {
                 fontFamily: 'JetBrains Mono, monospace',
                 fontSize: '12px',
                 lineHeight: '1.5',
-                color: '#e2e8f0'
+                color: 'var(--text-main)'
               }}>
                 <code>{block.code}</code>
               </pre>
@@ -1842,7 +1842,7 @@ export default function Chat() {
               borderRadius: '10px',
               overflow: 'hidden',
               border: '1px solid rgba(168, 85, 247, 0.35)',
-              background: 'rgba(5, 7, 15, 0.85)',
+              background: 'var(--bg-glass-1)',
               position: 'relative'
             }}>
               <CytoscapeGraph
@@ -1883,7 +1883,7 @@ export default function Chat() {
               borderRadius: '10px',
               overflow: 'hidden',
               border: '1px solid rgba(6, 182, 212, 0.35)',
-              background: 'rgba(5, 7, 15, 0.85)'
+              background: 'var(--bg-glass-1)'
             }}>
               <div style={{
                 padding: '8px 12px',
@@ -1893,7 +1893,7 @@ export default function Chat() {
                 justifyContent: 'space-between',
                 borderBottom: '1px solid rgba(6, 182, 212, 0.2)'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#ffffff', fontWeight: '600' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-main)', fontWeight: '600' }}>
                   <MapPin size={14} color="var(--accent-cyan)" />
                   <span>{block.data.name || 'Map Location'}</span>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
@@ -1904,7 +1904,7 @@ export default function Chat() {
                   href={`https://www.google.com/maps?q=${block.data.lat},${block.data.lng}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#38bdf8', textDecoration: 'none' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#0284c7', textDecoration: 'none' }}
                 >
                   <span>Google Maps</span>
                   <ExternalLink size={11} />
@@ -1928,10 +1928,10 @@ export default function Chat() {
               <h2 key={idx} style={{
                 fontSize: '18px',
                 fontWeight: '800',
-                color: '#ffffff',
+                color: 'var(--text-main)',
                 margin: '16px 0 8px',
                 letterSpacing: '-0.01em',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                borderBottom: '1px solid var(--border-subtle)',
                 paddingBottom: '4px'
               }}>
                 {renderInlineStyles(block.text)}
@@ -1943,7 +1943,7 @@ export default function Chat() {
               <h3 key={idx} style={{
                 fontSize: '16px',
                 fontWeight: '700',
-                color: '#ffffff',
+                color: 'var(--text-main)',
                 margin: '14px 0 6px',
                 letterSpacing: '-0.01em'
               }}>
@@ -1956,7 +1956,7 @@ export default function Chat() {
               <h4 key={idx} style={{
                 fontSize: '14px',
                 fontWeight: '700',
-                color: '#e2e8f0',
+                color: 'var(--text-main)',
                 margin: '12px 0 4px'
               }}>
                 {renderInlineStyles(block.text)}
@@ -1967,7 +1967,7 @@ export default function Chat() {
             <h5 key={idx} style={{
               fontSize: '13px',
               fontWeight: '600',
-              color: '#cbd5e1',
+              color: 'var(--text-sub)',
               margin: '10px 0 4px'
             }}>
               {renderInlineStyles(block.text)}
@@ -1984,7 +1984,7 @@ export default function Chat() {
               borderRadius: '0 8px 8px 0',
               fontSize: '13px',
               fontStyle: 'italic',
-              color: '#cbd5e1'
+              color: 'var(--text-sub)'
             }}>
               {renderInlineStyles(block.text)}
             </div>
@@ -1994,7 +1994,7 @@ export default function Chat() {
           return (
             <div key={idx} style={{
               height: '1px',
-              background: 'rgba(255, 255, 255, 0.1)',
+              background: 'var(--border-subtle)',
               margin: '14px 0'
             }} />
           );
@@ -2070,39 +2070,28 @@ export default function Chat() {
               width: '28px',
               height: '28px',
               borderRadius: '8px',
-              background: 'linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)',
+              background: 'linear-gradient(135deg, #2b394e 0%, #172233 100%)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)'
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
             }}>
               <Bot size={16} color="#ffffff" />
             </div>
-            <span style={{ fontSize: '14px', fontWeight: '700', color: '#ffffff' }}>
+            <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-main)' }}>
               AI Knowledge Chat
             </span>
 
             {/* Quick Status Chips */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div className="flex items-center gap-1.5 flex-wrap">
               {/* Sources pill */}
               <span 
                 onClick={toggleHeaderOptions}
                 title="Klik untuk mengubah sumber pengetahuan"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '2px 8px',
-                  borderRadius: '6px',
-                  background: selectedSources.length > 0 ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                  border: `1px solid ${selectedSources.length > 0 ? 'rgba(56, 189, 248, 0.3)' : 'rgba(255, 255, 255, 0.08)'}`,
-                  color: selectedSources.length > 0 ? '#38bdf8' : 'var(--text-muted)',
-                  fontSize: '11px',
-                  fontWeight: '500',
-                  cursor: 'pointer'
-                }}
+                className="badge badge-outline gap-1.5 cursor-pointer font-semibold py-3 px-2.5 text-xs bg-base-200 border-base-300 text-base-content hover:bg-base-300 transition-all"
               >
-                <Database size={11} />
+                <Database size={12} />
                 {selectedSources.length === 0 ? 'All Sources' : `${selectedSources.length} Sources`}
               </span>
 
@@ -2114,21 +2103,9 @@ export default function Chat() {
                   setTemperature(next ? 0.0 : 0.3);
                 }}
                 title="Klik untuk toggle mode Anti-Halusinasi"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '2px 8px',
-                  borderRadius: '6px',
-                  background: strictMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                  border: `1px solid ${strictMode ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
-                  color: strictMode ? '#34d399' : '#fbbf24',
-                  fontSize: '11px',
-                  fontWeight: '600',
-                  cursor: 'pointer'
-                }}
+                className={`badge badge-outline gap-1.5 cursor-pointer font-semibold py-3 px-2.5 text-xs transition-all ${strictMode ? 'badge-success bg-success/10 text-success' : 'badge-warning bg-warning/10 text-warning'}`}
               >
-                <ShieldCheck size={11} />
+                <ShieldCheck size={12} />
                 {strictMode ? 'Anti-Halu (0.0)' : `Suhu ${temperature}`}
               </span>
 
@@ -2136,25 +2113,9 @@ export default function Chat() {
               <span 
                 onClick={toggleHeaderOptions}
                 title="Klik untuk memilih model / provider AI"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '2px 8px',
-                  borderRadius: '6px',
-                  background: selectedModelName ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                  border: `1px solid ${selectedModelName ? 'rgba(99, 102, 241, 0.35)' : 'rgba(255, 255, 255, 0.08)'}`,
-                  color: selectedModelName ? '#a5b4fc' : 'var(--text-muted)',
-                  fontSize: '11px',
-                  fontWeight: '500',
-                  cursor: 'pointer',
-                  maxWidth: '160px',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
-                }}
+                className="badge badge-outline badge-primary bg-primary/10 text-primary gap-1.5 cursor-pointer font-semibold py-3 px-2.5 text-xs truncate max-w-[160px] transition-all"
               >
-                <Cpu size={11} />
+                <Cpu size={12} />
                 {selectedModelName ? selectedModelName : 'Model: Default'}
               </span>
 
@@ -2163,21 +2124,9 @@ export default function Chat() {
                 <span 
                   onClick={() => setIsRightSidebarOpen(true)}
                   title="Lihat daftar dynamic tools di sidebar kanan"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: '2px 8px',
-                    borderRadius: '6px',
-                    background: 'rgba(6, 182, 212, 0.12)',
-                    border: '1px solid rgba(6, 182, 212, 0.25)',
-                    color: 'var(--accent-cyan)',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    cursor: 'pointer'
-                  }}
+                  className="badge badge-outline badge-info bg-info/10 text-info gap-1.5 cursor-pointer font-semibold py-3 px-2.5 text-xs transition-all"
                 >
-                  <Zap size={11} />
+                  <Zap size={12} />
                   {activeTools.length} Tools
                 </span>
               )}
@@ -2186,65 +2135,27 @@ export default function Chat() {
               <a 
                 href="/personality"
                 title="Klik untuk melihat dan mengubah kepribadian sistem MCP"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '2px 8px',
-                  borderRadius: '6px',
-                  background: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  color: '#f87171',
-                  fontSize: '11px',
-                  fontWeight: '600',
-                  textDecoration: 'none',
-                  cursor: 'pointer',
-                  maxWidth: '180px',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
-                }}
+                className="badge badge-outline badge-error bg-error/10 text-error gap-1.5 cursor-pointer font-semibold py-3 px-2.5 text-xs truncate max-w-[180px] no-underline transition-all"
               >
-                <Sparkles size={11} />
+                <Sparkles size={12} />
                 {activePersonality?.name ? activePersonality.name.replace(/\s*\(Default\)/i, '') : 'Persona: KPK'}
               </a>
             </div>
           </div>
 
           {/* Right: Quick actions & Expand Button */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="flex items-center gap-2">
             {/* Chat History Button */}
             <button
               type="button"
               onClick={() => setIsHistoryDrawerOpen(true)}
               title="Buka Riwayat Percakapan (OpenAI Standard Sessions)"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '5px 10px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: '600',
-                border: '1px solid rgba(99, 102, 241, 0.35)',
-                background: 'rgba(99, 102, 241, 0.12)',
-                color: '#c7d2fe',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(99, 102, 241, 0.25)';
-                e.currentTarget.style.color = '#ffffff';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(99, 102, 241, 0.12)';
-                e.currentTarget.style.color = '#c7d2fe';
-              }}
+              className="btn btn-xs btn-outline btn-primary"
             >
               <History size={13} />
               <span>History</span>
               {sessions.length > 0 && (
-                <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.3)', color: '#ffffff' }}>
+                <span className="badge badge-xs badge-primary ml-0.5">
                   {sessions.length}
                 </span>
               )}
@@ -2255,28 +2166,7 @@ export default function Chat() {
               type="button"
               onClick={() => setIsExploreToolsModalOpen(true)}
               title="Katalog Lengkap Tools & Parameter Schema"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '5px 10px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: '600',
-                border: '1px solid rgba(6, 182, 212, 0.35)',
-                background: 'rgba(6, 182, 212, 0.12)',
-                color: 'var(--accent-cyan)',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(6, 182, 212, 0.25)';
-                e.currentTarget.style.color = '#ffffff';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(6, 182, 212, 0.12)';
-                e.currentTarget.style.color = 'var(--accent-cyan)';
-              }}
+              className="btn btn-xs btn-outline btn-info"
             >
               <Zap size={13} />
               <span>Explore Tools</span>
@@ -2287,28 +2177,7 @@ export default function Chat() {
               type="button"
               onClick={handleNewTopic}
               title="Mulai Topik Baru (Segarkan Working Memory & Hindari Context Rot tanpa menghapus pesan di layar)"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '5px 10px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: '600',
-                border: '1px solid rgba(16, 185, 129, 0.35)',
-                background: 'rgba(16, 185, 129, 0.12)',
-                color: '#34d399',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(16, 185, 129, 0.25)';
-                e.currentTarget.style.color = '#ffffff';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(16, 185, 129, 0.12)';
-                e.currentTarget.style.color = '#34d399';
-              }}
+              className="btn btn-xs btn-outline btn-success"
             >
               <RotateCcw size={13} />
               <span>Topik Baru</span>
@@ -2318,21 +2187,7 @@ export default function Chat() {
             <button
               onClick={handleClear}
               title="Reset Conversation"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '5px 10px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                border: '1px solid var(--border-color)',
-                background: 'transparent',
-                color: 'var(--text-muted)',
-                cursor: 'pointer',
-                transition: 'color 0.2s'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.color = '#fda4af'}
-              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+              className="btn btn-xs btn-outline btn-ghost text-base-content/70 hover:text-error hover:border-error"
             >
               <Trash2 size={12} />
               <span>Reset</span>
@@ -2343,22 +2198,9 @@ export default function Chat() {
               type="button"
               onClick={() => setIsRightSidebarOpen(prev => !prev)}
               title={isRightSidebarOpen ? "Sembunyikan Sidebar Tools & Saran" : "Buka Sidebar Tools & Saran"}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '5px 10px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: isRightSidebarOpen ? '600' : '400',
-                border: `1px solid ${isRightSidebarOpen ? 'rgba(99, 102, 241, 0.4)' : 'var(--border-color)'}`,
-                background: isRightSidebarOpen ? 'rgba(99, 102, 241, 0.15)' : 'rgba(15, 23, 42, 0.8)',
-                color: isRightSidebarOpen ? '#a5b4fc' : 'var(--text-secondary)',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
+              className={`btn btn-xs ${isRightSidebarOpen ? 'btn-primary' : 'btn-outline btn-primary'}`}
             >
-              <Sparkles size={12} color={isRightSidebarOpen ? 'var(--accent-primary)' : 'var(--text-muted)'} />
+              <Sparkles size={12} />
               <span>Tools</span>
               {isRightSidebarOpen ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
             </button>
@@ -2368,28 +2210,7 @@ export default function Chat() {
               type="button"
               onClick={toggleHeaderOptions}
               title="Buka Opsi Chat & Filter Lengkap"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '5px 12px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: '600',
-                border: '1px solid rgba(99, 102, 241, 0.4)',
-                background: 'rgba(99, 102, 241, 0.15)',
-                color: '#a5b4fc',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(99, 102, 241, 0.25)';
-                e.currentTarget.style.color = '#ffffff';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(99, 102, 241, 0.15)';
-                e.currentTarget.style.color = '#a5b4fc';
-              }}
+              className="btn btn-xs btn-outline btn-primary"
             >
               <SlidersHorizontal size={13} />
               <span>Opsi Chat</span>
@@ -2417,16 +2238,17 @@ export default function Chat() {
             width: '42px',
             height: '42px',
             borderRadius: '12px',
-            background: 'linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)',
+            background: 'linear-gradient(135deg, #2b394e 0%, #172233 100%)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 4px 16px rgba(99, 102, 241, 0.3)'
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)'
           }}>
             <Bot size={24} color="#ffffff" />
           </div>
           <div>
-            <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#ffffff', letterSpacing: '-0.01em' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-main)', letterSpacing: '-0.01em' }}>
               AI Knowledge Chat
             </h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px', flexWrap: 'wrap' }}>
@@ -2469,9 +2291,9 @@ export default function Chat() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                background: selectedSources.length > 0 ? 'rgba(30, 41, 59, 0.95)' : 'rgba(15, 23, 42, 0.8)',
-                border: `1px solid ${selectedSources.length > 0 ? '#38bdf8' : 'var(--border-color)'}`,
-                color: '#ffffff',
+                background: selectedSources.length > 0 ? 'rgba(56, 189, 248, 0.15)' : 'var(--bg-glass-2)',
+                border: `1px solid ${selectedSources.length > 0 ? '#0284c7' : 'var(--border-subtle)'}`,
+                color: 'var(--text-main)',
                 padding: '8px 12px',
                 borderRadius: '8px',
                 fontSize: '13px',
@@ -2480,7 +2302,7 @@ export default function Chat() {
                 boxShadow: selectedSources.length > 0 ? '0 0 12px rgba(56, 189, 248, 0.2)' : 'none'
               }}
             >
-              <Database size={15} color={selectedSources.length > 0 ? '#38bdf8' : 'var(--text-muted)'} />
+              <Database size={15} color={selectedSources.length > 0 ? '#0284c7' : 'var(--text-muted)'} />
               <span style={{ fontWeight: selectedSources.length > 0 ? '600' : '400', maxWidth: '175px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {selectedSources.length === 0 && 'All Knowledge Sources'}
                 {selectedSources.length === 1 && (sourcesList.find(s => s.id === selectedSources[0])?.name || '1 Source Selected')}
@@ -2509,7 +2331,7 @@ export default function Chat() {
                   <X size={10} />
                 </span>
               ) : (
-                <span style={{ fontSize: '11px', background: 'rgba(255, 255, 255, 0.08)', padding: '1px 6px', borderRadius: '4px', color: 'var(--text-muted)' }}>
+                <span style={{ fontSize: '11px', background: 'var(--bg-glass-light)', padding: '1px 6px', borderRadius: '4px', color: 'var(--text-muted)' }}>
                   {sourcesList.length}
                 </span>
               )}
@@ -2532,17 +2354,18 @@ export default function Chat() {
                   left: 0,
                   zIndex: 9999,
                   width: '330px',
-                  background: '#0b1329',
-                  border: '1px solid #1e293b',
+                  background: 'var(--bg-glass-1)',
+                  backdropFilter: 'blur(16px)',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: '12px',
-                  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.7), 0 8px 10px -6px rgba(0, 0, 0, 0.7)',
+                  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2)',
                   overflow: 'hidden'
                 }}
               >
                 {/* Search Bar & Quick Actions Header */}
-                <div style={{ padding: '10px 12px', borderBottom: '1px solid #1e293b', background: 'rgba(15, 23, 42, 0.6)' }}>
+                <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-glass-2)' }}>
                   <div style={{ position: 'relative', marginBottom: '8px' }}>
-                    <Search size={13} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '9px' }} />
+                    <Search size={13} color="var(--text-muted)" style={{ position: 'absolute', left: '10px', top: '9px' }} />
                     <input
                       type="text"
                       placeholder="Search knowledge sources..."
@@ -2550,12 +2373,12 @@ export default function Chat() {
                       onChange={(e) => setSourceSearchQuery(e.target.value)}
                       style={{
                         width: '100%',
-                        background: 'rgba(30, 41, 59, 0.7)',
-                        border: '1px solid #334155',
+                        background: 'var(--bg-glass-3)',
+                        border: '1px solid var(--border-subtle)',
                         borderRadius: '6px',
                         padding: '6px 28px 6px 30px',
                         fontSize: '12px',
-                        color: '#ffffff',
+                        color: 'var(--text-main)',
                         outline: 'none',
                         boxSizing: 'border-box'
                       }}
@@ -2563,7 +2386,7 @@ export default function Chat() {
                     {sourceSearchQuery && (
                       <X
                         size={12}
-                        color="#94a3b8"
+                        color="var(--text-muted)"
                         onClick={() => setSourceSearchQuery('')}
                         style={{ position: 'absolute', right: '10px', top: '9px', cursor: 'pointer' }}
                       />
@@ -2571,7 +2394,7 @@ export default function Chat() {
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px' }}>
-                    <span style={{ color: '#94a3b8' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>
                       {selectedSources.length === 0 ? 'All sources active' : `${selectedSources.length} of ${sourcesList.length} selected`}
                     </span>
                     <div style={{ display: 'flex', gap: '8px' }}>
@@ -2581,7 +2404,7 @@ export default function Chat() {
                         style={{
                           background: 'transparent',
                           border: 'none',
-                          color: '#38bdf8',
+                          color: '#0284c7',
                           fontSize: '11px',
                           cursor: 'pointer',
                           fontWeight: '600',
@@ -2590,7 +2413,7 @@ export default function Chat() {
                       >
                         Select All
                       </button>
-                      <span style={{ color: '#475569' }}>|</span>
+                      <span style={{ color: 'var(--border-subtle)' }}>|</span>
                       <button
                         type="button"
                         onClick={clearSelectedSources}
@@ -2622,11 +2445,11 @@ export default function Chat() {
                       padding: '7px 10px',
                       borderRadius: '6px',
                       cursor: 'pointer',
-                      background: selectedSources.length === 0 ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
-                      color: selectedSources.length === 0 ? '#38bdf8' : '#e2e8f0',
+                      background: selectedSources.length === 0 ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+                      color: selectedSources.length === 0 ? '#0284c7' : 'var(--text-main)',
                       fontSize: '12px',
                       marginBottom: '4px',
-                      border: `1px solid ${selectedSources.length === 0 ? 'rgba(56, 189, 248, 0.3)' : 'transparent'}`
+                      border: `1px solid ${selectedSources.length === 0 ? 'rgba(56, 189, 248, 0.4)' : 'transparent'}`
                     }}
                   >
                     <div
@@ -2634,19 +2457,19 @@ export default function Chat() {
                         width: '16px',
                         height: '16px',
                         borderRadius: '4px',
-                        border: selectedSources.length === 0 ? '1px solid #38bdf8' : '1px solid #475569',
-                        background: selectedSources.length === 0 ? '#38bdf8' : 'transparent',
+                        border: selectedSources.length === 0 ? '1px solid #0284c7' : '1px solid var(--border-subtle)',
+                        background: selectedSources.length === 0 ? '#0284c7' : 'transparent',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center'
                       }}
                     >
-                      {selectedSources.length === 0 && <Check size={11} color="#0f172a" strokeWidth={3} />}
+                      {selectedSources.length === 0 && <Check size={11} color="#ffffff" strokeWidth={3} />}
                     </div>
                     <span style={{ fontWeight: selectedSources.length === 0 ? '600' : '400', flex: 1 }}>
                       All Knowledge Sources (Default)
                     </span>
-                    <span style={{ fontSize: '10px', color: '#64748b' }}>Universal RAG</span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Universal RAG</span>
                   </div>
 
                   {filteredSources.length === 0 ? (
@@ -2668,14 +2491,14 @@ export default function Chat() {
                             borderRadius: '6px',
                             cursor: 'pointer',
                             background: isSelected ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
-                            color: isSelected ? '#ffffff' : '#cbd5e1',
+                            color: isSelected ? 'var(--text-main)' : 'var(--text-sub)',
                             fontSize: '12px',
                             transition: 'background 0.15s',
                             border: `1px solid ${isSelected ? 'rgba(99, 102, 241, 0.35)' : 'transparent'}`,
                             marginBottom: '2px'
                           }}
                           onMouseEnter={(e) => {
-                            if (!isSelected) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
+                            if (!isSelected) e.currentTarget.style.background = 'var(--bg-glass-light)';
                           }}
                           onMouseLeave={(e) => {
                             if (!isSelected) e.currentTarget.style.background = 'transparent';
@@ -2774,14 +2597,14 @@ export default function Chat() {
                 <div
                   style={{
                     padding: '8px 12px',
-                    borderTop: '1px solid #1e293b',
-                    background: 'rgba(15, 23, 42, 0.6)',
+                    borderTop: '1px solid var(--border-subtle)',
+                    background: 'var(--bg-glass-2)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between'
                   }}
                 >
-                  <span style={{ fontSize: '11px', color: '#64748b' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                     {selectedSources.length === 0
                       ? 'Searching all sources'
                       : `${selectedSources.length} selected for query`}
@@ -2792,7 +2615,7 @@ export default function Chat() {
                     style={{
                       background: '#6366f1',
                       border: 'none',
-                      color: '#ffffff',
+                      color: 'var(--text-main)',
                       fontSize: '11px',
                       fontWeight: '600',
                       padding: '4px 10px',
@@ -2818,9 +2641,9 @@ export default function Chat() {
               title="Pilih model LLM untuk sesi chat ini (Cloud / Local)"
               style={{
                 display: 'flex', alignItems: 'center', gap: '6px',
-                background: selectedModelName ? 'rgba(30, 41, 59, 0.95)' : 'rgba(15, 23, 42, 0.8)',
-                border: `1px solid ${selectedModelName ? 'var(--accent-primary)' : 'var(--border-color)'}`,
-                color: '#ffffff',
+                background: selectedModelName ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg-glass-2)',
+                border: `1px solid ${selectedModelName ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                color: 'var(--text-main)',
                 padding: '7px 10px',
                 borderRadius: '8px',
                 fontSize: '13px',
@@ -2847,10 +2670,11 @@ export default function Chat() {
                   top: '100%',
                   left: 0,
                   zIndex: 9999,
-                  background: 'rgba(15, 23, 42, 0.98)',
-                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-glass-1)',
+                  backdropFilter: 'blur(16px)',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: '10px',
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
                   minWidth: '300px',
                   maxWidth: '420px',
                   marginTop: '4px',
@@ -2858,7 +2682,7 @@ export default function Chat() {
                 }}
               >
                 {/* Search input */}
-                <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-color)' }}>
+                <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)' }}>
                   <input
                     autoFocus
                     type="text"
@@ -2867,10 +2691,10 @@ export default function Chat() {
                     onChange={e => setModelSearchQuery(e.target.value)}
                     style={{
                       width: '100%',
-                      background: 'rgba(255,255,255,0.07)',
-                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-glass-3)',
+                      border: '1px solid var(--border-subtle)',
                       borderRadius: '6px',
-                      color: '#fff',
+                      color: 'var(--text-main)',
                       padding: '6px 10px',
                       fontSize: '13px',
                       outline: 'none',
@@ -2889,9 +2713,9 @@ export default function Chat() {
                         padding: '8px 14px',
                         cursor: 'pointer',
                         fontSize: '13px',
-                        color: !selectedModelName ? 'var(--accent-primary)' : '#e2e8f0',
+                        color: !selectedModelName ? 'var(--accent-primary)' : 'var(--text-main)',
                         background: !selectedModelName ? 'rgba(99,102,241,0.1)' : 'transparent',
-                        borderBottom: '1px solid rgba(255,255,255,0.05)'
+                        borderBottom: '1px solid var(--border-subtle)'
                       }}
                       onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.15)'}
                       onMouseLeave={e => e.currentTarget.style.background = !selectedModelName ? 'rgba(99,102,241,0.1)' : 'transparent'}
@@ -2916,8 +2740,8 @@ export default function Chat() {
                           fontWeight: 600,
                           textTransform: 'uppercase',
                           letterSpacing: '0.06em',
-                          background: 'rgba(255,255,255,0.03)',
-                          borderTop: '1px solid rgba(255,255,255,0.06)'
+                          background: 'var(--bg-glass-light)',
+                          borderTop: '1px solid var(--border-subtle)'
                         }}>
                           {b.backend_name} ({b.backend_type.toUpperCase()})
                         </div>
@@ -2937,7 +2761,7 @@ export default function Chat() {
                                 padding: '7px 14px 7px 22px',
                                 cursor: 'pointer',
                                 fontSize: '13px',
-                                color: isSelected ? 'var(--accent-primary)' : '#e2e8f0',
+                                color: isSelected ? 'var(--accent-primary)' : 'var(--text-main)',
                                 background: isSelected ? 'rgba(99,102,241,0.12)' : 'transparent',
                                 display: 'flex', alignItems: 'center', gap: '6px'
                               }}
@@ -2985,9 +2809,9 @@ export default function Chat() {
               value={topK}
               onChange={(e) => setTopK(Number(e.target.value))}
               style={{
-                background: 'rgba(15, 23, 42, 0.8)',
-                border: '1px solid var(--border-color)',
-                color: '#ffffff',
+                background: 'var(--bg-glass-2)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-main)',
                 padding: '8px 10px',
                 borderRadius: '8px',
                 fontSize: '13px',
@@ -3011,9 +2835,9 @@ export default function Chat() {
               padding: '8px 12px',
               borderRadius: '8px',
               fontSize: '13px',
-              border: `1px solid ${includeGraph ? 'var(--accent-primary)' : 'var(--border-color)'}`,
-              background: includeGraph ? 'rgba(99, 102, 241, 0.15)' : 'rgba(15, 23, 42, 0.6)',
-              color: includeGraph ? '#a5b4fc' : 'var(--text-muted)',
+              border: `1px solid ${includeGraph ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+              background: includeGraph ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg-glass-2)',
+              color: includeGraph ? 'var(--accent-primary)' : 'var(--text-muted)',
               cursor: 'pointer',
               transition: 'all 0.2s'
             }}
@@ -3042,13 +2866,13 @@ export default function Chat() {
               fontWeight: '600',
               border: `1px solid ${strictMode ? 'rgba(16, 185, 129, 0.45)' : 'rgba(245, 158, 11, 0.4)'}`,
               background: strictMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.12)',
-              color: strictMode ? '#34d399' : '#fbbf24',
+              color: strictMode ? '#059669' : '#d97706',
               cursor: 'pointer',
               transition: 'all 0.2s',
               boxShadow: strictMode ? '0 0 12px rgba(16, 185, 129, 0.15)' : 'none'
             }}
           >
-            <ShieldCheck size={15} color={strictMode ? '#10b981' : '#f59e0b'} />
+            <ShieldCheck size={15} color={strictMode ? '#059669' : '#d97706'} />
             <span>{strictMode ? 'Anti-Halu: ON' : 'Anti-Halu: OFF'}</span>
           </button>
 
@@ -3064,9 +2888,9 @@ export default function Chat() {
               }}
               title="Suhu AI: Semakin rendah (0.0), semakin ketat dan tidak mengarang data. Suhu tinggi (0.5+) lebih kreatif/variatif."
               style={{
-                background: 'rgba(15, 23, 42, 0.8)',
-                border: '1px solid var(--border-color)',
-                color: temperature === 0.0 ? '#34d399' : '#ffffff',
+                background: 'var(--bg-glass-2)',
+                border: '1px solid var(--border-subtle)',
+                color: temperature === 0.0 ? '#059669' : 'var(--text-main)',
                 padding: '8px 8px',
                 borderRadius: '8px',
                 fontSize: '12px',
@@ -3084,8 +2908,8 @@ export default function Chat() {
 
           {/* Reasoning Effort Selector (OpenAI Standard o1/o3/DeepSeek) */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '12px', color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <BrainCircuit size={13} color="#fbbf24" />
+            <span style={{ fontSize: '12px', color: '#d97706', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <BrainCircuit size={13} color="#d97706" />
               Reasoning:
             </span>
             <select
@@ -3093,9 +2917,9 @@ export default function Chat() {
               onChange={(e) => handleReasoningEffortChange(e.target.value)}
               title="OpenAI Reasoning Effort parameter ('low', 'medium', 'high', 'auto')"
               style={{
-                background: 'rgba(15, 23, 42, 0.8)',
+                background: 'var(--bg-glass-2)',
                 border: '1px solid rgba(245, 158, 11, 0.4)',
-                color: '#fcd34d',
+                color: '#d97706',
                 padding: '8px 8px',
                 borderRadius: '8px',
                 fontSize: '12px',
@@ -3136,7 +2960,7 @@ export default function Chat() {
             {activeTools.length > 0 && (
               <span style={{
                 background: 'rgba(6, 182, 212, 0.25)',
-                color: '#ffffff',
+                color: 'var(--text-main)',
                 fontSize: '11px',
                 padding: '1px 6px',
                 borderRadius: '10px'
@@ -3161,7 +2985,7 @@ export default function Chat() {
               fontWeight: '600',
               border: '1px solid rgba(99, 102, 241, 0.4)',
               background: 'rgba(99, 102, 241, 0.12)',
-              color: '#c7d2fe',
+              color: 'var(--accent-primary)',
               cursor: 'pointer',
               transition: 'all 0.2s'
             }}
@@ -3171,7 +2995,7 @@ export default function Chat() {
             {sessions.length > 0 && (
               <span style={{
                 background: 'rgba(99, 102, 241, 0.3)',
-                color: '#ffffff',
+                color: 'var(--text-main)',
                 fontSize: '11px',
                 padding: '1px 6px',
                 borderRadius: '10px'
@@ -3196,17 +3020,17 @@ export default function Chat() {
               fontWeight: '600',
               border: '1px solid rgba(16, 185, 129, 0.4)',
               background: 'rgba(16, 185, 129, 0.12)',
-              color: '#34d399',
+              color: '#059669',
               cursor: 'pointer',
               transition: 'all 0.2s'
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = 'rgba(16, 185, 129, 0.25)';
-              e.currentTarget.style.color = '#ffffff';
+              e.currentTarget.style.color = 'var(--text-main)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = 'rgba(16, 185, 129, 0.12)';
-              e.currentTarget.style.color = '#34d399';
+              e.currentTarget.style.color = '#059669';
             }}
           >
             <RotateCcw size={14} />
@@ -3224,7 +3048,7 @@ export default function Chat() {
               padding: '8px 12px',
               borderRadius: '8px',
               fontSize: '13px',
-              border: '1px solid var(--border-color)',
+              border: '1px solid var(--border-subtle)',
               background: 'transparent',
               color: 'var(--text-muted)',
               cursor: 'pointer',
@@ -3250,9 +3074,9 @@ export default function Chat() {
               borderRadius: '8px',
               fontSize: '13px',
               fontWeight: isRightSidebarOpen ? '600' : '400',
-              border: `1px solid ${isRightSidebarOpen ? 'rgba(99, 102, 241, 0.4)' : 'var(--border-color)'}`,
-              background: isRightSidebarOpen ? 'rgba(99, 102, 241, 0.15)' : 'rgba(15, 23, 42, 0.8)',
-              color: isRightSidebarOpen ? '#a5b4fc' : 'var(--text-secondary)',
+              border: `1px solid ${isRightSidebarOpen ? 'rgba(99, 102, 241, 0.4)' : 'var(--border-subtle)'}`,
+              background: isRightSidebarOpen ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg-glass-2)',
+              color: isRightSidebarOpen ? 'var(--accent-primary)' : 'var(--text-secondary)',
               cursor: 'pointer',
               transition: 'all 0.2s'
             }}
@@ -3288,14 +3112,14 @@ export default function Chat() {
               fontSize: '13px',
               fontWeight: '500',
               border: '1px solid var(--border-color)',
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: 'var(--bg-glass-light)',
               color: 'var(--text-secondary)',
               cursor: 'pointer',
               transition: 'all 0.2s'
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor = 'var(--accent-primary)';
-              e.currentTarget.style.color = '#ffffff';
+              e.currentTarget.style.color = 'var(--text-main)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.borderColor = 'var(--border-color)';
@@ -3318,11 +3142,11 @@ export default function Chat() {
               flexWrap: 'wrap',
               paddingTop: '10px',
               marginTop: '4px',
-              borderTop: '1px solid rgba(255, 255, 255, 0.07)'
+              borderTop: '1px solid var(--border-subtle)'
             }}
           >
-            <span style={{ fontSize: '12px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 500 }}>
-              <Filter size={12} color="#38bdf8" /> Querying {selectedSources.length} selected source{selectedSources.length > 1 ? 's' : ''}:
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 500 }}>
+              <Filter size={12} color="#0284c7" /> Querying {selectedSources.length} selected source{selectedSources.length > 1 ? 's' : ''}:
             </span>
             {selectedSources.map(id => {
               const src = sourcesList.find(s => s.id === id);
@@ -3339,20 +3163,20 @@ export default function Chat() {
                     border: '1px solid rgba(56, 189, 248, 0.35)',
                     borderRadius: '8px',
                     fontSize: '11px',
-                    color: '#e0f2fe',
+                    color: 'var(--text-main)',
                     fontWeight: 500
                   }}
                 >
-                  <Database size={10} color="#38bdf8" />
+                  <Database size={10} color="#0284c7" />
                   <span style={{ maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {src.name}
                   </span>
                   <X
                     size={11}
-                    color="#94a3b8"
+                    color="var(--text-muted)"
                     style={{ cursor: 'pointer', transition: 'color 0.15s' }}
                     onMouseEnter={(e) => e.currentTarget.style.color = '#f87171'}
-                    onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
                     onClick={() => toggleSourceSelection(id)}
                     title="Remove this source from selection"
                   />
@@ -3401,16 +3225,17 @@ export default function Chat() {
           <div 
             className="glass-panel" 
             style={{ 
-          position: 'relative',
-          zIndex: 1,
-          flex: 1, 
-          overflowY: 'auto', 
-          padding: '24px', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          gap: '20px' 
-        }}
-      >
+              position: 'relative',
+              zIndex: 1,
+              flex: 1, 
+              overflowY: 'auto', 
+              overflowX: 'hidden',
+              padding: '24px', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '20px' 
+            }}
+          >
         {messages.map((msg) => {
           if (msg.role === 'divider') {
             return (
@@ -3419,7 +3244,7 @@ export default function Chat() {
                 <span style={{
                   fontSize: '12px',
                   fontWeight: '600',
-                  color: '#34d399',
+                  color: '#10b981',
                   background: 'rgba(16, 185, 129, 0.12)',
                   border: '1px solid rgba(16, 185, 129, 0.3)',
                   padding: '5px 16px',
@@ -3453,7 +3278,8 @@ export default function Chat() {
               <div style={{
                 display: 'flex',
                 gap: '12px',
-                maxWidth: isUser ? '80%' : '88%',
+                maxWidth: isUser ? '80%' : '92%',
+                width: isUser ? 'auto' : '100%',
                 alignItems: 'flex-start'
               }}>
                 {/* Avatar */}
@@ -3462,13 +3288,14 @@ export default function Chat() {
                     width: '34px',
                     height: '34px',
                     borderRadius: '10px',
-                    background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                    background: 'linear-gradient(135deg, #2b394e 0%, #172233 100%)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
                     marginTop: '2px',
-                    boxShadow: '0 2px 10px rgba(99, 102, 241, 0.3)'
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
                   }}>
                     <Bot size={18} color="#ffffff" />
                   </div>
@@ -3477,15 +3304,19 @@ export default function Chat() {
                 {/* Message Bubble */}
                 <div style={{
                   background: isUser 
-                    ? 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)' 
-                    : 'rgba(15, 23, 42, 0.75)',
-                  border: isUser ? 'none' : '1px solid var(--border-color)',
+                    ? 'linear-gradient(135deg, #2b394e 0%, #1a2738 100%)' 
+                    : 'var(--bg-glass-1)',
+                  border: isUser ? '1px solid rgba(255, 255, 255, 0.14)' : '1px solid var(--border-subtle)',
                   borderRadius: isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                   padding: '16px 20px',
-                  color: isUser ? '#ffffff' : 'var(--text-primary)',
-                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+                  color: isUser ? '#ffffff' : 'var(--text-main)',
+                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
                   fontSize: '14px',
-                  lineHeight: '1.5'
+                  lineHeight: '1.5',
+                  maxWidth: '100%',
+                  wordBreak: 'break-word',
+                  overflowWrap: 'break-word',
+                  minWidth: 0
                 }}>
                   {/* Attached User Image */}
                   {isUser && msg.image && (
@@ -3540,7 +3371,7 @@ export default function Chat() {
                         )}
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span style={{ fontSize: '13px', fontWeight: '600', color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           📎 {msg.document.file_name}
                         </span>
                         <span style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.8)' }}>
@@ -3566,7 +3397,7 @@ export default function Chat() {
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         <Workflow size={15} color="#818cf8" />
-                        <span style={{ fontSize: '12px', fontWeight: '600', color: '#ffffff' }}>
+                        <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-main)' }}>
                           Alur Terpandu: {msg.matched_flow.name}
                         </span>
                         <span style={{ fontSize: '10px', background: 'rgba(99, 102, 241, 0.25)', color: '#c7d2fe', padding: '1px 6px', borderRadius: '10px', fontWeight: '600' }}>
@@ -3596,13 +3427,13 @@ export default function Chat() {
                   {isAssistant && msg.status_updates && msg.status_updates.length > 0 && (
                     <div style={{
                       marginBottom: '12px',
-                      background: 'rgba(30, 41, 59, 0.4)',
+                      background: 'var(--bg-glass-2)',
                       borderRadius: '8px',
                       padding: '12px',
-                      border: '1px solid rgba(148, 163, 184, 0.2)',
+                      border: '1px solid var(--border-subtle)',
                       fontFamily: 'monospace',
                       fontSize: '12px',
-                      color: '#94a3b8',
+                      color: 'var(--text-main)',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '4px'
@@ -3613,7 +3444,7 @@ export default function Chat() {
                         return (
                           <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             {isSpinning ? (
-                              <Loader2 size={12} className="animate-spin" style={{ color: '#60a5fa' }} />
+                              <Loader2 size={12} className="animate-spin" style={{ color: '#0284c7' }} />
                             ) : (
                               <Check size={12} style={{ color: '#10b981' }} />
                             )}
@@ -3638,7 +3469,7 @@ export default function Chat() {
                 {/* Like / Dislike Feedback Row (assistant messages only, not welcome) */}
                 {isAssistant && msg.id !== 'welcome-msg' && (
                   <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                         Apakah jawaban ini membantu?
                       </span>
@@ -3650,21 +3481,21 @@ export default function Chat() {
                         disabled={pendingFeedback[msg.id]}
                         title="Jawaban ini membantu"
                         style={{
-                          background: feedbackState[msg.id] === 'like' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                          border: feedbackState[msg.id] === 'like' ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
+                          background: feedbackState[msg.id] === 'like' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-glass-2)',
+                          border: feedbackState[msg.id] === 'like' ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid var(--border-subtle)',
                           borderRadius: '8px',
                           padding: '4px 10px',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '5px',
                           fontSize: '12px',
-                          color: feedbackState[msg.id] === 'like' ? '#34d399' : 'var(--text-muted)',
+                          color: feedbackState[msg.id] === 'like' ? '#10b981' : 'var(--text-sub)',
                           cursor: feedbackState[msg.id] === 'like' ? 'default' : 'pointer',
                           transition: 'all 0.2s',
-                          fontWeight: feedbackState[msg.id] === 'like' ? '700' : '400'
+                          fontWeight: feedbackState[msg.id] === 'like' ? '700' : '500'
                         }}
-                        onMouseEnter={(e) => { if (feedbackState[msg.id] !== 'like') { e.currentTarget.style.color = '#34d399'; e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.4)'; } }}
-                        onMouseLeave={(e) => { if (feedbackState[msg.id] !== 'like') { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; } }}
+                        onMouseEnter={(e) => { if (feedbackState[msg.id] !== 'like') { e.currentTarget.style.color = '#10b981'; e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.4)'; } }}
+                        onMouseLeave={(e) => { if (feedbackState[msg.id] !== 'like') { e.currentTarget.style.color = 'var(--text-sub)'; e.currentTarget.style.borderColor = 'var(--border-subtle)'; } }}
                       >
                         <ThumbsUp size={13} />
                         {feedbackState[msg.id] === 'like' ? 'Liked! ✓' : 'Like'}
@@ -3677,21 +3508,21 @@ export default function Chat() {
                         disabled={pendingFeedback[msg.id]}
                         title="Jawaban perlu diperbaiki"
                         style={{
-                          background: feedbackState[msg.id] === 'dislike' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                          border: feedbackState[msg.id] === 'dislike' ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
+                          background: feedbackState[msg.id] === 'dislike' ? 'rgba(239, 68, 68, 0.15)' : 'var(--bg-glass-2)',
+                          border: feedbackState[msg.id] === 'dislike' ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid var(--border-subtle)',
                           borderRadius: '8px',
                           padding: '4px 10px',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '5px',
                           fontSize: '12px',
-                          color: feedbackState[msg.id] === 'dislike' ? '#f87171' : 'var(--text-muted)',
+                          color: feedbackState[msg.id] === 'dislike' ? '#ef4444' : 'var(--text-sub)',
                           cursor: feedbackState[msg.id] === 'dislike' ? 'default' : 'pointer',
                           transition: 'all 0.2s',
-                          fontWeight: feedbackState[msg.id] === 'dislike' ? '700' : '400'
+                          fontWeight: feedbackState[msg.id] === 'dislike' ? '700' : '500'
                         }}
-                        onMouseEnter={(e) => { if (feedbackState[msg.id] !== 'dislike') { e.currentTarget.style.color = '#f87171'; e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.35)'; } }}
-                        onMouseLeave={(e) => { if (feedbackState[msg.id] !== 'dislike') { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; } }}
+                        onMouseEnter={(e) => { if (feedbackState[msg.id] !== 'dislike') { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.35)'; } }}
+                        onMouseLeave={(e) => { if (feedbackState[msg.id] !== 'dislike') { e.currentTarget.style.color = 'var(--text-sub)'; e.currentTarget.style.borderColor = 'var(--border-subtle)'; } }}
                       >
                         <ThumbsDown size={13} />
                         {feedbackState[msg.id] === 'dislike' ? 'Tercatat' : 'Dislike'}
@@ -3704,28 +3535,28 @@ export default function Chat() {
                         onClick={() => handleCopyResponse(msg.id, msg.content)}
                         title="Salin isi respon AI ke clipboard"
                         style={{
-                          background: copiedResponseId === msg.id ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                          border: copiedResponseId === msg.id ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
+                          background: copiedResponseId === msg.id ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-glass-2)',
+                          border: copiedResponseId === msg.id ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid var(--border-subtle)',
                           borderRadius: '8px',
                           padding: '4px 10px',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '5px',
                           fontSize: '12px',
-                          color: copiedResponseId === msg.id ? '#34d399' : 'var(--text-muted)',
+                          color: copiedResponseId === msg.id ? '#10b981' : 'var(--text-sub)',
                           cursor: 'pointer',
                           transition: 'all 0.2s',
-                          fontWeight: copiedResponseId === msg.id ? '700' : '400'
+                          fontWeight: copiedResponseId === msg.id ? '700' : '500'
                         }}
-                        onMouseEnter={(e) => { if (copiedResponseId !== msg.id) { e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.25)'; } }}
-                        onMouseLeave={(e) => { if (copiedResponseId !== msg.id) { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; } }}
+                        onMouseEnter={(e) => { if (copiedResponseId !== msg.id) { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.borderColor = 'var(--accent-primary)'; } }}
+                        onMouseLeave={(e) => { if (copiedResponseId !== msg.id) { e.currentTarget.style.color = 'var(--text-sub)'; e.currentTarget.style.borderColor = 'var(--border-subtle)'; } }}
                       >
-                        {copiedResponseId === msg.id ? <Check size={13} color="#34d399" /> : <Copy size={13} />}
+                        {copiedResponseId === msg.id ? <Check size={13} color="#10b981" /> : <Copy size={13} />}
                         <span>{copiedResponseId === msg.id ? 'Tersalin! ✓' : 'Salin'}</span>
                       </button>
 
                       {feedbackState[msg.id] === 'like' && (
-                        <span style={{ fontSize: '11px', color: '#34d399', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ fontSize: '11px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <Check size={12} /> Terima kasih! Response ini akan dipelajari AI.
                         </span>
                       )}
@@ -3742,7 +3573,7 @@ export default function Chat() {
                         border: '1px solid rgba(239, 68, 68, 0.25)',
                         borderRadius: '10px'
                       }}>
-                        <label style={{ fontSize: '11px', color: '#f87171', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <label style={{ fontSize: '11px', color: '#ef4444', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '5px' }}>
                           <MessageSquare size={12} /> Apa yang kurang tepat? (opsional)
                         </label>
                         <textarea
@@ -3752,11 +3583,11 @@ export default function Chat() {
                           rows={2}
                           style={{
                             width: '100%',
-                            background: 'rgba(0, 0, 0, 0.3)',
+                            background: 'var(--bg-glass-2)',
                             border: '1px solid rgba(239, 68, 68, 0.2)',
                             borderRadius: '6px',
                             padding: '6px 8px',
-                            color: '#e2e8f0',
+                            color: 'var(--text-main)',
                             fontSize: '12px',
                             fontFamily: 'inherit',
                             resize: 'none',
@@ -3907,9 +3738,9 @@ export default function Chat() {
                                 gap: '14px',
                                 marginBottom: '6px',
                                 padding: '10px 14px',
-                                background: 'rgba(5, 7, 12, 0.55)',
+                                background: 'var(--bg-glass-2)',
                                 borderRadius: '8px',
-                                border: '1px solid rgba(255, 255, 255, 0.05)',
+                                border: '1px solid var(--border-subtle)',
                                 flexWrap: 'wrap'
                               }}>
                                 {msg.face_recognition.input_face_thumbnail && (
@@ -3929,7 +3760,7 @@ export default function Chat() {
                                         border: '2px solid rgba(56, 189, 248, 0.6)'
                                       }}
                                     />
-                                    <span style={{ fontSize: '10px', color: '#38bdf8', fontWeight: '600' }}>Input Crop</span>
+                                    <span style={{ fontSize: '10px', color: '#0284c7', fontWeight: '600' }}>Input Crop</span>
                                   </div>
                                 )}
 
@@ -3964,7 +3795,7 @@ export default function Chat() {
                                           border: '2px solid rgba(52, 211, 153, 0.6)'
                                         }}
                                       />
-                                      <span style={{ fontSize: '10px', color: '#34d399', fontWeight: '600' }}>Enrolled</span>
+                                      <span style={{ fontSize: '10px', color: '#059669', fontWeight: '600' }}>Enrolled</span>
                                     </div>
                                   </>
                                 )}
@@ -3974,13 +3805,13 @@ export default function Chat() {
                                   <div style={{ marginLeft: '10px', flex: 1, minWidth: '160px', fontSize: '12px' }}>
                                     <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 8px', color: 'var(--text-secondary)' }}>
                                       <span style={{ color: 'var(--text-muted)' }}>Person ID:</span>
-                                      <strong style={{ color: '#ffffff' }}>{msg.face_recognition.person_id || 'N/A'}</strong>
+                                      <strong style={{ color: 'var(--text-main)' }}>{msg.face_recognition.person_id || 'N/A'}</strong>
 
                                       <span style={{ color: 'var(--text-muted)' }}>Department:</span>
-                                      <span style={{ color: '#e2e8f0' }}>{msg.face_recognition.department || 'N/A'}</span>
+                                      <span style={{ color: 'var(--text-main)' }}>{msg.face_recognition.department || 'N/A'}</span>
 
                                       <span style={{ color: 'var(--text-muted)' }}>Face ID:</span>
-                                      <code style={{ fontSize: '10px', color: '#93c5fd' }}>{msg.face_recognition.face_id}</code>
+                                      <code style={{ fontSize: '10px', color: '#0284c7' }}>{msg.face_recognition.face_id}</code>
                                     </div>
                                   </div>
                                 )}
@@ -3994,13 +3825,13 @@ export default function Chat() {
 
                   {/* Retrieved Sources Accordion (Assistant only) */}
                   {isAssistant && msg.sources && msg.sources.length > 0 && (
-                    <div style={{ marginTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '12px' }}>
+                    <div style={{ marginTop: '16px', borderTop: '1px solid var(--border-subtle)', paddingTop: '12px' }}>
                       <button
                         onClick={() => toggleSources(msg.id)}
                         style={{
                           background: 'transparent',
                           border: 'none',
-                          color: '#38bdf8',
+                          color: '#0284c7',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '6px',
@@ -4023,8 +3854,8 @@ export default function Chat() {
                               <div
                                 key={sIdx}
                                 style={{
-                                  background: 'rgba(5, 7, 12, 0.6)',
-                                  border: '1px solid rgba(255, 255, 255, 0.05)',
+                                  background: 'var(--bg-glass-2)',
+                                  border: '1px solid var(--border-subtle)',
                                   borderRadius: '8px',
                                   padding: '10px 14px',
                                   fontSize: '12px'
@@ -4032,7 +3863,7 @@ export default function Chat() {
                               >
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', flexWrap: 'wrap', gap: '6px' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                    <span style={{ fontWeight: '600', color: '#93c5fd' }}>
+                                    <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>
                                       {src.metadata?.source_name || 'Indexed Record'}
                                     </span>
                                     {(src.validity_tier || src.metadata?.validity_tier) && (
@@ -4056,7 +3887,7 @@ export default function Chat() {
                                   )}
                                 </div>
                                 {(src.validity_notes || src.metadata?.validity_notes) && (
-                                  <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '6px', fontStyle: 'italic' }}>
+                                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', fontStyle: 'italic' }}>
                                     ℹ️ {src.validity_notes || src.metadata?.validity_notes}
                                   </div>
                                 )}
@@ -4123,7 +3954,7 @@ export default function Chat() {
                               style={{
                                 background: 'rgba(6, 182, 212, 0.15)',
                                 border: '1px solid rgba(6, 182, 212, 0.35)',
-                                color: '#38bdf8',
+                                color: '#0284c7',
                                 padding: '3px 8px',
                                 borderRadius: '6px',
                                 fontSize: '11px',
@@ -4146,12 +3977,12 @@ export default function Chat() {
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '4px',
-                                color: '#94a3b8',
+                                color: 'var(--text-muted)',
                                 fontSize: '11px',
                                 textDecoration: 'none'
                               }}
-                              onMouseEnter={(e) => e.currentTarget.style.color = '#38bdf8'}
-                              onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
+                              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-main)'}
+                              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
                             >
                               <span>Google Maps</span>
                               <ExternalLink size={11} />
@@ -4171,8 +4002,8 @@ export default function Chat() {
                               borderRadius: '10px',
                               overflow: 'hidden',
                               border: '1px solid rgba(6, 182, 212, 0.3)',
-                              background: 'rgba(5, 7, 15, 0.85)',
-                              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)'
+                              background: 'var(--bg-glass-1)',
+                              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)'
                             }}>
                               <iframe
                                 title={`Map-${loc.name}`}
@@ -4192,14 +4023,14 @@ export default function Chat() {
 
                   {/* Graph Entities & Interactive Cytoscape Canvas (Assistant only) */}
                   {isAssistant && msg.entities && msg.entities.length > 0 && (
-                    <div style={{ marginTop: '10px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '10px' }}>
+                    <div style={{ marginTop: '10px', borderTop: '1px solid var(--border-subtle)', paddingTop: '10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                         <button
                           onClick={() => toggleEntities(msg.id)}
                           style={{
                             background: 'transparent',
                             border: 'none',
-                            color: '#c084fc',
+                            color: '#9333ea',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '6px',
@@ -4217,11 +4048,11 @@ export default function Chat() {
                         <button
                           onClick={() => toggleGraph(msg.id)}
                           style={{
-                            background: expandedGraph[msg.id] ? 'rgba(168, 85, 247, 0.25)' : 'rgba(168, 85, 247, 0.1)',
+                            background: expandedGraph[msg.id] ? 'rgba(168, 85, 247, 0.2)' : 'var(--bg-glass-2)',
                             border: '1px solid rgba(168, 85, 247, 0.35)',
                             borderRadius: '6px',
                             padding: '3px 8px',
-                            color: '#e9d5ff',
+                            color: 'var(--text-main)',
                             fontSize: '11px',
                             fontWeight: '600',
                             display: 'flex',
@@ -4231,7 +4062,7 @@ export default function Chat() {
                             transition: 'all 0.2s'
                           }}
                         >
-                          <Network size={13} color="#c084fc" />
+                          <Network size={13} color="#9333ea" />
                           <span>{expandedGraph[msg.id] ? 'Hide Canvas' : 'View Network Graph'}</span>
                         </button>
                       </div>
@@ -4244,9 +4075,9 @@ export default function Chat() {
                           borderRadius: '10px',
                           overflow: 'hidden',
                           border: '1px solid rgba(168, 85, 247, 0.35)',
-                          background: 'rgba(5, 7, 15, 0.85)',
+                          background: 'var(--bg-glass-1)',
                           position: 'relative',
-                          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)'
+                          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)'
                         }}>
                           <CytoscapeGraph
                             elements={buildGraphElements(msg.entities)}
@@ -4257,8 +4088,9 @@ export default function Chat() {
                             bottom: '8px',
                             right: '10px',
                             fontSize: '10px',
-                            color: '#94a3b8',
-                            background: 'rgba(15, 23, 42, 0.75)',
+                            color: 'var(--text-sub)',
+                            background: 'var(--bg-glass-1)',
+                            border: '1px solid var(--border-subtle)',
                             padding: '2px 8px',
                             borderRadius: '4px',
                             pointerEvents: 'none'
@@ -4279,12 +4111,12 @@ export default function Chat() {
                                 borderRadius: '6px',
                                 padding: '4px 10px',
                                 fontSize: '11px',
-                                color: '#e9d5ff'
+                                color: 'var(--text-main)'
                               }}
                             >
                               <strong>{ent.name}</strong> <span style={{ opacity: 0.7 }}>({ent.type})</span>
                               {ent.connections && ent.connections.length > 0 && (
-                                <div style={{ fontSize: '10px', color: '#c084fc', marginTop: '2px' }}>
+                                <div style={{ fontSize: '10px', color: 'var(--text-sub)', marginTop: '2px' }}>
                                   {ent.connections.join(', ')}
                                 </div>
                               )}
@@ -4297,7 +4129,7 @@ export default function Chat() {
 
                   {/* Dynamic API Tools Accordion (Assistant only) */}
                   {isAssistant && msg.tools_executed && msg.tools_executed.length > 0 && (
-                    <div style={{ marginTop: '10px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '10px' }}>
+                    <div style={{ marginTop: '10px', borderTop: '1px solid var(--border-subtle)', paddingTop: '10px' }}>
                       <button
                         onClick={() => toggleTools(msg.id)}
                         style={{
@@ -4350,7 +4182,7 @@ export default function Chat() {
                                     {tool.success && (
                                       <span style={{
                                         background: 'rgba(16, 185, 129, 0.15)',
-                                        color: '#34d399',
+                                        color: '#10b981',
                                         padding: '2px 8px',
                                         borderRadius: '12px',
                                         fontSize: '10px',
@@ -4362,7 +4194,7 @@ export default function Chat() {
                                     )}
                                     <span style={{
                                       background: tool.success ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)',
-                                      color: tool.success ? 'var(--accent-emerald)' : '#f87171',
+                                      color: tool.success ? '#10b981' : '#f87171',
                                       padding: '2px 8px',
                                       borderRadius: '12px',
                                       fontSize: '10px',
@@ -4384,12 +4216,13 @@ export default function Chat() {
                                   <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>Parameters:</span>
                                   <div style={{
                                     marginTop: '4px',
-                                    background: 'rgba(0,0,0,0.35)',
+                                    background: 'var(--bg-glass-2)',
+                                    border: '1px solid var(--border-subtle)',
                                     borderRadius: '4px',
                                     padding: '6px 8px',
                                     fontFamily: 'JetBrains Mono, monospace',
                                     fontSize: '11px',
-                                    color: '#e2e8f0',
+                                    color: 'var(--text-main)',
                                     whiteSpace: 'pre-wrap'
                                   }}>
                                     {JSON.stringify(tool.arguments, null, 2)}
@@ -4403,7 +4236,7 @@ export default function Chat() {
                                 if (extractedImgs.length === 0) return null;
 
                                 return (
-                                  <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '6px' }}>
+                                  <div style={{ marginTop: '8px', borderTop: '1px solid var(--border-subtle)', paddingTop: '6px' }}>
                                     <div style={{ fontSize: '11px', color: 'var(--accent-cyan)', fontWeight: '600', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                       <ImageIcon size={12} /> Discovered Photos in Tool Output ({extractedImgs.length}):
                                     </div>
@@ -4444,7 +4277,7 @@ export default function Chat() {
                                 if (extractedPolys.length === 0) return null;
 
                                 return (
-                                  <div style={{ marginTop: '10px', borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '8px' }}>
+                                  <div style={{ marginTop: '10px', borderTop: '1px solid var(--border-subtle)', paddingTop: '8px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                                       <div style={{ fontSize: '11px', color: 'var(--accent-cyan)', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                         <Compass size={12} /> Peta Bidang Tanah Spasial ({extractedPolys.length} Polygon GeoJSON):
@@ -4455,7 +4288,7 @@ export default function Chat() {
                                         style={{
                                           background: 'rgba(6, 182, 212, 0.15)',
                                           border: '1px solid rgba(6, 182, 212, 0.35)',
-                                          color: '#38bdf8',
+                                          color: '#0284c7',
                                           borderRadius: '4px',
                                           padding: '2px 8px',
                                           fontSize: '10px',
@@ -4497,7 +4330,7 @@ export default function Chat() {
                     <div style={{
                       marginTop: '14px',
                       paddingTop: '10px',
-                      borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                      borderTop: '1px solid var(--border-subtle)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
@@ -4535,12 +4368,12 @@ export default function Chat() {
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '3px',
-                              color: msg.metrics.strict_mode !== false ? '#34d399' : '#fbbf24',
-                              background: msg.metrics.strict_mode !== false ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                              color: msg.metrics.strict_mode !== false ? '#059669' : '#d97706',
+                              background: msg.metrics.strict_mode !== false ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
                               padding: '1px 6px',
                               borderRadius: '4px',
-                              border: `1px solid ${msg.metrics.strict_mode !== false ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)'}`,
-                              fontWeight: '500'
+                              border: `1px solid ${msg.metrics.strict_mode !== false ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
+                              fontWeight: '600'
                             }}>
                               <ShieldCheck size={11} />
                               {msg.metrics.strict_mode !== false ? 'Faktual (Anti-Halu)' : `Fleksibel (${msg.metrics.temperature || 0.3})`}
@@ -4556,12 +4389,12 @@ export default function Chat() {
                                   display: 'inline-flex',
                                   alignItems: 'center',
                                   gap: '3px',
-                                  color: msg.context_rot_guard.task_shift_detected ? '#38bdf8' : '#a78bfa',
-                                  background: msg.context_rot_guard.task_shift_detected ? 'rgba(56, 189, 248, 0.12)' : 'rgba(167, 139, 250, 0.1)',
+                                  color: msg.context_rot_guard.task_shift_detected ? '#0284c7' : '#7c3aed',
+                                  background: msg.context_rot_guard.task_shift_detected ? 'rgba(56, 189, 248, 0.15)' : 'rgba(167, 139, 250, 0.15)',
                                   padding: '1px 6px',
                                   borderRadius: '4px',
-                                  border: `1px solid ${msg.context_rot_guard.task_shift_detected ? 'rgba(56, 189, 248, 0.35)' : 'rgba(167, 139, 250, 0.25)'}`,
-                                  fontWeight: '500'
+                                  border: `1px solid ${msg.context_rot_guard.task_shift_detected ? 'rgba(56, 189, 248, 0.35)' : 'rgba(167, 139, 250, 0.3)'}`,
+                                  fontWeight: '600'
                                 }}
                               >
                                 <ShieldCheck size={11} />
@@ -4588,15 +4421,15 @@ export default function Chat() {
                         onClick={() => handleCopyResponse(msg.id, msg.content)}
                         title="Salin isi respon AI ke clipboard"
                         style={{
-                          background: copiedResponseId === msg.id ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.06)',
-                          border: `1px solid ${copiedResponseId === msg.id ? 'rgba(16, 185, 129, 0.5)' : 'rgba(255, 255, 255, 0.12)'}`,
+                          background: copiedResponseId === msg.id ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-glass-2)',
+                          border: `1px solid ${copiedResponseId === msg.id ? 'rgba(16, 185, 129, 0.5)' : 'var(--border-subtle)'}`,
                           borderRadius: '7px',
                           padding: '4px 10px',
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '6px',
                           fontSize: '12px',
-                          color: copiedResponseId === msg.id ? '#34d399' : '#e2e8f0',
+                          color: copiedResponseId === msg.id ? '#10b981' : 'var(--text-main)',
                           cursor: 'pointer',
                           transition: 'all 0.2s',
                           fontWeight: copiedResponseId === msg.id ? '600' : '500',
@@ -4604,20 +4437,20 @@ export default function Chat() {
                         }}
                         onMouseEnter={(e) => {
                           if (copiedResponseId !== msg.id) {
-                            e.currentTarget.style.color = '#ffffff';
+                            e.currentTarget.style.color = 'var(--text-main)';
                             e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                            e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)';
+                            e.currentTarget.style.background = 'rgba(99, 102, 241, 0.15)';
                           }
                         }}
                         onMouseLeave={(e) => {
                           if (copiedResponseId !== msg.id) {
-                            e.currentTarget.style.color = '#e2e8f0';
-                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
-                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                            e.currentTarget.style.color = 'var(--text-main)';
+                            e.currentTarget.style.borderColor = 'var(--border-subtle)';
+                            e.currentTarget.style.background = 'var(--bg-glass-2)';
                           }
                         }}
                       >
-                        {copiedResponseId === msg.id ? <Check size={13} color="#34d399" /> : <Copy size={13} />}
+                        {copiedResponseId === msg.id ? <Check size={13} color="#10b981" /> : <Copy size={13} />}
                         <span>{copiedResponseId === msg.id ? 'Tersalin! ✓' : 'Salin Respon'}</span>
                       </button>
                     </div>
@@ -4652,23 +4485,25 @@ export default function Chat() {
               width: '34px',
               height: '34px',
               borderRadius: '10px',
-              background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+              background: 'linear-gradient(135deg, #2b394e 0%, #172233 100%)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              flexShrink: 0
+              flexShrink: 0,
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
             }}>
               <Bot size={18} color="#ffffff" />
             </div>
             <div style={{
-              background: 'rgba(15, 23, 42, 0.75)',
-              border: '1px solid var(--border-color)',
+              background: 'var(--bg-glass-1)',
+              border: '1px solid var(--border-subtle)',
               borderRadius: '16px 16px 16px 4px',
               padding: '14px 20px',
               display: 'flex',
               alignItems: 'center',
               gap: '10px',
-              color: 'var(--text-secondary)',
+              color: 'var(--text-main)',
               fontSize: '13px'
             }}>
               <Loader2 size={16} className="animate-spin" color="var(--accent-primary)" />
@@ -4706,7 +4541,7 @@ export default function Chat() {
                 }}
               />
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '12px', fontWeight: '600', color: '#ffffff' }}>
+                <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-main)' }}>
                   Image attached for Face Recognition
                 </span>
                 <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
@@ -4717,7 +4552,7 @@ export default function Chat() {
                 onClick={() => setAttachedImage(null)}
                 title="Remove attached image"
                 style={{
-                  background: 'rgba(255, 255, 255, 0.1)',
+                  background: 'var(--border-subtle)',
                   border: 'none',
                   borderRadius: '50%',
                   width: '24px',
@@ -4726,12 +4561,12 @@ export default function Chat() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: 'pointer',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   marginLeft: '8px',
                   transition: 'background 0.2s'
                 }}
                 onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.5)'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'var(--border-subtle)'}
               >
                 <X size={14} />
               </button>
@@ -4771,7 +4606,7 @@ export default function Chat() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {attachedDocument.file_name}
                   </span>
                   <span style={{
@@ -4795,7 +4630,7 @@ export default function Chat() {
                 onClick={() => setAttachedDocument(null)}
                 title="Hapus lampiran dokumen"
                 style={{
-                  background: 'rgba(255, 255, 255, 0.1)',
+                  background: 'var(--border-subtle)',
                   border: 'none',
                   borderRadius: '50%',
                   width: '24px',
@@ -4804,13 +4639,13 @@ export default function Chat() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: 'pointer',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   marginLeft: '8px',
                   flexShrink: 0,
                   transition: 'background 0.2s'
                 }}
                 onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.5)'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'var(--border-subtle)'}
               >
                 <X size={14} />
               </button>
@@ -4864,7 +4699,7 @@ export default function Chat() {
                 width: '42px',
                 height: '42px',
                 borderRadius: '10px',
-                background: attachedDocument ? 'rgba(52, 211, 153, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                background: attachedDocument ? 'rgba(52, 211, 153, 0.25)' : 'var(--bg-glass-light)',
                 border: `1px solid ${attachedDocument ? '#34d399' : 'var(--border-color)'}`,
                 display: 'flex',
                 alignItems: 'center',
@@ -4876,7 +4711,7 @@ export default function Chat() {
               }}
               onMouseEnter={(e) => {
                 if (!docUploading) {
-                  e.currentTarget.style.color = '#ffffff';
+                  e.currentTarget.style.color = 'var(--text-main)';
                   e.currentTarget.style.borderColor = '#34d399';
                 }
               }}
@@ -4897,7 +4732,7 @@ export default function Chat() {
                 width: '42px',
                 height: '42px',
                 borderRadius: '10px',
-                background: attachedImage ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                background: attachedImage ? 'rgba(99, 102, 241, 0.25)' : 'var(--bg-glass-light)',
                 border: `1px solid ${attachedImage ? 'var(--accent-primary)' : 'var(--border-color)'}`,
                 display: 'flex',
                 alignItems: 'center',
@@ -4908,7 +4743,7 @@ export default function Chat() {
                 flexShrink: 0
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.color = '#ffffff';
+                e.currentTarget.style.color = 'var(--text-main)';
                 e.currentTarget.style.borderColor = 'var(--accent-primary)';
               }}
               onMouseLeave={(e) => {
@@ -4938,7 +4773,7 @@ export default function Chat() {
                 background: 'transparent',
                 border: 'none',
                 outline: 'none',
-                color: '#ffffff',
+                color: 'var(--text-main)',
                 fontSize: '14px',
                 lineHeight: '1.5',
                 resize: 'none',
@@ -4956,17 +4791,19 @@ export default function Chat() {
                 height: '42px',
                 borderRadius: '10px',
                 background: (input.trim() || attachedImage || attachedDocument) && !loading && !docUploading
-                  ? 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)'
-                  : 'rgba(255, 255, 255, 0.05)',
-                border: 'none',
+                  ? 'linear-gradient(135deg, #2b394e 0%, #172233 100%)'
+                  : 'var(--bg-glass-light)',
+                border: (input.trim() || attachedImage || attachedDocument) && !loading && !docUploading
+                  ? '1px solid rgba(255, 255, 255, 0.16)'
+                  : '1px solid transparent',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: (input.trim() || attachedImage || attachedDocument) && !loading && !docUploading ? 'pointer' : 'not-allowed',
-                color: '#ffffff',
+                color: (input.trim() || attachedImage || attachedDocument) && !loading && !docUploading ? '#f8fafc' : 'var(--text-muted)',
                 transition: 'all 0.2s',
                 flexShrink: 0,
-                boxShadow: (input.trim() || attachedImage || attachedDocument) && !loading && !docUploading ? '0 4px 14px rgba(99, 102, 241, 0.4)' : 'none'
+                boxShadow: (input.trim() || attachedImage || attachedDocument) && !loading && !docUploading ? '0 2px 8px rgba(0, 0, 0, 0.25)' : 'none'
               }}
             >
               {loading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
@@ -4989,6 +4826,7 @@ export default function Chat() {
             padding: '16px',
             gap: '16px',
             overflowY: 'auto',
+            overflowX: 'hidden',
             flexShrink: 0,
             zIndex: 10
           }}
@@ -4999,7 +4837,7 @@ export default function Chat() {
             alignItems: 'center',
             justifyContent: 'space-between',
             paddingBottom: '12px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.08)'
+            borderBottom: '1px solid var(--border-subtle)'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <div style={{
@@ -5015,7 +4853,7 @@ export default function Chat() {
                 <Zap size={14} color="var(--accent-cyan)" />
               </div>
               <div>
-                <h3 style={{ fontSize: '13px', fontWeight: '700', color: '#ffffff', margin: 0 }}>
+                <h3 style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>
                   Tools & Suggestions
                 </h3>
                 <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
@@ -5039,7 +4877,7 @@ export default function Chat() {
                 justifyContent: 'center',
                 transition: 'color 0.15s'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.color = '#ffffff'}
+              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-main)'}
               onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
             >
               <ChevronRight size={18} />
@@ -5056,7 +4894,7 @@ export default function Chat() {
                 fontSize: '11px',
                 padding: '2px 8px',
                 borderRadius: '10px',
-                background: activeTools.length > 0 ? 'rgba(6, 182, 212, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                background: activeTools.length > 0 ? 'rgba(6, 182, 212, 0.15)' : 'var(--bg-glass-2)',
                 color: activeTools.length > 0 ? 'var(--accent-cyan)' : 'var(--text-muted)',
                 fontWeight: '600'
               }}>
@@ -5068,8 +4906,8 @@ export default function Chat() {
               <div style={{
                 padding: '14px',
                 borderRadius: '10px',
-                background: 'rgba(255, 255, 255, 0.02)',
-                border: '1px dashed rgba(255, 255, 255, 0.1)',
+                background: 'var(--bg-glass-2)',
+                border: '1px dashed var(--border-subtle)',
                 fontSize: '12px',
                 color: 'var(--text-muted)',
                 textAlign: 'center',
@@ -5082,7 +4920,7 @@ export default function Chat() {
                 {activeTools.map((t, idx) => {
                   const isMcp = t.source_type === 'mcp' || t.source_type === 'mcp_server' || t.name.startsWith('mcp_');
                   const isDb = !isMcp && (t.source_type === 'database' || t.name.startsWith('db_'));
-                  const toolColor = isMcp ? '#c084fc' : (isDb ? 'var(--accent-primary)' : 'var(--accent-cyan)');
+                  const toolColor = isMcp ? '#9333ea' : (isDb ? 'var(--accent-primary)' : 'var(--accent-cyan)');
                   const toolBg = isMcp ? 'rgba(168, 85, 247, 0.08)' : (isDb ? 'rgba(99, 102, 241, 0.08)' : 'rgba(6, 182, 212, 0.06)');
                   const toolBorder = isMcp ? 'rgba(168, 85, 247, 0.25)' : (isDb ? 'rgba(99, 102, 241, 0.25)' : 'rgba(6, 182, 212, 0.25)');
 
@@ -5099,7 +4937,7 @@ export default function Chat() {
                         gap: '6px'
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', minWidth: 0 }}>
                         <span style={{
                           fontFamily: 'JetBrains Mono, monospace',
                           fontSize: '12px',
@@ -5107,7 +4945,9 @@ export default function Chat() {
                           color: toolColor,
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
+                          whiteSpace: 'nowrap',
+                          minWidth: 0,
+                          flex: 1
                         }}>
                           ⚡ {t.name}
                         </span>
@@ -5137,9 +4977,9 @@ export default function Chat() {
                                 fontSize: '10px',
                                 padding: '1px 6px',
                                 borderRadius: '4px',
-                                background: 'rgba(255, 255, 255, 0.05)',
-                                border: '1px solid rgba(255, 255, 255, 0.08)',
-                                color: 'var(--text-muted)'
+                                background: 'var(--bg-glass-2)',
+                                border: '1px solid var(--border-subtle)',
+                                color: 'var(--text-main)'
                               }}
                             >
                               {p.name}{p.required ? '*' : ''}
@@ -5173,12 +5013,12 @@ export default function Chat() {
                   onClick={() => handleSend(prompt)}
                   disabled={loading}
                   style={{
-                    background: 'rgba(15, 23, 42, 0.6)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    background: 'var(--bg-glass-2)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '10px',
                     padding: '10px 12px',
                     fontSize: '12px',
-                    color: 'var(--text-secondary)',
+                    color: 'var(--text-main)',
                     cursor: loading ? 'not-allowed' : 'pointer',
                     textAlign: 'left',
                     lineHeight: '1.4',
@@ -5191,16 +5031,16 @@ export default function Chat() {
                   onMouseEnter={(e) => {
                     if (!loading) {
                       e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                      e.currentTarget.style.background = 'rgba(99, 102, 241, 0.1)';
-                      e.currentTarget.style.color = '#ffffff';
+                      e.currentTarget.style.background = 'rgba(99, 102, 241, 0.12)';
+                      e.currentTarget.style.color = 'var(--text-main)';
                       e.currentTarget.style.transform = 'translateY(-1px)';
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (!loading) {
-                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
-                      e.currentTarget.style.background = 'rgba(15, 23, 42, 0.6)';
-                      e.currentTarget.style.color = 'var(--text-secondary)';
+                      e.currentTarget.style.borderColor = 'var(--border-subtle)';
+                      e.currentTarget.style.background = 'var(--bg-glass-2)';
+                      e.currentTarget.style.color = 'var(--text-main)';
                       e.currentTarget.style.transform = 'none';
                     }
                   }}
@@ -5225,27 +5065,27 @@ export default function Chat() {
             right: '0',
             top: '16px',
             zIndex: 20,
-            background: 'rgba(30, 41, 59, 0.9)',
-            border: '1px solid rgba(99, 102, 241, 0.4)',
+            background: 'var(--bg-glass-1)',
+            border: '1px solid var(--border-subtle)',
             borderRight: 'none',
             borderRadius: '8px 0 0 8px',
             padding: '10px 6px',
-            color: '#a5b4fc',
+            color: 'var(--text-main)',
             cursor: 'pointer',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             gap: '6px',
-            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.4)',
+            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.2)',
             transition: 'all 0.2s'
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(99, 102, 241, 0.25)';
-            e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.6)';
+            e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)';
+            e.currentTarget.style.borderColor = 'var(--accent-primary)';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'rgba(30, 41, 59, 0.9)';
-            e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.4)';
+            e.currentTarget.style.background = 'var(--bg-glass-1)';
+            e.currentTarget.style.borderColor = 'var(--border-subtle)';
           }}
         >
           <ChevronLeft size={16} />
@@ -5295,11 +5135,12 @@ export default function Chat() {
               display: 'flex',
               alignItems: 'center',
               gap: '10px',
-              background: 'rgba(15, 23, 42, 0.85)',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
+              background: 'var(--bg-glass-1)',
+              backdropFilter: 'blur(16px)',
+              border: '1px solid var(--border-subtle)',
               borderRadius: '12px',
               padding: '6px 10px',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)'
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)'
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -5314,7 +5155,7 @@ export default function Chat() {
               }}
               title="Copy image source or base64"
             >
-              {copiedImage ? <Check size={14} color="#34d399" /> : <Copy size={14} />}
+              {copiedImage ? <Check size={14} color="#059669" /> : <Copy size={14} />}
               <span>{copiedImage ? 'Copied!' : 'Copy Image Source'}</span>
             </button>
 
@@ -5334,9 +5175,9 @@ export default function Chat() {
             <button
               onClick={() => setLightboxImage(null)}
               style={{
-                background: 'rgba(255, 255, 255, 0.08)',
+                background: 'var(--bg-glass-light)',
                 border: 'none',
-                color: '#ffffff',
+                color: 'var(--text-main)',
                 borderRadius: '8px',
                 width: '32px',
                 height: '32px',
@@ -5379,13 +5220,13 @@ export default function Chat() {
             {lightboxImage.alt && (
               <div style={{
                 marginTop: '12px',
-                color: '#ffffff',
+                color: 'var(--text-main)',
                 fontSize: '13px',
                 fontWeight: '600',
-                background: 'rgba(15, 23, 42, 0.8)',
+                background: 'var(--bg-glass-1)',
                 padding: '4px 14px',
                 borderRadius: '20px',
-                border: '1px solid rgba(255, 255, 255, 0.1)'
+                border: '1px solid var(--border-subtle)'
               }}>
                 {lightboxImage.alt}
               </div>

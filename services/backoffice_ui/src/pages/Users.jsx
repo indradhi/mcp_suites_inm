@@ -67,7 +67,7 @@ export default function Users() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ fontSize: '28px', fontWeight: '800', letterSpacing: '-0.03em', color: '#ffffff' }}>
+          <h1 style={{ fontSize: '28px', fontWeight: '800', letterSpacing: '-0.03em', color: 'var(--text-main)' }}>
             Users & Role-Based Access Control
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>
@@ -92,40 +92,54 @@ export default function Users() {
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
-              <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: '14px' }}>
-                <td style={{ padding: '14px 12px', fontWeight: '700', color: '#ffffff' }}>
-                  {u.username}
-                </td>
-                <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>
-                  {u.full_name || '-'}
-                </td>
-                <td style={{ padding: '14px 12px', color: 'var(--text-muted)' }}>
-                  {u.email}
-                </td>
-                <td style={{ padding: '14px 12px' }}>
-                  <span className={`badge ${u.role === 'admin' ? 'badge-danger' : u.role === 'editor' ? 'badge-info' : 'badge-success'}`}>
-                    {u.role.toUpperCase()}
-                  </span>
-                </td>
-                <td style={{ padding: '14px 12px' }}>
-                  <span style={{ color: u.is_active ? 'var(--accent-emerald)' : 'var(--text-muted)', fontSize: '12px', fontWeight: '600' }}>
-                    {u.is_active ? 'Active' : 'Disabled'}
-                  </span>
-                </td>
-                <td style={{ padding: '14px 12px', textAlign: 'right' }}>
-                  {u.username !== 'admin' && (
-                    <button
-                      className="btn-danger"
-                      style={{ padding: '6px 10px' }}
-                      onClick={() => handleDeleteUser(u.id)}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
+            {loading ? (
+              <tr>
+                <td colSpan="6" style={{ padding: '32px 12px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  Loading users...
                 </td>
               </tr>
-            ))}
+            ) : users.length === 0 ? (
+              <tr>
+                <td colSpan="6" style={{ padding: '32px 12px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  No users found. Click "Add User" to create one.
+                </td>
+              </tr>
+            ) : (
+              users.map((u) => (
+                <tr key={u.id} style={{ borderBottom: '1px solid var(--border-subtle)', fontSize: '14px' }}>
+                  <td style={{ padding: '14px 12px', fontWeight: '700', color: 'var(--text-main)' }}>
+                    {u.username}
+                  </td>
+                  <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>
+                    {u.full_name || '-'}
+                  </td>
+                  <td style={{ padding: '14px 12px', color: 'var(--text-muted)' }}>
+                    {u.email}
+                  </td>
+                  <td style={{ padding: '14px 12px' }}>
+                    <span className={`badge ${u.role === 'admin' ? 'badge-danger' : u.role === 'editor' ? 'badge-info' : 'badge-success'}`}>
+                      {u.role.toUpperCase()}
+                    </span>
+                  </td>
+                  <td style={{ padding: '14px 12px' }}>
+                    <span style={{ color: u.is_active ? 'var(--accent-emerald)' : 'var(--text-muted)', fontSize: '12px', fontWeight: '600' }}>
+                      {u.is_active ? 'Active' : 'Disabled'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '14px 12px', textAlign: 'right' }}>
+                    {u.username !== 'admin' && (
+                      <button
+                        className="btn-danger"
+                        style={{ padding: '6px 10px' }}
+                        onClick={() => handleDeleteUser(u.id)}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -134,7 +148,7 @@ export default function Users() {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ padding: '32px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#ffffff' }}>Create New Backoffice User</h2>
+              <h2 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-main)' }}>Create New Backoffice User</h2>
               <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <X size={20} />
               </button>
@@ -198,12 +212,13 @@ export default function Users() {
                 </label>
                 <select
                   className="input-field"
+                  style={{ background: 'var(--bg-glass-3)', color: 'var(--text-main)', borderColor: 'var(--border-subtle)' }}
                   value={roleId}
                   onChange={(e) => setRoleId(parseInt(e.target.value))}
                 >
-                  <option value={1}>Admin (Full Control)</option>
-                  <option value={2}>Editor (Manage Knowledge & Models)</option>
-                  <option value={3}>Viewer (Read-Only Access)</option>
+                  <option value={1} style={{ background: 'var(--bg-glass-1, #1e293b)', color: 'var(--text-main)' }}>Admin (Full Control)</option>
+                  <option value={2} style={{ background: 'var(--bg-glass-1, #1e293b)', color: 'var(--text-main)' }}>Editor (Manage Knowledge & Models)</option>
+                  <option value={3} style={{ background: 'var(--bg-glass-1, #1e293b)', color: 'var(--text-main)' }}>Viewer (Read-Only Access)</option>
                 </select>
               </div>
 

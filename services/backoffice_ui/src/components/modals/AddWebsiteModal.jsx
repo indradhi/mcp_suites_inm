@@ -65,7 +65,7 @@ export default function AddWebsiteModal({ isOpen, onClose, onSuccess, initialDat
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {initialData ? <Edit2 size={20} color="var(--accent-emerald)" /> : <Globe size={20} color="var(--accent-emerald)" />}
-            <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#ffffff' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-main)' }}>
               {initialData ? 'Edit Website Knowledge Source' : 'Add Website Knowledge Source'}
             </h2>
           </div>
@@ -74,7 +74,7 @@ export default function AddWebsiteModal({ isOpen, onClose, onSuccess, initialDat
             onClick={onClose}
             title="Tutup Modal"
             style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', borderRadius: '6px' }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.background = 'var(--border-subtle)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'none'; }}
           >
             <X size={20} />

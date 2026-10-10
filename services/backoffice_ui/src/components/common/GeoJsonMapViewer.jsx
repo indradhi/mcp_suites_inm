@@ -254,7 +254,7 @@ function generateLeafletSrcDoc(features, activeIndex = -1) {
             var cm = L.circleMarker(c, {
               radius: 5,
               fillColor: '#fbbf24',
-              color: '#ffffff',
+              color: 'var(--text-main)',
               weight: 2,
               opacity: 1,
               fillOpacity: 0.95
@@ -382,8 +382,8 @@ export default function GeoJsonMapViewer({
       borderRadius: '10px',
       overflow: 'hidden',
       border: '1px solid rgba(6, 182, 212, 0.35)',
-      background: 'rgba(5, 7, 15, 0.85)',
-      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.35)'
+      background: 'var(--bg-glass-1)',
+      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)'
     }}>
       {/* Header Bar */}
       <div style={{
@@ -397,7 +397,7 @@ export default function GeoJsonMapViewer({
         borderBottom: '1px solid rgba(6, 182, 212, 0.2)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#ffffff', fontWeight: '700' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-main)', fontWeight: '700' }}>
             <Compass size={15} color="var(--accent-cyan)" />
             <span>{displayTitle}</span>
           </div>
@@ -408,7 +408,7 @@ export default function GeoJsonMapViewer({
               padding: '1px 6px',
               borderRadius: '4px',
               background: 'rgba(16, 185, 129, 0.15)',
-              color: '#34d399',
+              color: '#10b981',
               border: '1px solid rgba(16, 185, 129, 0.3)',
               fontWeight: '600'
             }}>
@@ -437,12 +437,12 @@ export default function GeoJsonMapViewer({
                 onClick={handleCopyGeoJson}
                 title="Salin GeoJSON ke clipboard"
                 style={{
-                  background: copied ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.06)',
-                  border: `1px solid ${copied ? 'rgba(16, 185, 129, 0.5)' : 'rgba(255, 255, 255, 0.12)'}`,
+                  background: copied ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-glass-2)',
+                  border: `1px solid ${copied ? 'rgba(16, 185, 129, 0.5)' : 'var(--border-subtle)'}`,
                   borderRadius: '6px',
                   padding: '3px 8px',
                   fontSize: '11px',
-                  color: copied ? '#34d399' : '#e2e8f0',
+                  color: copied ? '#10b981' : 'var(--text-main)',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
@@ -450,7 +450,7 @@ export default function GeoJsonMapViewer({
                   transition: 'all 0.2s'
                 }}
               >
-                {copied ? <Check size={11} color="#34d399" /> : <Copy size={11} />}
+                {copied ? <Check size={11} color="#10b981" /> : <Copy size={11} />}
                 <span>{copied ? 'Tersalin' : 'GeoJSON'}</span>
               </button>
 
@@ -466,7 +466,7 @@ export default function GeoJsonMapViewer({
                     borderRadius: '6px',
                     padding: '3px 8px',
                     fontSize: '11px',
-                    color: '#38bdf8',
+                    color: '#0284c7',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '4px',
@@ -488,7 +488,7 @@ export default function GeoJsonMapViewer({
                     borderRadius: '6px',
                     padding: '3px 8px',
                     fontSize: '11px',
-                    color: '#e9d5ff',
+                    color: 'var(--text-main)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '4px',
@@ -511,16 +511,16 @@ export default function GeoJsonMapViewer({
           display: 'flex',
           gap: '4px',
           padding: '6px 12px',
-          background: 'rgba(15, 23, 42, 0.7)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          background: 'var(--bg-glass-2)',
+          borderBottom: '1px solid var(--border-subtle)',
           overflowX: 'auto'
         }}>
           <button
             onClick={() => setActiveTab(-1)}
             style={{
-              background: activeTab === -1 ? 'rgba(6, 182, 212, 0.25)' : 'rgba(255, 255, 255, 0.05)',
-              border: `1px solid ${activeTab === -1 ? 'var(--accent-cyan)' : 'rgba(255, 255, 255, 0.1)'}`,
-              color: activeTab === -1 ? '#ffffff' : '#94a3b8',
+              background: activeTab === -1 ? 'rgba(6, 182, 212, 0.25)' : 'var(--bg-glass-1)',
+              border: `1px solid ${activeTab === -1 ? 'var(--accent-cyan)' : 'var(--border-subtle)'}`,
+              color: 'var(--text-main)',
               borderRadius: '4px',
               padding: '2px 8px',
               fontSize: '11px',
@@ -542,9 +542,9 @@ export default function GeoJsonMapViewer({
                 key={idx}
                 onClick={() => setActiveTab(idx)}
                 style={{
-                  background: isSelected ? 'rgba(6, 182, 212, 0.25)' : 'rgba(255, 255, 255, 0.05)',
-                  border: `1px solid ${isSelected ? 'var(--accent-cyan)' : 'rgba(255, 255, 255, 0.1)'}`,
-                  color: isSelected ? '#ffffff' : '#94a3b8',
+                  background: isSelected ? 'rgba(6, 182, 212, 0.25)' : 'var(--bg-glass-1)',
+                  border: `1px solid ${isSelected ? 'var(--accent-cyan)' : 'var(--border-subtle)'}`,
+                  color: 'var(--text-main)',
                   borderRadius: '4px',
                   padding: '2px 8px',
                   fontSize: '11px',
@@ -576,12 +576,12 @@ export default function GeoJsonMapViewer({
           bottom: '6px',
           left: '8px',
           fontSize: '10px',
-          color: '#94a3b8',
-          background: 'rgba(15, 23, 42, 0.85)',
+          color: 'var(--text-sub)',
+          background: 'var(--bg-glass-1)',
           padding: '2px 6px',
           borderRadius: '4px',
           pointerEvents: 'none',
-          border: '1px solid rgba(255, 255, 255, 0.08)'
+          border: '1px solid var(--border-subtle)'
         }}>
           🛰️ Esri Satellite / 🗺️ OSM • Scroll Zoom • Klik bidang untuk detail
         </div>

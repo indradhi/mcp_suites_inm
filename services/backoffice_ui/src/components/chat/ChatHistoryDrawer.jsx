@@ -226,7 +226,7 @@ export default function ChatHistoryDrawer({
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0, 0, 0, 0.6)',
+          background: 'var(--bg-glass-3)',
           backdropFilter: 'blur(4px)',
           zIndex: 9980,
           animation: 'fadeIn 0.2s ease-out'
@@ -243,9 +243,9 @@ export default function ChatHistoryDrawer({
           bottom: 0,
           width: '340px',
           maxWidth: '90vw',
-          background: 'rgba(15, 23, 42, 0.98)',
-          borderRight: '1px solid rgba(255, 255, 255, 0.1)',
-          boxShadow: '10px 0 30px rgba(0, 0, 0, 0.5)',
+          background: 'var(--bg-glass-1)',
+          borderRight: '1px solid var(--border-subtle)',
+          boxShadow: '10px 0 30px rgba(0, 0, 0, 0.4)',
           zIndex: 9990,
           display: 'flex',
           flexDirection: 'column',
@@ -256,7 +256,7 @@ export default function ChatHistoryDrawer({
         <div
           style={{
             padding: '16px 18px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            borderBottom: '1px solid var(--border-subtle)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -265,7 +265,7 @@ export default function ChatHistoryDrawer({
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <MessageSquare size={18} color="var(--accent-primary)" />
-            <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff', margin: 0 }}>
+            <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>
               Riwayat Obrolan
             </h3>
           </div>
@@ -290,7 +290,7 @@ export default function ChatHistoryDrawer({
         <div
           style={{
             padding: '12px 16px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+            borderBottom: '1px solid var(--border-subtle)',
             display: 'flex',
             flexDirection: 'column',
             gap: '8px'
@@ -311,7 +311,7 @@ export default function ChatHistoryDrawer({
               padding: '9px 14px',
               borderRadius: '8px',
               background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-              color: '#ffffff',
+              color: 'var(--text-main)',
               border: 'none',
               fontSize: '13px',
               fontWeight: '600',
@@ -336,8 +336,8 @@ export default function ChatHistoryDrawer({
                 gap: '5px',
                 padding: '6px 8px',
                 borderRadius: '6px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                background: 'var(--bg-glass-light)',
+                border: '1px solid var(--border-subtle)',
                 color: 'var(--text-secondary)',
                 fontSize: '11px',
                 cursor: 'pointer'
@@ -358,8 +358,8 @@ export default function ChatHistoryDrawer({
                 gap: '5px',
                 padding: '6px 8px',
                 borderRadius: '6px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                background: 'var(--bg-glass-light)',
+                border: '1px solid var(--border-subtle)',
                 color: 'var(--text-secondary)',
                 fontSize: '11px',
                 cursor: 'pointer'
@@ -414,17 +414,17 @@ export default function ChatHistoryDrawer({
                           justifyContent: 'space-between',
                           padding: '8px 10px',
                           borderRadius: '8px',
-                          background: isActive ? 'rgba(99, 102, 241, 0.18)' : 'rgba(255, 255, 255, 0.02)',
+                          background: isActive ? 'rgba(99, 102, 241, 0.18)' : 'var(--bg-glass-light)',
                           border: `1px solid ${isActive ? 'rgba(99, 102, 241, 0.45)' : 'transparent'}`,
-                          color: isActive ? '#ffffff' : 'var(--text-secondary)',
+                          color: isActive ? 'var(--text-main)' : 'var(--text-secondary)',
                           cursor: 'pointer',
                           transition: 'all 0.15s ease'
                         }}
                         onMouseEnter={(e) => {
-                          if (!isActive) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                          if (!isActive) e.currentTarget.style.background = 'var(--bg-glass-2)';
                         }}
                         onMouseLeave={(e) => {
-                          if (!isActive) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+                          if (!isActive) e.currentTarget.style.background = 'var(--bg-glass-light)';
                         }}
                       >
                         {isEditing ? (
@@ -443,11 +443,11 @@ export default function ChatHistoryDrawer({
                               autoFocus
                               style={{
                                 flex: 1,
-                                background: 'rgba(0, 0, 0, 0.4)',
+                                background: 'var(--bg-glass-3)',
                                 border: '1px solid var(--accent-primary)',
                                 borderRadius: '4px',
                                 padding: '3px 6px',
-                                color: '#ffffff',
+                                color: 'var(--text-main)',
                                 fontSize: '12px',
                                 outline: 'none'
                               }}
@@ -538,8 +538,8 @@ export default function ChatHistoryDrawer({
         <div
           style={{
             padding: '12px 16px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-            background: 'rgba(10, 15, 29, 0.8)',
+            borderTop: '1px solid var(--border-subtle)',
+            background: 'var(--bg-glass-2)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between'
@@ -551,7 +551,7 @@ export default function ChatHistoryDrawer({
               Format Standar OpenAI v1
             </span>
           </div>
-          <span style={{ fontSize: '10px', color: '#64748b' }}>
+          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
             {sessions.length} sesi tersimpan
           </span>
         </div>
@@ -579,8 +579,8 @@ export default function ChatHistoryDrawer({
               width: '100%',
               maxWidth: '680px',
               maxHeight: '80vh',
-              background: 'rgba(15, 23, 42, 0.98)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
+              background: 'var(--bg-glass-1)',
+              border: '1px solid var(--border-subtle)',
               borderRadius: '14px',
               display: 'flex',
               flexDirection: 'column',
@@ -592,7 +592,7 @@ export default function ChatHistoryDrawer({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <FileJson size={18} color="var(--accent-primary)" />
-                <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff', margin: 0 }}>
+                <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>
                   OpenAI Chat Completions Payload JSON
                 </h3>
               </div>
@@ -615,11 +615,11 @@ export default function ChatHistoryDrawer({
               rows={14}
               style={{
                 width: '100%',
-                background: 'rgba(0, 0, 0, 0.5)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                background: 'var(--bg-glass-3)',
+                border: '1px solid var(--border-subtle)',
                 borderRadius: '8px',
                 padding: '12px',
-                color: '#38bdf8',
+                color: 'var(--accent-cyan)',
                 fontFamily: 'JetBrains Mono, monospace',
                 fontSize: '11px',
                 lineHeight: '1.5',
@@ -639,9 +639,9 @@ export default function ChatHistoryDrawer({
                   gap: '6px',
                   padding: '7px 14px',
                   borderRadius: '6px',
-                  background: copiedExport ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.08)',
-                  border: `1px solid ${copiedExport ? 'rgba(16, 185, 129, 0.4)' : 'rgba(255, 255, 255, 0.15)'}`,
-                  color: copiedExport ? '#34d399' : '#ffffff',
+                  background: copiedExport ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-glass-light)',
+                  border: `1px solid ${copiedExport ? 'rgba(16, 185, 129, 0.4)' : 'var(--border-subtle)'}`,
+                  color: copiedExport ? '#059669' : 'var(--text-main)',
                   fontSize: '12px',
                   cursor: 'pointer'
                 }}
@@ -661,7 +661,7 @@ export default function ChatHistoryDrawer({
                   borderRadius: '6px',
                   background: 'var(--accent-primary)',
                   border: 'none',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   fontSize: '12px',
                   fontWeight: '600',
                   cursor: 'pointer'
@@ -696,8 +696,8 @@ export default function ChatHistoryDrawer({
             style={{
               width: '100%',
               maxWidth: '680px',
-              background: 'rgba(15, 23, 42, 0.98)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
+              background: 'var(--bg-glass-1)',
+              border: '1px solid var(--border-subtle)',
               borderRadius: '14px',
               display: 'flex',
               flexDirection: 'column',
@@ -709,7 +709,7 @@ export default function ChatHistoryDrawer({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Upload size={18} color="var(--accent-primary)" />
-                <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff', margin: 0 }}>
+                <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>
                   Impor Obrolan OpenAI JSON
                 </h3>
               </div>
@@ -752,11 +752,11 @@ export default function ChatHistoryDrawer({
               rows={12}
               style={{
                 width: '100%',
-                background: 'rgba(0, 0, 0, 0.5)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                background: 'var(--bg-glass-3)',
+                border: '1px solid var(--border-subtle)',
                 borderRadius: '8px',
                 padding: '12px',
-                color: '#ffffff',
+                color: 'var(--text-main)',
                 fontFamily: 'JetBrains Mono, monospace',
                 fontSize: '11px',
                 lineHeight: '1.5',
@@ -774,7 +774,7 @@ export default function ChatHistoryDrawer({
                   padding: '7px 14px',
                   borderRadius: '6px',
                   background: 'transparent',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  border: '1px solid var(--border-subtle)',
                   color: 'var(--text-muted)',
                   fontSize: '12px',
                   cursor: 'pointer'
@@ -794,7 +794,7 @@ export default function ChatHistoryDrawer({
                   borderRadius: '6px',
                   background: 'var(--accent-primary)',
                   border: 'none',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   fontSize: '12px',
                   fontWeight: '600',
                   cursor: 'pointer'

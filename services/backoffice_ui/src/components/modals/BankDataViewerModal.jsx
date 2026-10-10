@@ -206,7 +206,7 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', letterSpacing: '-0.01em' }}>
                   Data Bank Terindeks
                 </h2>
                 <ValidityBadge
@@ -220,17 +220,17 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                   textTransform: 'uppercase',
                   padding: '2px 8px',
                   borderRadius: '6px',
-                  background: isTool ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.08)',
-                  color: isTool ? '#a5b4fc' : 'var(--text-secondary)',
-                  border: '1px solid var(--border-color)'
+                  background: isTool ? 'var(--bg-glass-3)' : 'var(--bg-glass-light)',
+                  color: isTool ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                  border: '1px solid var(--border-subtle)'
                 }}>
                   {source.source_type}
                 </span>
               </div>
               <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontWeight: '600', color: '#e2e8f0' }}>{source.name}</span>
+                <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>{source.name}</span>
                 <span>•</span>
-                <span style={{ color: 'var(--accent-cyan)', fontWeight: '700' }}>
+                <span style={{ color: 'var(--accent-primary)', fontWeight: '700' }}>
                   {totalItems.toLocaleString()} rekaman data tersimpan
                 </span>
                 {isTool && (
@@ -263,7 +263,7 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                 borderRadius: '8px',
                 fontSize: '12px',
                 fontWeight: '600',
-                color: '#ffffff',
+                color: 'var(--text-main)',
                 background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(168, 85, 247, 0.35))',
                 border: '1px solid rgba(168, 85, 247, 0.5)',
                 textDecoration: 'none',
@@ -292,7 +292,7 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
               onClick={onClose}
               title="Tutup Modal"
               style={{ 
-                background: 'rgba(255, 255, 255, 0.05)', 
+                background: 'var(--bg-glass-light)', 
                 border: '1px solid var(--border-color)', 
                 color: 'var(--text-muted)', 
                 cursor: 'pointer', 
@@ -303,8 +303,8 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                 justifyContent: 'center',
                 transition: 'all 0.2s ease'
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'var(--bg-glass-light)'; }}
             >
               <X size={18} />
             </button>
@@ -384,9 +384,9 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                   setPage(1);
                 }}
                 style={{
-                  background: 'rgba(0, 0, 0, 0.3)',
+                  background: 'var(--bg-glass-3)',
                   border: '1px solid var(--border-color)',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   padding: '5px 8px',
                   borderRadius: '6px',
                   fontSize: '12px',
@@ -458,7 +458,7 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
               border: '1px dashed var(--border-color)'
             }}>
               <Database size={40} color="var(--text-muted)" style={{ margin: '0 auto 14px auto', opacity: 0.6 }} />
-              <div style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff', marginBottom: '6px' }}>
+              <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)', marginBottom: '6px' }}>
                 {debouncedSearch ? `Tidak ada data yang cocok dengan "${debouncedSearch}"` : 'Belum Ada Data Bank Tersimpan'}
               </div>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', maxWidth: '520px', margin: '0 auto', lineHeight: '1.5' }}>
@@ -482,8 +482,8 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
               <div 
                 key={item.id} 
                 style={{
-                  background: 'rgba(15, 23, 42, 0.6)',
-                  border: isBank ? '1px solid rgba(6, 182, 212, 0.25)' : '1px solid var(--border-color)',
+                  background: 'var(--bg-glass-2)',
+                  border: isBank ? '1px solid rgba(6, 182, 212, 0.35)' : '1px solid var(--border-subtle)',
                   borderRadius: '10px',
                   padding: '14px 16px',
                   transition: 'all 0.2s ease',
@@ -503,8 +503,8 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                     <span style={{
                       fontSize: '11px',
                       fontWeight: '800',
-                      background: 'rgba(255, 255, 255, 0.08)',
-                      color: '#cbd5e1',
+                      background: 'var(--bg-glass-light)',
+                      color: 'var(--text-sub)',
                       padding: '2px 7px',
                       borderRadius: '4px'
                     }}>
@@ -516,9 +516,9 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                       style={{
                         fontFamily: 'JetBrains Mono, monospace',
                         fontSize: '11px',
-                        color: isBank ? 'var(--accent-cyan)' : '#a5b4fc',
-                        background: isBank ? 'rgba(6, 182, 212, 0.12)' : 'rgba(99, 102, 241, 0.12)',
-                        border: `1px solid ${isBank ? 'rgba(6, 182, 212, 0.3)' : 'rgba(99, 102, 241, 0.3)'}`,
+                        color: isBank ? 'var(--accent-cyan)' : 'var(--accent-primary)',
+                        background: isBank ? 'rgba(6, 182, 212, 0.12)' : 'var(--bg-glass-3)',
+                        border: `1px solid ${isBank ? 'rgba(6, 182, 212, 0.3)' : 'var(--border-subtle)'}`,
                         padding: '2px 8px',
                         borderRadius: '5px',
                         fontWeight: '600'
@@ -586,7 +586,7 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                       type="button"
                       onClick={() => handleCopy(item.id, item.document)}
                       style={{
-                        background: copiedId === item.id ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                        background: copiedId === item.id ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-glass-light)',
                         border: `1px solid ${copiedId === item.id ? 'rgba(16, 185, 129, 0.4)' : 'var(--border-color)'}`,
                         color: copiedId === item.id ? '#34d399' : 'var(--text-secondary)',
                         borderRadius: '6px',
@@ -653,25 +653,25 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                           target="_blank"
                           rel="noreferrer"
                           style={{
-                            background: 'rgba(99, 102, 241, 0.15)',
-                            border: '1px solid rgba(99, 102, 241, 0.4)',
-                            color: '#c7d2fe',
-                            borderRadius: '6px',
+                            background: 'var(--bg-glass-2)',
+                            color: 'var(--text-secondary)',
+                            border: '1px solid var(--border-subtle)',
                             padding: '4px 8px',
+                            borderRadius: '6px',
                             fontSize: '11px',
                             fontWeight: '600',
-                            textDecoration: 'none',
-                            cursor: 'pointer',
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '4px',
+                            textDecoration: 'none',
+                            cursor: 'pointer',
                             transition: 'all 0.15s ease'
                           }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.35)'; e.currentTarget.style.color = '#ffffff'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.15)'; e.currentTarget.style.color = '#c7d2fe'; }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-glass-3)'; e.currentTarget.style.color = 'var(--text-main)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--bg-glass-2)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
                           title={`Telusuri relasi entitas "${itemSubj}" di Network Graph`}
                         >
-                          <Share2 size={11} color="#a5b4fc" />
+                          <Share2 size={11} color="currentColor" />
                           <span>Graph</span>
                         </a>
                       );
@@ -682,9 +682,9 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                       type="button"
                       onClick={() => toggleExpand(item.id)}
                       style={{
-                        background: isExpanded ? 'rgba(6, 182, 212, 0.1)' : 'rgba(255, 255, 255, 0.1)',
+                        background: isExpanded ? 'rgba(6, 182, 212, 0.1)' : 'var(--border-subtle)',
                         border: `1px solid ${isExpanded ? 'var(--accent-cyan)' : 'var(--border-color)'}`,
-                        color: isExpanded ? 'var(--accent-cyan)' : '#ffffff',
+                        color: isExpanded ? 'var(--accent-cyan)' : 'var(--text-main)',
                         borderRadius: '6px',
                         padding: '4px 10px',
                         fontSize: '11px',
@@ -730,7 +730,7 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                         left: 0,
                         right: 0,
                         height: '60px',
-                        background: 'linear-gradient(to bottom, transparent, rgba(15, 23, 42, 1) 90%)',
+                        background: 'linear-gradient(to bottom, transparent, var(--bg-glass-2) 90%)',
                         display: 'flex',
                         alignItems: 'flex-end',
                         justifyContent: 'center',
@@ -770,7 +770,7 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
           <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
             {totalItems > 0 ? (
               <>
-                Menampilkan <span style={{ color: '#ffffff', fontWeight: '600' }}>{(page - 1) * pageSize + 1}</span> - <span style={{ color: '#ffffff', fontWeight: '600' }}>{Math.min(page * pageSize, totalItems)}</span> dari <span style={{ color: 'var(--accent-cyan)', fontWeight: '700' }}>{totalItems.toLocaleString()}</span> rekaman
+                Menampilkan <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{(page - 1) * pageSize + 1}</span> - <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{Math.min(page * pageSize, totalItems)}</span> dari <span style={{ color: 'var(--accent-cyan)', fontWeight: '700' }}>{totalItems.toLocaleString()}</span> rekaman
               </>
             ) : (
               '0 rekaman ditemukan'
@@ -831,8 +831,8 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                 padding: '6px 16px',
                 fontSize: '12px',
                 marginLeft: '8px',
-                background: 'rgba(255, 255, 255, 0.1)',
-                color: '#ffffff'
+                background: 'var(--border-subtle)',
+                color: 'var(--text-main)'
               }}
             >
               Tutup

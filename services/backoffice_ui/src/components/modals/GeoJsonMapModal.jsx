@@ -148,7 +148,7 @@ export default function GeoJsonMapModal({ isOpen, onClose, modalData = null }) {
         var cm = L.circleMarker(c, {
           radius: 6,
           fillColor: '#fbbf24',
-          color: '#ffffff',
+          color: 'var(--text-main)',
           weight: 2,
           opacity: 1,
           fillOpacity: 0.95
@@ -175,8 +175,8 @@ export default function GeoJsonMapModal({ isOpen, onClose, modalData = null }) {
       padding: '24px'
     }}>
       <div style={{
-        background: 'var(--bg-card, #0f172a)',
-        border: '1px solid rgba(6, 182, 212, 0.4)',
+        background: 'var(--bg-glass-1)',
+        border: '1px solid var(--border-subtle)',
         borderRadius: '16px',
         width: '100%',
         maxWidth: '1200px',
@@ -184,13 +184,13 @@ export default function GeoJsonMapModal({ isOpen, onClose, modalData = null }) {
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
-        boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.8)'
+        boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.4)'
       }}>
         {/* Modal Header */}
         <div style={{
           padding: '14px 20px',
           background: 'rgba(6, 182, 212, 0.08)',
-          borderBottom: '1px solid rgba(6, 182, 212, 0.2)',
+          borderBottom: '1px solid var(--border-subtle)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between'
@@ -198,7 +198,7 @@ export default function GeoJsonMapModal({ isOpen, onClose, modalData = null }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Compass size={20} color="var(--accent-cyan)" />
             <div>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#ffffff' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: 'var(--text-main)' }}>
                 {currentProps.jenishak && currentProps.nomorhak 
                   ? `${currentProps.jenishak} No. ${currentProps.nomorhak}` 
                   : (currentProps.title || 'Inspektur Peta Spasial Bidang Tanah')}
@@ -216,9 +216,9 @@ export default function GeoJsonMapModal({ isOpen, onClose, modalData = null }) {
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
-                  background: 'rgba(56, 189, 248, 0.15)',
-                  border: '1px solid rgba(56, 189, 248, 0.35)',
-                  color: '#38bdf8',
+                  background: 'rgba(6, 182, 212, 0.15)',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--accent-cyan)',
                   padding: '6px 12px',
                   borderRadius: '8px',
                   fontSize: '12px',
@@ -237,9 +237,9 @@ export default function GeoJsonMapModal({ isOpen, onClose, modalData = null }) {
             <button
               onClick={handleCopyGeoJson}
               style={{
-                background: copiedJson ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.08)',
-                border: `1px solid ${copiedJson ? '#10b981' : 'rgba(255, 255, 255, 0.15)'}`,
-                color: copiedJson ? '#34d399' : '#e2e8f0',
+                background: copiedJson ? 'rgba(16, 185, 129, 0.25)' : 'var(--bg-glass-light)',
+                border: `1px solid ${copiedJson ? '#10b981' : 'var(--border-subtle)'}`,
+                color: copiedJson ? '#059669' : 'var(--text-main)',
                 padding: '6px 12px',
                 borderRadius: '8px',
                 fontSize: '12px',
@@ -257,9 +257,9 @@ export default function GeoJsonMapModal({ isOpen, onClose, modalData = null }) {
             <button
               onClick={onClose}
               style={{
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: 'none',
-                color: '#94a3b8',
+                background: 'var(--bg-glass-light)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-muted)',
                 width: '32px',
                 height: '32px',
                 borderRadius: '8px',
@@ -280,8 +280,8 @@ export default function GeoJsonMapModal({ isOpen, onClose, modalData = null }) {
             display: 'flex',
             gap: '8px',
             padding: '8px 20px',
-            background: 'rgba(15, 23, 42, 0.95)',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            background: 'var(--bg-glass-2)',
+            borderBottom: '1px solid var(--border-subtle)',
             overflowX: 'auto'
           }}>
             {features.map((f, idx) => {
@@ -295,9 +295,9 @@ export default function GeoJsonMapModal({ isOpen, onClose, modalData = null }) {
                   key={idx}
                   onClick={() => setSelectedIdx(idx)}
                   style={{
-                    background: isSelected ? 'rgba(6, 182, 212, 0.25)' : 'rgba(255, 255, 255, 0.05)',
-                    border: `1px solid ${isSelected ? 'var(--accent-cyan)' : 'rgba(255, 255, 255, 0.1)'}`,
-                    color: isSelected ? '#ffffff' : '#94a3b8',
+                    background: isSelected ? 'rgba(6, 182, 212, 0.25)' : 'var(--bg-glass-light)',
+                    border: `1px solid ${isSelected ? 'var(--accent-cyan)' : 'var(--border-subtle)'}`,
+                    color: isSelected ? 'var(--text-main)' : 'var(--text-muted)',
                     borderRadius: '6px',
                     padding: '4px 12px',
                     fontSize: '12px',
@@ -333,8 +333,8 @@ export default function GeoJsonMapModal({ isOpen, onClose, modalData = null }) {
           <div style={{
             flex: '0 0 35%',
             maxWidth: '420px',
-            background: 'rgba(15, 23, 42, 0.9)',
-            borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
+            background: 'var(--bg-glass-1)',
+            borderLeft: '1px solid var(--border-subtle)',
             display: 'flex',
             flexDirection: 'column',
             overflowY: 'auto',
@@ -346,9 +346,9 @@ export default function GeoJsonMapModal({ isOpen, onClose, modalData = null }) {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
               {currentProps.nomorhak && (
-                <div style={{ background: 'rgba(255,255,255,0.04)', padding: '8px 10px', borderRadius: '6px' }}>
-                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>Nomor Sertifikat Hak:</div>
-                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#ffffff' }}>
+                <div style={{ background: 'var(--bg-glass-light)', padding: '8px 10px', borderRadius: '6px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Nomor Sertifikat Hak:</div>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-main)' }}>
                     {currentProps.jenishak} {currentProps.nomorhak}
                   </div>
                 </div>
@@ -356,65 +356,65 @@ export default function GeoJsonMapModal({ isOpen, onClose, modalData = null }) {
 
               {currentProps.LUAS && (
                 <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', padding: '8px 10px', borderRadius: '6px' }}>
-                  <div style={{ fontSize: '11px', color: '#34d399' }}>Luas Bidang Tanah:</div>
-                  <div style={{ fontSize: '16px', fontWeight: '800', color: '#10b981' }}>
+                  <div style={{ fontSize: '11px', color: '#059669' }}>Luas Bidang Tanah:</div>
+                  <div style={{ fontSize: '16px', fontWeight: '800', color: '#059669' }}>
                     {currentProps.LUAS} m²
                   </div>
                 </div>
               )}
 
               {(currentProps.desa || currentProps.kecamatan || currentProps.kabupaten) && (
-                <div style={{ background: 'rgba(255,255,255,0.04)', padding: '8px 10px', borderRadius: '6px' }}>
-                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>Lokasi / Administrasi:</div>
-                  <div style={{ fontSize: '12px', fontWeight: '600', color: '#e2e8f0', marginTop: '2px' }}>
+                <div style={{ background: 'var(--bg-glass-light)', padding: '8px 10px', borderRadius: '6px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Lokasi / Administrasi:</div>
+                  <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-main)', marginTop: '2px' }}>
                     {[currentProps.desa, currentProps.kecamatan, currentProps.kabupaten].filter(Boolean).join(', ')}
                   </div>
                 </div>
               )}
 
               {currentProps.pemilik_nama && (
-                <div style={{ background: 'rgba(255,255,255,0.04)', padding: '8px 10px', borderRadius: '6px' }}>
-                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>Nama Pemilik:</div>
-                  <div style={{ fontSize: '12px', fontWeight: '700', color: '#38bdf8' }}>
+                <div style={{ background: 'var(--bg-glass-light)', padding: '8px 10px', borderRadius: '6px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Nama Pemilik:</div>
+                  <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--accent-cyan)' }}>
                     {currentProps.pemilik_nama}
                   </div>
                 </div>
               )}
 
               {currentProps.nib && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '4px' }}>
-                  <span style={{ color: '#94a3b8' }}>NIB:</span>
-                  <span style={{ fontWeight: '600', color: '#f1f5f9' }}>{currentProps.nib}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '4px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>NIB:</span>
+                  <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>{currentProps.nib}</span>
                 </div>
               )}
 
               {currentProps.suratukur && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '4px' }}>
-                  <span style={{ color: '#94a3b8' }}>Surat Ukur:</span>
-                  <span style={{ fontWeight: '600', color: '#f1f5f9' }}>{currentProps.suratukur}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '4px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Surat Ukur:</span>
+                  <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>{currentProps.suratukur}</span>
                 </div>
               )}
 
               {currentProps.tglTerbit && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '4px' }}>
-                  <span style={{ color: '#94a3b8' }}>Tanggal Terbit:</span>
-                  <span style={{ fontWeight: '600', color: '#f1f5f9' }}>{currentProps.tglTerbit}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '4px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Tanggal Terbit:</span>
+                  <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>{currentProps.tglTerbit}</span>
                 </div>
               )}
 
               {currentProps.statusht && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '4px' }}>
-                  <span style={{ color: '#94a3b8' }}>Status Hak Tanggungan:</span>
-                  <span style={{ fontWeight: '600', color: currentProps.statusht === 'Ya' ? '#f87171' : '#34d399' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '4px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Status Hak Tanggungan:</span>
+                  <span style={{ fontWeight: '600', color: currentProps.statusht === 'Ya' ? '#dc2626' : '#059669' }}>
                     {currentProps.statusht}
                   </span>
                 </div>
               )}
 
               {centroid && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '4px' }}>
-                  <span style={{ color: '#94a3b8' }}>Titik Tengah (Centroid):</span>
-                  <span style={{ fontWeight: '600', color: '#fbbf24', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '4px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Titik Tengah (Centroid):</span>
+                  <span style={{ fontWeight: '600', color: '#d97706', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px' }}>
                     {centroid.lat.toFixed(5)}, {centroid.lng.toFixed(5)}
                   </span>
                 </div>
@@ -432,7 +432,7 @@ export default function GeoJsonMapModal({ isOpen, onClose, modalData = null }) {
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: copiedCoords ? '#34d399' : '#38bdf8',
+                    color: copiedCoords ? '#059669' : 'var(--accent-cyan)',
                     fontSize: '11px',
                     cursor: 'pointer',
                     display: 'flex',
@@ -448,15 +448,15 @@ export default function GeoJsonMapModal({ isOpen, onClose, modalData = null }) {
               <div style={{
                 maxHeight: '160px',
                 overflowY: 'auto',
-                background: 'rgba(0, 0, 0, 0.4)',
+                background: 'var(--bg-glass-3)',
                 borderRadius: '6px',
                 padding: '6px 8px',
                 fontFamily: 'JetBrains Mono, monospace',
                 fontSize: '11px',
-                color: '#cbd5e1'
+                color: 'var(--text-sub)'
               }}>
                 {ring.map((pt, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px solid var(--border-subtle)' }}>
                     <span style={{ opacity: 0.6 }}>#{i + 1}</span>
                     <span>Lat: {pt[1].toFixed(6)}</span>
                     <span>Lng: {pt[0].toFixed(6)}</span>
@@ -467,10 +467,10 @@ export default function GeoJsonMapModal({ isOpen, onClose, modalData = null }) {
 
             {currentProps.riwayat_catatan && (
               <div style={{ marginTop: '14px' }}>
-                <div style={{ fontSize: '12px', color: '#e2e8f0', fontWeight: '700', marginBottom: '4px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-main)', fontWeight: '700', marginBottom: '4px' }}>
                   Riwayat / Catatan:
                 </div>
-                <div style={{ fontSize: '11px', color: '#94a3b8', lineHeight: 1.4, background: 'rgba(0,0,0,0.3)', padding: '8px', borderRadius: '6px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.4, background: 'var(--bg-glass-3)', padding: '8px', borderRadius: '6px' }}>
                   {currentProps.riwayat_catatan}
                 </div>
               </div>

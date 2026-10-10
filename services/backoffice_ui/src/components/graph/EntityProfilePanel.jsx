@@ -42,7 +42,7 @@ export default function EntityProfilePanel({ entityName, onClose, onSelectConnec
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Network size={18} color="var(--accent-primary)" />
-          <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#ffffff' }}>Entity Profile</h3>
+          <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-main)' }}>Entity Profile</h3>
         </div>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
           <X size={18} />
@@ -58,7 +58,7 @@ export default function EntityProfilePanel({ entityName, onClose, onSelectConnec
           {/* Main Info */}
           <div>
             <span className="badge badge-info" style={{ marginBottom: '8px' }}>{profile.type}</span>
-            <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.02em' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
               {profile.entity}
             </h2>
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '8px', lineHeight: '1.5' }}>
@@ -67,13 +67,13 @@ export default function EntityProfilePanel({ entityName, onClose, onSelectConnec
           </div>
 
           {/* Metadata Card */}
-          <div style={{ padding: '14px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)' }}>
+          <div style={{ padding: '14px', borderRadius: '8px', background: 'var(--bg-glass-light)', border: '1px solid var(--border-color)' }}>
             <div style={{ fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>
               Provenance & Stats
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
               <span style={{ color: 'var(--text-secondary)' }}>Source:</span>
-              <span style={{ color: '#ffffff', fontWeight: '600' }}>{profile.source}</span>
+              <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{profile.source}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
               <span style={{ color: 'var(--text-secondary)' }}>Total Connections:</span>
@@ -83,7 +83,7 @@ export default function EntityProfilePanel({ entityName, onClose, onSelectConnec
 
           {/* Relationship Connections */}
           <div>
-            <div style={{ fontSize: '13px', fontWeight: '700', color: '#ffffff', marginBottom: '12px' }}>
+            <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-main)', marginBottom: '12px' }}>
               Connected Relations ({profile.network_connections?.length || 0})
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -94,7 +94,7 @@ export default function EntityProfilePanel({ entityName, onClose, onSelectConnec
                   style={{
                     padding: '10px 12px',
                     borderRadius: '6px',
-                    background: 'rgba(0,0,0,0.3)',
+                    background: 'var(--bg-glass-3)',
                     border: '1px solid var(--border-color)',
                     cursor: 'pointer',
                     display: 'flex',
@@ -109,7 +109,7 @@ export default function EntityProfilePanel({ entityName, onClose, onSelectConnec
                     <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--accent-cyan)', textTransform: 'uppercase' }}>
                       {conn.relation}
                     </div>
-                    <div style={{ fontSize: '13px', fontWeight: '600', color: '#ffffff', marginTop: '2px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-main)', marginTop: '2px' }}>
                       {conn.connected_entity}
                     </div>
                   </div>

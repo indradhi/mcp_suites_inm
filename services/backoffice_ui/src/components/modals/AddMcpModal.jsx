@@ -322,7 +322,7 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
     <div className="modal-overlay" style={{
       position: 'fixed',
       top: 0, left: 0, right: 0, bottom: 0,
-      background: 'rgba(15, 23, 42, 0.8)',
+      background: 'rgba(0, 0, 0, 0.75)',
       backdropFilter: 'blur(6px)',
       display: 'flex',
       alignItems: 'center',
@@ -337,7 +337,7 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
         overflowY: 'auto',
         borderRadius: '16px',
         border: '1px solid rgba(168, 85, 247, 0.3)',
-        background: '#0f172a',
+        background: 'var(--bg-dark-2)',
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
         display: 'flex',
         flexDirection: 'column'
@@ -531,11 +531,11 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
             flexWrap: 'wrap',
             gap: '16px',
             padding: '12px 16px',
-            background: 'rgba(255, 255, 255, 0.02)',
+            background: 'var(--bg-glass-light)',
             borderRadius: '10px',
             border: '1px solid rgba(255, 255, 255, 0.06)'
           }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#cbd5e1' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-sub)' }}>
               <input
                 type="checkbox"
                 checked={verifySsl}
@@ -544,7 +544,7 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
               Verifikasi Sertifikat SSL
             </label>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#cbd5e1' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-sub)' }}>
               <input
                 type="checkbox"
                 checked={syncResources}
@@ -553,7 +553,7 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
               Index Resources & Prompts ke ChromaDB Vector Store
             </label>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#cbd5e1' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-sub)' }}>
               <input
                 type="checkbox"
                 checked={cacheEnabled}
@@ -671,9 +671,9 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
                 <div style={{
                   maxHeight: '260px',
                   overflowY: 'auto',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: '8px',
-                  background: 'rgba(15, 23, 42, 0.6)'
+                  background: 'var(--bg-glass-3)'
                 }}>
                   {discoveredTools.map((tool, idx) => {
                     const isExpanded = expandedToolIndex === idx;
@@ -756,11 +756,11 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
                           <div style={{
                             marginTop: '10px',
                             padding: '10px',
-                            background: 'rgba(0, 0, 0, 0.3)',
+                            background: 'var(--bg-glass-3)',
                             borderRadius: '6px',
                             fontSize: '12px'
                           }}>
-                            <div style={{ color: '#cbd5e1', marginBottom: '6px', fontWeight: '500' }}>
+                            <div style={{ color: 'var(--text-sub)', marginBottom: '6px', fontWeight: '500' }}>
                               Deskripsi: {tool.description || 'Tidak ada deskripsi'}
                             </div>
                             {paramList.length > 0 ? (

@@ -434,7 +434,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {initialData ? <Edit2 size={22} color="var(--accent-cyan)" /> : <Globe size={22} color="var(--accent-cyan)" />}
             <div>
-              <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#ffffff', margin: 0 }}>
+              <h2 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>
                 {initialData ? 'Edit API Knowledge Source' : 'Register API Knowledge Source'}
               </h2>
               <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
@@ -447,7 +447,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
             onClick={onClose}
             title="Tutup Modal"
             style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', borderRadius: '6px' }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.background = 'var(--border-subtle)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'none'; }}
           >
             <X size={20} />
@@ -536,9 +536,9 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                     fontSize: '12px',
                     fontWeight: '600',
                     cursor: 'pointer',
-                    background: authMode === m.id ? 'rgba(6, 182, 212, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                    background: authMode === m.id ? 'rgba(6, 182, 212, 0.2)' : 'var(--bg-glass-light)',
                     border: authMode === m.id ? '1px solid var(--accent-cyan)' : '1px solid var(--border-color)',
-                    color: authMode === m.id ? '#ffffff' : 'var(--text-secondary)',
+                    color: authMode === m.id ? 'var(--text-main)' : 'var(--text-secondary)',
                     transition: 'all 0.2s'
                   }}
                 >
@@ -609,7 +609,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
           <div style={{
             padding: '18px 20px',
             borderRadius: '10px',
-            background: isTool ? 'rgba(6, 182, 212, 0.08)' : 'rgba(255, 255, 255, 0.03)',
+            background: isTool ? 'rgba(6, 182, 212, 0.08)' : 'var(--bg-glass-light)',
             border: isTool ? '1px solid rgba(6, 182, 212, 0.4)' : '1px solid var(--border-color)',
             transition: 'all 0.2s'
           }}>
@@ -619,16 +619,16 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                   width: '36px',
                   height: '36px',
                   borderRadius: '8px',
-                  background: isTool ? 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)' : 'rgba(255, 255, 255, 0.05)',
+                  background: isTool ? 'linear-gradient(135deg, #334155 0%, #1e293b 100%)' : 'var(--bg-glass-light)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}>
-                  <Zap size={18} color={isTool ? '#ffffff' : 'var(--text-muted)'} />
+                  <Zap size={18} color={isTool ? 'var(--text-main)' : 'var(--text-muted)'} />
                 </div>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '14px', fontWeight: '700', color: '#ffffff' }}>
+                    <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-main)' }}>
                       Mode Query On-Demand (Auto Simpan ke Bank Data Vektor)
                     </span>
                     {isTool && (
@@ -686,7 +686,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                     width: '20px',
                     left: isTool ? '24px' : '3px',
                     bottom: '3px',
-                    backgroundColor: '#ffffff',
+                    backgroundColor: 'var(--text-main)',
                     borderRadius: '50%',
                     transition: '0.3s'
                   }} />
@@ -702,12 +702,12 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                 background: 'rgba(6, 182, 212, 0.12)',
                 border: '1px solid rgba(6, 182, 212, 0.25)',
                 fontSize: '12px',
-                color: '#a5f3fc',
+                color: 'var(--text-main)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px'
               }}>
-                <Zap size={14} color="#22d3ee" style={{ flexShrink: 0 }} />
+                <Zap size={14} color="var(--accent-cyan)" style={{ flexShrink: 0 }} />
                 <span><strong>Auto Bank Data Aktif:</strong> Setiap respons API hasil query otomatis di-ingest dan diakumulasikan ke ChromaDB Vector Store sebagai Bank Data terverifikasi.</span>
               </div>
             )}
@@ -754,7 +754,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                 {/* Parameters Builder */}
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Code size={14} color="var(--accent-cyan)" /> Parameters Schema ({parameters.length})
                     </label>
                     <button
@@ -792,7 +792,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                             gridTemplateColumns: '1.2fr 90px 85px 2fr 75px 1fr 32px',
                             gap: '8px',
                             alignItems: 'center',
-                            background: 'rgba(0,0,0,0.3)',
+                            background: 'var(--bg-glass-3)',
                             padding: '8px 10px',
                             borderRadius: '6px',
                             border: '1px solid rgba(255, 255, 255, 0.05)'
@@ -926,7 +926,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <Clock size={16} color={cacheEnabled ? '#fbbf24' : 'var(--text-muted)'} />
                       <div>
-                        <div style={{ fontSize: '13px', fontWeight: '700', color: cacheEnabled ? '#fde68a' : '#ffffff' }}>
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: cacheEnabled ? '#fde68a' : 'var(--text-main)' }}>
                           Cache Hasil Tool Call
                         </div>
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
@@ -955,7 +955,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                           width: '18px',
                           left: cacheEnabled ? '23px' : '3px',
                           bottom: '3px',
-                          backgroundColor: '#ffffff',
+                          backgroundColor: 'var(--text-main)',
                           borderRadius: '50%',
                           transition: '0.3s'
                         }} />
@@ -993,7 +993,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
           <div style={{
             padding: '16px',
             borderRadius: '10px',
-            background: 'rgba(255, 255, 255, 0.02)',
+            background: 'var(--bg-glass-light)',
             border: '1px solid rgba(255, 255, 255, 0.08)',
             display: 'flex',
             flexDirection: 'column',
@@ -1001,7 +1001,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
               <div>
-                <div style={{ fontSize: '13px', fontWeight: '700', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <BookOpen size={16} color="var(--accent-primary)" />
                   <span>Definisi Field Balikan (Kamus Data / Schema Output)</span>
                   <span style={{
@@ -1078,9 +1078,9 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                   type="button"
                   onClick={handleAddFieldDefinition}
                   style={{
-                    background: 'rgba(99, 102, 241, 0.15)',
-                    border: '1px solid rgba(99, 102, 241, 0.4)',
-                    color: '#a5b4fc',
+                    background: 'var(--bg-glass-2)',
+                    border: '1px solid var(--border-subtle)',
+                    color: 'var(--text-main)',
                     padding: '5px 10px',
                     borderRadius: '6px',
                     fontSize: '11px',
@@ -1257,7 +1257,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
               {testResult.result?.data && (
                 <div style={{
                   marginTop: '6px',
-                  background: 'rgba(0,0,0,0.4)',
+                  background: 'var(--bg-glass-3)',
                   padding: '8px 12px',
                   borderRadius: '6px',
                   fontFamily: 'JetBrains Mono, monospace',

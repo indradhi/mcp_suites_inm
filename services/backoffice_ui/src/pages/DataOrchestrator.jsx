@@ -85,7 +85,7 @@ const renderMarkdown = (text) => {
       if (subMatch.index > subLast) {
         subParts.push(textContent.substring(subLast, subMatch.index));
       }
-      subParts.push(<strong key={`bold-${index}-${subMatch.index}`} style={{ color: '#fff', fontWeight: 'bold' }}>{subMatch[1]}</strong>);
+      subParts.push(<strong key={`bold-${index}-${subMatch.index}`} style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>{subMatch[1]}</strong>);
       subLast = boldRegex.lastIndex;
     }
     
@@ -349,25 +349,26 @@ export default function DataOrchestrator() {
             width: '46px',
             height: '46px',
             borderRadius: '12px',
-            background: 'linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)',
+            background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 4px 18px rgba(99, 102, 241, 0.4)'
+            boxShadow: '0 4px 14px rgba(15, 23, 42, 0.25)',
+            border: '1px solid rgba(255, 255, 255, 0.12)'
           }}>
             <Workflow size={24} color="#ffffff" />
           </div>
           <div>
-            <h1 style={{ fontSize: '20px', fontWeight: '700', color: '#ffffff', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h1 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-main)', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '10px' }}>
               Data & Knowledge Orchestrator
               <span style={{
                 fontSize: '11px',
                 fontWeight: '600',
-                background: 'rgba(99, 102, 241, 0.2)',
-                color: '#a5b4fc',
+                background: 'var(--bg-glass-3)',
+                color: 'var(--text-main)',
                 padding: '2px 8px',
                 borderRadius: '12px',
-                border: '1px solid rgba(99, 102, 241, 0.4)'
+                border: '1px solid var(--border-subtle)'
               }}>
                 MCP Engine
               </span>
@@ -380,16 +381,16 @@ export default function DataOrchestrator() {
 
         {/* Engine Status Indicators */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', background: 'rgba(99, 102, 241, 0.1)', color: '#a5b4fc', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
-            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#818cf8' }}></span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', background: 'var(--bg-glass-2)', color: 'var(--text-main)', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', fontWeight: '600' }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-primary)' }}></span>
             🧠 {flows.length} Alur Memori
           </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent-emerald)', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', background: 'var(--bg-glass-2)', color: 'var(--text-main)', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', fontWeight: '600' }}>
             <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-emerald)' }}></span>
             ChromaDB Vectors
           </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', background: 'rgba(168, 85, 247, 0.1)', color: '#c084fc', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
-            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#c084fc' }}></span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', background: 'var(--bg-glass-2)', color: 'var(--text-main)', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', fontWeight: '600' }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-primary)' }}></span>
             Neo4j Graph
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', background: 'rgba(6, 182, 212, 0.1)', color: 'var(--accent-cyan)', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(6, 182, 212, 0.3)' }}>
@@ -416,11 +417,11 @@ export default function DataOrchestrator() {
                 placeholder="Masukkan prompt atau pertanyaan untuk menguji routing dan alur..."
                 style={{
                   width: '100%',
-                  background: 'rgba(15, 23, 42, 0.8)',
-                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-glass-3)',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: '10px',
                   padding: '12px 16px',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   fontSize: '14px',
                   outline: 'none'
                 }}
@@ -452,9 +453,9 @@ export default function DataOrchestrator() {
               value={strategy}
               onChange={(e) => setStrategy(e.target.value)}
               style={{
-                background: 'rgba(15, 23, 42, 0.8)',
-                border: '1px solid var(--border-color)',
-                color: '#ffffff',
+                background: 'var(--bg-glass-3)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-main)',
                 padding: '12px 14px',
                 borderRadius: '10px',
                 fontSize: '13px',
@@ -478,9 +479,9 @@ export default function DataOrchestrator() {
               value={maxResults}
               onChange={(e) => setMaxResults(Number(e.target.value))}
               style={{
-                background: 'rgba(15, 23, 42, 0.8)',
-                border: '1px solid var(--border-color)',
-                color: '#ffffff',
+                background: 'var(--bg-glass-3)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-main)',
                 padding: '12px 14px',
                 borderRadius: '10px',
                 fontSize: '13px',
@@ -504,8 +505,8 @@ export default function DataOrchestrator() {
               style={{
                 padding: '12px 24px',
                 borderRadius: '10px',
-                background: loading ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
-                border: 'none',
+                background: loading ? 'var(--bg-glass-light)' : 'linear-gradient(135deg, #2b394e 0%, #172233 100%)',
+                border: '1px solid rgba(255, 255, 255, 0.16)',
                 color: '#ffffff',
                 fontSize: '14px',
                 fontWeight: '600',
@@ -513,7 +514,7 @@ export default function DataOrchestrator() {
                 alignItems: 'center',
                 gap: '8px',
                 cursor: loading ? 'not-allowed' : 'pointer',
-                boxShadow: loading ? 'none' : '0 4px 14px rgba(99, 102, 241, 0.4)',
+                boxShadow: loading ? 'none' : '0 4px 14px rgba(15, 23, 42, 0.25)',
                 transition: 'all 0.2s'
               }}
             >
@@ -540,9 +541,9 @@ export default function DataOrchestrator() {
                     borderRadius: '16px',
                     fontSize: '11px',
                     fontWeight: '600',
-                    border: `1px solid ${active ? 'var(--accent-primary)' : 'rgba(255, 255, 255, 0.1)'}`,
-                    background: active ? 'rgba(99, 102, 241, 0.2)' : 'rgba(15, 23, 42, 0.6)',
-                    color: active ? '#a5b4fc' : 'var(--text-muted)',
+                    border: `1px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                    background: active ? 'rgba(99, 102, 241, 0.2)' : 'var(--bg-glass-light)',
+                    color: active ? 'var(--accent-primary)' : 'var(--text-muted)',
                     cursor: 'pointer',
                     textTransform: 'capitalize'
                   }}
@@ -573,8 +574,8 @@ export default function DataOrchestrator() {
             {attachedImage ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(99, 102, 241, 0.15)', padding: '4px 10px', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
                 <img src={attachedImage} alt="Thumb" style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'cover' }} />
-                <span style={{ fontSize: '11px', color: '#ffffff' }}>Foto Wajah Terlampir</span>
-                <button onClick={() => setAttachedImage(null)} style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-main)' }}>Foto Wajah Terlampir</span>
+                <button onClick={() => setAttachedImage(null)} style={{ background: 'none', border: 'none', color: 'var(--text-main)', cursor: 'pointer' }}>
                   <X size={14} />
                 </button>
               </div>
@@ -589,8 +590,8 @@ export default function DataOrchestrator() {
                   padding: '6px 12px',
                   borderRadius: '8px',
                   fontSize: '12px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-glass-light)',
+                  border: '1px solid var(--border-subtle)',
                   color: 'var(--text-secondary)',
                   cursor: 'pointer'
                 }}
@@ -613,8 +614,8 @@ export default function DataOrchestrator() {
                 handleRunOrchestration(sq.q);
               }}
               style={{
-                background: 'rgba(15, 23, 42, 0.6)',
-                border: '1px solid var(--border-color)',
+                background: 'var(--bg-glass-light)',
+                border: '1px solid var(--border-subtle)',
                 borderRadius: '16px',
                 padding: '4px 10px',
                 fontSize: '11px',
@@ -624,7 +625,7 @@ export default function DataOrchestrator() {
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                e.currentTarget.style.color = '#ffffff';
+                e.currentTarget.style.color = 'var(--text-main)';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.borderColor = 'var(--border-color)';
@@ -648,7 +649,7 @@ export default function DataOrchestrator() {
             fontWeight: '600',
             background: activeTab === 'overview' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
             border: activeTab === 'overview' ? '1px solid var(--accent-primary)' : '1px solid transparent',
-            color: activeTab === 'overview' ? '#ffffff' : 'var(--text-muted)',
+            color: activeTab === 'overview' ? 'var(--text-main)' : 'var(--text-muted)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -668,7 +669,7 @@ export default function DataOrchestrator() {
             fontWeight: '600',
             background: activeTab === 'flows' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
             border: activeTab === 'flows' ? '1px solid var(--accent-primary)' : '1px solid transparent',
-            color: activeTab === 'flows' ? '#ffffff' : 'var(--text-muted)',
+            color: activeTab === 'flows' ? 'var(--text-main)' : 'var(--text-muted)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -689,7 +690,7 @@ export default function DataOrchestrator() {
             fontWeight: '600',
             background: activeTab === 'vectors' ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
             border: activeTab === 'vectors' ? '1px solid var(--accent-emerald)' : '1px solid transparent',
-            color: activeTab === 'vectors' ? '#ffffff' : 'var(--text-muted)',
+            color: activeTab === 'vectors' ? 'var(--text-main)' : 'var(--text-muted)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -709,7 +710,7 @@ export default function DataOrchestrator() {
             fontWeight: '600',
             background: activeTab === 'graph' ? 'rgba(168, 85, 247, 0.2)' : 'transparent',
             border: activeTab === 'graph' ? '1px solid #c084fc' : '1px solid transparent',
-            color: activeTab === 'graph' ? '#ffffff' : 'var(--text-muted)',
+            color: activeTab === 'graph' ? 'var(--text-main)' : 'var(--text-muted)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -729,7 +730,7 @@ export default function DataOrchestrator() {
             fontWeight: '600',
             background: activeTab === 'tools' ? 'rgba(6, 182, 212, 0.2)' : 'transparent',
             border: activeTab === 'tools' ? '1px solid var(--accent-cyan)' : '1px solid transparent',
-            color: activeTab === 'tools' ? '#ffffff' : 'var(--text-muted)',
+            color: activeTab === 'tools' ? 'var(--text-main)' : 'var(--text-muted)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -750,7 +751,7 @@ export default function DataOrchestrator() {
               fontWeight: '600',
               background: activeTab === 'biometrics' ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
               border: activeTab === 'biometrics' ? '1px solid #fbbf24' : '1px solid transparent',
-              color: activeTab === 'biometrics' ? '#ffffff' : 'var(--text-muted)',
+              color: activeTab === 'biometrics' ? 'var(--text-main)' : 'var(--text-muted)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -771,7 +772,7 @@ export default function DataOrchestrator() {
           {/* Header & Actions */}
           <div className="glass-panel" style={{ padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
             <div>
-              <h2 style={{ fontSize: '17px', fontWeight: '700', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h2 style={{ fontSize: '17px', fontWeight: '700', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Workflow size={20} color="#818cf8" />
                 Alur Perolehan Informasi Terpandu (Prompt Flow Memory)
               </h2>
@@ -785,7 +786,7 @@ export default function DataOrchestrator() {
                 onClick={handleResetDefaultFlows}
                 disabled={flowsLoading}
                 style={{
-                  background: 'rgba(255, 255, 255, 0.06)',
+                  background: 'var(--bg-glass-light)',
                   border: '1px solid rgba(255, 255, 255, 0.15)',
                   color: 'var(--text-secondary)',
                   padding: '8px 14px',
@@ -805,8 +806,8 @@ export default function DataOrchestrator() {
               <button
                 onClick={() => handleOpenCreateFlow()}
                 style={{
-                  background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
-                  border: 'none',
+                  background: 'linear-gradient(135deg, #2b394e 0%, #172233 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.16)',
                   color: '#ffffff',
                   padding: '8px 16px',
                   borderRadius: '8px',
@@ -816,7 +817,7 @@ export default function DataOrchestrator() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4)'
+                  boxShadow: '0 4px 12px rgba(15, 23, 42, 0.25)'
                 }}
               >
                 <Plus size={16} />
@@ -836,11 +837,11 @@ export default function DataOrchestrator() {
                 placeholder="Cari alur berdasarkan nama, regex pattern, atau kata kunci..."
                 style={{
                   width: '100%',
-                  background: 'rgba(15, 23, 42, 0.7)',
-                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-glass-3)',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: '8px',
                   padding: '8px 12px 8px 34px',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   fontSize: '13px',
                   outline: 'none'
                 }}
@@ -853,9 +854,9 @@ export default function DataOrchestrator() {
                 value={flowCategoryFilter}
                 onChange={(e) => setFlowCategoryFilter(e.target.value)}
                 style={{
-                  background: 'rgba(15, 23, 42, 0.7)',
-                  border: '1px solid var(--border-color)',
-                  color: '#ffffff',
+                  background: 'var(--bg-glass-3)',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--text-main)',
                   padding: '8px 12px',
                   borderRadius: '8px',
                   fontSize: '13px',
@@ -877,7 +878,7 @@ export default function DataOrchestrator() {
           {flowTestResult && (
             <div className="glass-panel" style={{
               padding: '18px 20px',
-              background: 'rgba(15, 23, 42, 0.9)',
+              background: 'var(--bg-glass-1)',
               border: flowTestResult.error ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(16, 185, 129, 0.4)',
               borderRadius: '10px'
             }}>
@@ -888,7 +889,7 @@ export default function DataOrchestrator() {
                   ) : (
                     <CheckCircle size={18} color="var(--accent-emerald)" />
                   )}
-                  <span style={{ fontSize: '14px', fontWeight: '700', color: '#ffffff' }}>
+                  <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-main)' }}>
                     Hasil Uji Eksekusi Alur: {flowTestResult.flow_name}
                   </span>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
@@ -921,20 +922,20 @@ export default function DataOrchestrator() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '220px', overflowY: 'auto' }}>
                       {stepsList.map((log, lIdx) => (
                         <div key={lIdx} style={{
-                          background: 'rgba(0, 0, 0, 0.4)',
+                          background: 'var(--bg-glass-3)',
                           padding: '8px 12px',
                           borderRadius: '6px',
                           fontSize: '11px',
                           fontFamily: 'JetBrains Mono, monospace',
-                          color: log.status === 'success' ? '#a5b4fc' : '#fca5a5',
+                          color: log.status === 'success' ? 'var(--text-main)' : '#dc2626',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '8px',
-                          border: '1px solid rgba(255, 255, 255, 0.04)'
+                          border: '1px solid var(--border-subtle)'
                         }}>
-                          <span style={{ color: '#ffffff', fontWeight: '700' }}>{log.step || lIdx + 1}.</span>
-                          <strong style={{ color: '#38bdf8', textTransform: 'capitalize' }}>{log.action?.replace('_', ' ')}</strong>
-                          <span style={{ color: '#e2e8f0' }}>➔ {log.target}</span>
+                          <span style={{ color: 'var(--text-main)', fontWeight: '700' }}>{log.step || lIdx + 1}.</span>
+                          <strong style={{ color: 'var(--accent-cyan)', textTransform: 'capitalize' }}>{log.action?.replace('_', ' ')}</strong>
+                          <span style={{ color: 'var(--text-main)' }}>➔ {log.target}</span>
                           <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', color: log.status === 'success' ? 'var(--accent-emerald)' : '#ef4444' }}>
                             <span>✓ {log.status}</span>
                             {log.elapsed_ms !== undefined && (
@@ -981,14 +982,15 @@ export default function DataOrchestrator() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                          <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff' }}>
+                          <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)' }}>
                             {fl.name}
                           </h3>
                           <span style={{
                             fontSize: '11px',
                             fontWeight: '600',
-                            background: 'rgba(99, 102, 241, 0.2)',
-                            color: '#a5b4fc',
+                            background: 'var(--bg-glass-3)',
+                            border: '1px solid var(--border-subtle)',
+                            color: 'var(--accent-primary)',
                             padding: '2px 8px',
                             borderRadius: '10px',
                             textTransform: 'capitalize'
@@ -996,8 +998,8 @@ export default function DataOrchestrator() {
                             {fl.intent_category || 'Umum'}
                           </span>
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                          Prioritas: <strong style={{ color: '#38bdf8' }}>{fl.validity_priority_rule || 'authoritative_first'}</strong>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                          Prioritas: <strong style={{ color: 'var(--accent-primary)' }}>{fl.validity_priority_rule || 'authoritative_first'}</strong>
                         </div>
                       </div>
 
@@ -1006,7 +1008,7 @@ export default function DataOrchestrator() {
                         onClick={() => handleToggleFlowActive(fl)}
                         title={fl.is_active ? 'Nonaktifkan alur' : 'Aktifkan alur'}
                         style={{
-                          background: fl.is_active ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                          background: fl.is_active ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-glass-light)',
                           border: `1px solid ${fl.is_active ? 'rgba(16, 185, 129, 0.5)' : 'rgba(255, 255, 255, 0.15)'}`,
                           color: fl.is_active ? 'var(--accent-emerald)' : 'var(--text-muted)',
                           padding: '4px 10px',
@@ -1023,16 +1025,16 @@ export default function DataOrchestrator() {
                     {/* Regex Pattern & Triggers */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ color: 'var(--text-muted)', width: '60px' }}>Pattern:</span>
-                        <code style={{ background: 'rgba(0,0,0,0.4)', padding: '2px 6px', borderRadius: '4px', color: '#a5f3fc', fontFamily: 'JetBrains Mono, monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '250px' }}>
+                        <span style={{ color: 'var(--text-secondary)', width: '60px', fontWeight: '600' }}>Pattern:</span>
+                        <code style={{ background: 'var(--bg-glass-2)', border: '1px solid var(--border-subtle)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-main)', fontWeight: '600', fontFamily: 'JetBrains Mono, monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '250px' }}>
                           {fl.prompt_pattern || '-'}
                         </code>
                       </div>
                       {fl.trigger_keywords && fl.trigger_keywords.length > 0 && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                          <span style={{ color: 'var(--text-muted)', width: '60px' }}>Triggers:</span>
+                          <span style={{ color: 'var(--text-secondary)', width: '60px', fontWeight: '600' }}>Triggers:</span>
                           {fl.trigger_keywords.map((kw, kIdx) => (
-                            <span key={kIdx} style={{ background: 'rgba(255,255,255,0.06)', padding: '1px 6px', borderRadius: '4px', color: 'var(--text-secondary)' }}>
+                            <span key={kIdx} style={{ background: 'var(--bg-glass-2)', border: '1px solid var(--border-subtle)', padding: '1px 6px', borderRadius: '4px', color: 'var(--text-main)', fontWeight: '500' }}>
                               {kw}
                             </span>
                           ))}
@@ -1042,15 +1044,15 @@ export default function DataOrchestrator() {
 
                     {/* Sequential Steps Preview */}
                     <div style={{
-                      background: 'rgba(5, 7, 12, 0.5)',
+                      background: 'var(--bg-glass-3)',
                       borderRadius: '8px',
                       padding: '10px 12px',
-                      border: '1px solid rgba(255, 255, 255, 0.05)',
+                      border: '1px solid var(--border-subtle)',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '6px'
                     }}>
-                      <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                         Alur Bertahap ({fl.steps?.length || 0} Langkah):
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -1060,13 +1062,13 @@ export default function DataOrchestrator() {
                             st.action === 'graph_traversal' ? '🕸️' :
                             st.action === 'vector_search' ? '📄' : '🧠';
                           return (
-                            <div key={sIdx} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#e2e8f0' }}>
-                              <span style={{ color: 'var(--text-muted)' }}>{sIdx + 1}.</span>
+                            <div key={sIdx} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-main)' }}>
+                              <span style={{ color: 'var(--text-secondary)', fontWeight: '600' }}>{sIdx + 1}.</span>
                               <span>{actionIcon}</span>
-                              <strong style={{ color: '#a5b4fc', textTransform: 'capitalize' }}>{st.action?.replace('_', ' ')}</strong>
-                              <span style={{ color: '#94a3b8', fontFamily: 'JetBrains Mono, monospace' }}>➔ {st.target}</span>
+                              <strong style={{ color: 'var(--accent-primary)', textTransform: 'capitalize' }}>{st.action?.replace('_', ' ')}</strong>
+                              <span style={{ color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace' }}>➔ {st.target}</span>
                               {st.required && (
-                                <span style={{ fontSize: '9px', background: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5', padding: '1px 4px', borderRadius: '4px', marginLeft: 'auto' }}>
+                                <span style={{ fontSize: '9px', background: 'rgba(239, 68, 68, 0.2)', color: '#dc2626', padding: '1px 4px', borderRadius: '4px', marginLeft: 'auto', fontWeight: '600' }}>
                                   WAJIB
                                 </span>
                               )}
@@ -1078,7 +1080,7 @@ export default function DataOrchestrator() {
 
                     {/* Card Footer */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <History size={12} />
                         Dijalankan: {fl.execution_count || 0} kali
                       </span>
@@ -1089,9 +1091,9 @@ export default function DataOrchestrator() {
                           disabled={isTestingThis}
                           title="Uji Eksekusi Alur"
                           style={{
-                            background: 'rgba(99, 102, 241, 0.15)',
-                            border: '1px solid rgba(99, 102, 241, 0.3)',
-                            color: '#a5b4fc',
+                            background: 'var(--bg-glass-2)',
+                            border: '1px solid var(--border-subtle)',
+                            color: 'var(--text-main)',
                             padding: '5px 10px',
                             borderRadius: '6px',
                             fontSize: '11px',
@@ -1102,7 +1104,7 @@ export default function DataOrchestrator() {
                             gap: '4px'
                           }}
                         >
-                          {isTestingThis ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} fill="#a5b4fc" />}
+                          {isTestingThis ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} fill="currentColor" />}
                           Uji
                         </button>
 
@@ -1111,9 +1113,9 @@ export default function DataOrchestrator() {
                           onClick={() => handleOpenEditFlow(fl)}
                           title="Sunting Alur"
                           style={{
-                            background: 'rgba(255, 255, 255, 0.08)',
+                            background: 'var(--bg-glass-light)',
                             border: '1px solid rgba(255, 255, 255, 0.18)',
-                            color: '#ffffff',
+                            color: 'var(--text-main)',
                             padding: '5px 10px',
                             borderRadius: '6px',
                             fontSize: '11px',
@@ -1166,7 +1168,7 @@ export default function DataOrchestrator() {
               </div>
               <div>
                 <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Strategi Aktif</div>
-                <div style={{ fontSize: '14px', fontWeight: '700', color: '#ffffff', textTransform: 'capitalize' }}>
+                <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-main)', textTransform: 'capitalize' }}>
                   {orchestrationData.strategy_applied}
                 </div>
               </div>
@@ -1233,8 +1235,8 @@ export default function DataOrchestrator() {
                   return (
                     <div className="glass-panel" style={{
                       padding: '18px 24px',
-                      background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(16, 185, 129, 0.08) 100%)',
-                      border: '1px solid rgba(99, 102, 241, 0.4)',
+                      background: 'var(--bg-glass-1)',
+                      border: '1px solid var(--border-subtle)',
                       borderRadius: '12px'
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
@@ -1243,23 +1245,25 @@ export default function DataOrchestrator() {
                             width: '32px',
                             height: '32px',
                             borderRadius: '8px',
-                            background: 'rgba(99, 102, 241, 0.25)',
+                            background: 'var(--bg-glass-3)',
+                            border: '1px solid var(--border-subtle)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center'
                           }}>
-                            <Workflow size={18} color="#a5b4fc" />
+                            <Workflow size={18} color="var(--accent-primary)" />
                           </div>
                           <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff' }}>
+                              <span style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)' }}>
                                 {matchedFlow.name}
                               </span>
                               <span style={{
                                 fontSize: '11px',
                                 fontWeight: '600',
-                                background: 'rgba(99, 102, 241, 0.25)',
-                                color: '#c7d2fe',
+                                background: 'var(--bg-glass-3)',
+                                color: 'var(--text-main)',
+                                border: '1px solid var(--border-subtle)',
                                 padding: '2px 8px',
                                 borderRadius: '10px'
                               }}>
@@ -1267,8 +1271,9 @@ export default function DataOrchestrator() {
                               </span>
                               <span style={{
                                 fontSize: '11px',
-                                background: 'rgba(16, 185, 129, 0.15)',
+                                background: 'rgba(5, 150, 105, 0.1)',
                                 color: 'var(--accent-emerald)',
+                                border: '1px solid rgba(5, 150, 105, 0.25)',
                                 padding: '2px 8px',
                                 borderRadius: '10px',
                                 fontWeight: '600'
@@ -1276,8 +1281,8 @@ export default function DataOrchestrator() {
                                 ✓ Alur Terdaftar Aktif
                               </span>
                             </div>
-                            <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
-                              Aturan Prioritas Validitas: <strong style={{ color: '#38bdf8' }}>{matchedFlow.validity_priority_rule || 'authoritative_first'}</strong>
+                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                              Aturan Prioritas Validitas: <strong style={{ color: 'var(--accent-cyan)' }}>{matchedFlow.validity_priority_rule || 'authoritative_first'}</strong>
                             </div>
                           </div>
                         </div>
@@ -1286,9 +1291,9 @@ export default function DataOrchestrator() {
                           <button
                             onClick={() => handleOpenEditFlow(matchedFlow)}
                             style={{
-                              background: 'rgba(255, 255, 255, 0.08)',
-                              border: '1px solid rgba(255, 255, 255, 0.15)',
-                              color: '#ffffff',
+                              background: 'var(--bg-glass-2)',
+                              border: '1px solid var(--border-subtle)',
+                              color: 'var(--text-main)',
                               padding: '6px 12px',
                               borderRadius: '8px',
                               fontSize: '12px',
@@ -1305,8 +1310,8 @@ export default function DataOrchestrator() {
                             onClick={() => handleTestFlow(matchedFlow)}
                             disabled={flowTestingId === matchedFlow.id}
                             style={{
-                              background: 'linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)',
-                              border: 'none',
+                              background: 'linear-gradient(135deg, #2b394e 0%, #172233 100%)',
+                              border: '1px solid rgba(255, 255, 255, 0.16)',
                               color: '#ffffff',
                               padding: '6px 14px',
                               borderRadius: '8px',
@@ -1315,6 +1320,7 @@ export default function DataOrchestrator() {
                               display: 'flex',
                               alignItems: 'center',
                               gap: '6px',
+                              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.25)',
                               cursor: 'pointer'
                             }}
                           >
@@ -1327,10 +1333,10 @@ export default function DataOrchestrator() {
                       {/* Steps preview */}
                       {matchedFlow.steps && matchedFlow.steps.length > 0 && (
                         <div style={{
-                          background: 'rgba(5, 7, 12, 0.5)',
+                          background: 'var(--bg-glass-2)',
                           borderRadius: '8px',
                           padding: '12px 14px',
-                          border: '1px solid rgba(255, 255, 255, 0.06)',
+                          border: '1px solid var(--border-subtle)',
                           display: 'flex',
                           flexDirection: 'column',
                           gap: '8px'
@@ -1342,8 +1348,8 @@ export default function DataOrchestrator() {
                             {matchedFlow.steps.map((st, sIdx) => (
                               <React.Fragment key={sIdx}>
                                 <div style={{
-                                  background: 'rgba(15, 23, 42, 0.8)',
-                                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                                  background: 'var(--bg-glass-3)',
+                                  border: '1px solid var(--border-subtle)',
                                   borderRadius: '6px',
                                   padding: '6px 10px',
                                   fontSize: '12px',
@@ -1355,7 +1361,7 @@ export default function DataOrchestrator() {
                                     width: '18px',
                                     height: '18px',
                                     borderRadius: '50%',
-                                    background: 'var(--accent-primary)',
+                                    background: '#334155',
                                     color: '#ffffff',
                                     fontSize: '10px',
                                     display: 'flex',
@@ -1365,14 +1371,14 @@ export default function DataOrchestrator() {
                                   }}>
                                     {st.order || sIdx + 1}
                                   </span>
-                                  <strong style={{ color: '#a5b4fc', textTransform: 'capitalize' }}>
+                                  <strong style={{ color: 'var(--text-main)', textTransform: 'capitalize' }}>
                                     {st.action?.replace('_', ' ')}
                                   </strong>
-                                  <span style={{ color: '#e2e8f0', fontFamily: 'monospace', fontSize: '11px' }}>
+                                  <span style={{ color: 'var(--text-main)', fontFamily: 'monospace', fontSize: '11px' }}>
                                     {st.target}
                                   </span>
                                   {st.required && (
-                                    <span style={{ fontSize: '9px', background: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5', padding: '1px 4px', borderRadius: '4px' }}>
+                                    <span style={{ fontSize: '9px', background: 'rgba(239, 68, 68, 0.2)', color: '#dc2626', padding: '1px 4px', borderRadius: '4px', fontWeight: '600' }}>
                                       WAJIB
                                     </span>
                                   )}
@@ -1391,8 +1397,8 @@ export default function DataOrchestrator() {
                   return (
                     <div className="glass-panel" style={{
                       padding: '12px 18px',
-                      background: 'rgba(15, 23, 42, 0.5)',
-                      border: '1px dashed rgba(255, 255, 255, 0.15)',
+                      background: 'var(--bg-glass-2)',
+                      border: '1px dashed var(--border-subtle)',
                       borderRadius: '10px',
                       display: 'flex',
                       alignItems: 'center',
@@ -1407,9 +1413,9 @@ export default function DataOrchestrator() {
                       <button
                         onClick={() => handleOpenCreateFlow(query.trim())}
                         style={{
-                          background: 'rgba(99, 102, 241, 0.15)',
-                          border: '1px solid rgba(99, 102, 241, 0.3)',
-                          color: '#a5b4fc',
+                          background: 'var(--bg-glass-2)',
+                          border: '1px solid var(--border-subtle)',
+                          color: 'var(--text-main)',
                           padding: '6px 12px',
                           borderRadius: '6px',
                           fontSize: '12px',
@@ -1430,17 +1436,18 @@ export default function DataOrchestrator() {
 
               {/* Strategic Decision Matrix & Guidelines */}
               {guidelinesData?.query_recommendations && (
-                <div className="glass-panel" style={{ padding: '18px 24px', background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(6, 182, 212, 0.05) 100%)', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
+                <div className="glass-panel" style={{ padding: '18px 24px', background: 'var(--bg-glass-1)', border: '1px solid var(--border-subtle)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <Sparkles size={18} color="var(--accent-cyan)" />
-                      <span style={{ fontSize: '14px', fontWeight: '700', color: '#ffffff' }}>
+                      <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-main)' }}>
                         AI Routing Decision & Intent Classification
                       </span>
                     </div>
                     <span style={{
-                      background: 'rgba(99, 102, 241, 0.25)',
-                      color: '#a5b4fc',
+                      background: 'var(--bg-glass-3)',
+                      color: 'var(--text-main)',
+                      border: '1px solid var(--border-subtle)',
                       padding: '3px 10px',
                       borderRadius: '12px',
                       fontSize: '11px',
@@ -1450,7 +1457,7 @@ export default function DataOrchestrator() {
                     </span>
                   </div>
 
-                  <div style={{ fontSize: '13px', color: '#e2e8f0', lineHeight: '1.6', marginBottom: '12px' }}>
+                  <div style={{ fontSize: '13px', color: 'var(--text-main)', lineHeight: '1.6', marginBottom: '12px' }}>
                     <strong>Rekomendasi Tindakan:</strong> {guidelinesData.query_recommendations.recommended_action}
                   </div>
 
@@ -1460,20 +1467,20 @@ export default function DataOrchestrator() {
                       <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Auto-Matched Tool:</span>
                       {guidelinesData.query_recommendations.recommended_tools.map((mt, idx) => (
                         <div key={idx} style={{
-                          background: 'rgba(6, 182, 212, 0.12)',
-                          border: '1px solid rgba(6, 182, 212, 0.3)',
+                          background: 'var(--bg-glass-2)',
+                          border: '1px solid var(--border-subtle)',
                           borderRadius: '8px',
                           padding: '4px 10px',
                           fontSize: '12px',
-                          color: 'var(--accent-cyan)',
+                          color: 'var(--text-main)',
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '6px'
                         }}>
-                          <Zap size={13} />
+                          <Zap size={13} color="var(--accent-cyan)" />
                           <strong>{mt.tool_name}</strong>
                           {mt.suggested_arguments && Object.keys(mt.suggested_arguments).length > 0 && (
-                            <span style={{ opacity: 0.8, fontFamily: 'monospace', fontSize: '11px' }}>
+                            <span style={{ opacity: 0.8, fontFamily: 'monospace', fontSize: '11px', color: 'var(--text-secondary)' }}>
                               ({JSON.stringify(mt.suggested_arguments)})
                             </span>
                           )}
@@ -1488,7 +1495,7 @@ export default function DataOrchestrator() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
                 {/* Guidelines List */}
                 <div className="glass-panel" style={{ padding: '20px' }}>
-                  <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Sparkles size={16} color="var(--accent-primary)" />
                     AI Synthesis Directives (Anti-Hallucination & Validitas)
                   </h3>
@@ -1505,7 +1512,7 @@ export default function DataOrchestrator() {
                 {/* Live LLM Synthesis Runner */}
                 <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-                    <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <Cpu size={16} color="var(--accent-cyan)" />
                       Grounded AI Response Synthesis
                     </h3>
@@ -1515,15 +1522,16 @@ export default function DataOrchestrator() {
                       style={{
                         padding: '6px 14px',
                         borderRadius: '8px',
-                        background: 'linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)',
-                        border: 'none',
+                        background: 'linear-gradient(135deg, #2b394e 0%, #172233 100%)',
+                        border: '1px solid rgba(255, 255, 255, 0.16)',
                         color: '#ffffff',
                         fontSize: '12px',
                         fontWeight: '600',
                         cursor: synthesizing ? 'not-allowed' : 'pointer',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '6px'
+                        gap: '6px',
+                        boxShadow: '0 2px 8px rgba(15, 23, 42, 0.25)'
                       }}
                     >
                       {synthesizing ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} fill="#ffffff" />}
@@ -1533,12 +1541,12 @@ export default function DataOrchestrator() {
 
                   <div style={{
                     flex: 1,
-                    background: 'rgba(5, 7, 12, 0.6)',
+                    background: 'var(--bg-glass-3)',
                     borderRadius: '10px',
-                    border: '1px solid var(--border-color)',
+                    border: '1px solid var(--border-subtle)',
                     padding: '14px',
                     fontSize: '13px',
-                    color: synthesizedAnswer ? '#ffffff' : 'var(--text-muted)',
+                    color: synthesizedAnswer ? 'var(--text-main)' : 'var(--text-muted)',
                     lineHeight: '1.6',
                     minHeight: '180px',
                     maxHeight: '340px',
@@ -1565,7 +1573,7 @@ export default function DataOrchestrator() {
           {/* TAB 2: VECTOR DOCUMENTS */}
           {activeTab === 'vectors' && (
             <div className="glass-panel" style={{ padding: '20px' }}>
-              <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff', marginBottom: '14px' }}>
+              <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)', marginBottom: '14px' }}>
                 Retrieved Vector Chunks from ChromaDB ({orchestrationData.retrieved_documents?.length || 0})
               </h3>
               {orchestrationData.retrieved_documents?.length === 0 ? (
@@ -1573,24 +1581,24 @@ export default function DataOrchestrator() {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {orchestrationData.retrieved_documents?.map((doc, dIdx) => (
-                    <div key={dIdx} style={{ background: 'rgba(5, 7, 12, 0.6)', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)', padding: '14px 18px' }}>
+                    <div key={dIdx} style={{ background: 'var(--bg-glass-2)', borderRadius: '10px', border: '1px solid var(--border-subtle)', padding: '14px 18px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                          <span style={{ fontWeight: '700', color: '#93c5fd', fontSize: '14px' }}>
+                          <span style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '14px' }}>
                             {doc.source_name} ({doc.source_type})
                           </span>
                           <ValidityBadge tier={doc.validity_tier} score={doc.validity_score} />
                         </div>
-                        <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-emerald)', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '700' }}>
+                        <span style={{ background: 'rgba(5, 150, 105, 0.1)', color: 'var(--accent-emerald)', border: '1px solid rgba(5, 150, 105, 0.25)', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '700' }}>
                           Hybrid Score: {doc.hybrid_score !== undefined ? doc.hybrid_score : doc.score}
                         </span>
                       </div>
                       {doc.validity_notes && (
-                        <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px', fontStyle: 'italic' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px', fontStyle: 'italic' }}>
                           ℹ️ {doc.validity_notes}
                         </div>
                       )}
-                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace', whiteSpace: 'pre-wrap', maxHeight: '220px', overflowY: 'auto', lineHeight: '1.5', background: 'rgba(0, 0, 0, 0.25)', padding: '10px 12px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.04)' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace', whiteSpace: 'pre-wrap', maxHeight: '220px', overflowY: 'auto', lineHeight: '1.5', background: 'var(--bg-glass-3)', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
                         {doc.content}
                       </div>
                     </div>
@@ -1603,7 +1611,7 @@ export default function DataOrchestrator() {
           {/* TAB 3: GRAPH ENTITIES */}
           {activeTab === 'graph' && (
             <div className="glass-panel" style={{ padding: '20px' }}>
-              <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff', marginBottom: '14px' }}>
+              <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)', marginBottom: '14px' }}>
                 Connected Knowledge Graph Entities ({orchestrationData.graph_entities?.length || 0})
               </h3>
               {orchestrationData.graph_entities?.length === 0 ? (
@@ -1621,7 +1629,7 @@ export default function DataOrchestrator() {
                       {ent.connections && ent.connections.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
                           {ent.connections.map((c, cIdx) => (
-                            <span key={cIdx} style={{ fontSize: '10px', background: 'rgba(255, 255, 255, 0.08)', color: '#ffffff', padding: '2px 6px', borderRadius: '4px' }}>
+                            <span key={cIdx} style={{ fontSize: '10px', background: 'var(--bg-glass-light)', color: 'var(--text-main)', padding: '2px 6px', borderRadius: '4px' }}>
                               {c}
                             </span>
                           ))}
@@ -1637,7 +1645,7 @@ export default function DataOrchestrator() {
           {/* TAB 4: REAL-TIME TOOLS */}
           {activeTab === 'tools' && (
             <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff' }}>
+              <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)' }}>
                 Applicable Real-Time AI Tools ({orchestrationData.applicable_tools?.length || 0})
               </h3>
               {orchestrationData.applicable_tools?.length === 0 ? (
@@ -1665,15 +1673,16 @@ export default function DataOrchestrator() {
                           style={{
                             padding: '8px 16px',
                             borderRadius: '8px',
-                            background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)',
-                            border: 'none',
+                            background: 'linear-gradient(135deg, #2b394e 0%, #172233 100%)',
+                            border: '1px solid rgba(255, 255, 255, 0.16)',
                             color: '#ffffff',
                             fontSize: '12px',
                             fontWeight: '600',
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '6px'
+                            gap: '6px',
+                            boxShadow: '0 2px 8px rgba(15, 23, 42, 0.25)'
                           }}
                         >
                           {toolTestLoading && testingTool === tool.tool_name ? (
@@ -1688,7 +1697,7 @@ export default function DataOrchestrator() {
                       {tool.suggested_arguments && Object.keys(tool.suggested_arguments).length > 0 && (
                         <div style={{ marginBottom: '8px' }}>
                           <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>Argumen Terdeteksi Otomatis:</span>
-                          <code style={{ marginLeft: '8px', background: 'rgba(0,0,0,0.4)', padding: '2px 8px', borderRadius: '4px', color: '#a5f3fc', fontSize: '11px' }}>
+                          <code style={{ marginLeft: '8px', background: 'var(--bg-glass-2)', border: '1px solid var(--border-subtle)', padding: '2px 8px', borderRadius: '4px', color: 'var(--text-main)', fontSize: '11px', fontWeight: '600' }}>
                             {JSON.stringify(tool.suggested_arguments)}
                           </code>
                         </div>
@@ -1696,11 +1705,11 @@ export default function DataOrchestrator() {
 
                       {/* Tool Output Preview */}
                       {toolTestResult && toolTestResult.tool_name === tool.tool_name && (
-                        <div style={{ marginTop: '12px', background: 'rgba(0,0,0,0.5)', borderRadius: '8px', padding: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <div style={{ marginTop: '12px', background: 'var(--bg-glass-3)', borderRadius: '8px', padding: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
                           <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--accent-emerald)', marginBottom: '6px' }}>
                             Output Eksekusi Langsung:
                           </div>
-                          <pre style={{ margin: 0, fontSize: '11px', color: '#e2e8f0', fontFamily: 'JetBrains Mono, monospace', maxHeight: '180px', overflowY: 'auto' }}>
+                          <pre style={{ margin: 0, fontSize: '11px', color: 'var(--text-main)', fontFamily: 'JetBrains Mono, monospace', maxHeight: '180px', overflowY: 'auto' }}>
                             {JSON.stringify(toolTestResult.data || toolTestResult.error, null, 2)}
                           </pre>
                         </div>
@@ -1715,7 +1724,7 @@ export default function DataOrchestrator() {
           {/* TAB 5: BIOMETRIC MATCH */}
           {activeTab === 'biometrics' && orchestrationData.biometric_face_result && (
             <div className="glass-panel" style={{ padding: '20px' }}>
-              <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff', marginBottom: '14px' }}>
+              <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)', marginBottom: '14px' }}>
                 Biometric Facial Recognition Matching
               </h3>
               <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
@@ -1726,7 +1735,7 @@ export default function DataOrchestrator() {
                       alt="Input Face"
                       style={{ width: '80px', height: '80px', borderRadius: '10px', objectFit: 'cover', border: '2px solid rgba(56, 189, 248, 0.6)' }}
                     />
-                    <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '600' }}>Crop Wajah Input</span>
+                    <span style={{ fontSize: '11px', color: 'var(--accent-cyan)', fontWeight: '600' }}>Crop Wajah Input</span>
                   </div>
                 )}
 
@@ -1741,19 +1750,19 @@ export default function DataOrchestrator() {
                           alt="Enrolled Face"
                           style={{ width: '80px', height: '80px', borderRadius: '10px', objectFit: 'cover', border: '2px solid rgba(52, 211, 153, 0.6)' }}
                         />
-                        <span style={{ fontSize: '11px', color: '#34d399', fontWeight: '600' }}>Foto Terdaftar</span>
+                        <span style={{ fontSize: '11px', color: 'var(--accent-emerald)', fontWeight: '600' }}>Foto Terdaftar</span>
                       </div>
                     )}
 
                     <div style={{ marginLeft: '12px' }}>
-                      <div style={{ fontSize: '16px', fontWeight: '700', color: '#ffffff' }}>
+                      <div style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-main)' }}>
                         {orchestrationData.biometric_face_result.person_name}
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                        ID Person: <strong style={{ color: '#ffffff' }}>{orchestrationData.biometric_face_result.person_id}</strong>
+                        ID Person: <strong style={{ color: 'var(--text-main)' }}>{orchestrationData.biometric_face_result.person_id}</strong>
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                        Departemen: <span style={{ color: '#e2e8f0' }}>{orchestrationData.biometric_face_result.department}</span>
+                        Departemen: <span style={{ color: 'var(--text-main)' }}>{orchestrationData.biometric_face_result.department}</span>
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--accent-emerald)', marginTop: '4px', fontWeight: '600' }}>
                         Confidence: {orchestrationData.biometric_face_result.confidence_percent}%

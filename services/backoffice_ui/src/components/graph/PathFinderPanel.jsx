@@ -30,7 +30,7 @@ export default function PathFinderPanel() {
     <div className="glass-panel" style={{ padding: '24px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
         <Route size={20} color="var(--accent-primary)" />
-        <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#ffffff' }}>Relationship Path Finder</h3>
+        <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-main)' }}>Relationship Path Finder</h3>
       </div>
       <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
         Trace multi-hop relationship chains and bridging paths between any two entities in your data network.
@@ -75,7 +75,7 @@ export default function PathFinderPanel() {
       {searched && (
         <div style={{ marginTop: '16px' }}>
           {paths.length === 0 ? (
-            <div style={{ padding: '16px', borderRadius: '8px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center' }}>
+            <div style={{ padding: '16px', borderRadius: '8px', background: 'var(--bg-glass-light)', border: '1px solid var(--border-color)', color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center' }}>
               No direct or multi-hop path found within 4 degrees of separation.
             </div>
           ) : (
@@ -91,11 +91,11 @@ export default function PathFinderPanel() {
                         <span style={{
                           padding: '4px 10px',
                           borderRadius: '6px',
-                          background: 'rgba(0,0,0,0.4)',
+                          background: 'var(--bg-glass-3)',
                           border: '1px solid var(--border-color)',
                           fontSize: '12px',
                           fontWeight: '600',
-                          color: '#ffffff'
+                          color: 'var(--text-main)'
                         }}>
                           {node.name} <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>({node.type})</span>
                         </span>

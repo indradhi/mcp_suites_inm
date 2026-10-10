@@ -29,6 +29,59 @@ export default function CytoscapeGraph({
   const cyRef = useRef(null);
   const [hoveredType, setHoveredType] = useState(null);
 
+  // Theme detection for canvas & cytoscape styles
+  const [isDark, setIsDark] = useState(() => {
+    const theme = document.documentElement.getAttribute('data-theme');
+    if (theme === 'dark') return true;
+    if (theme === 'light') return false;
+    return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  useEffect(() => {
+    const updateTheme = () => {
+      const theme = document.documentElement.getAttribute('data-theme');
+      if (theme === 'dark') {
+        setIsDark(true);
+      } else if (theme === 'light') {
+        setIsDark(false);
+      } else {
+        setIsDark(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      }
+    };
+
+    const observer = new MutationObserver(updateTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    const mql = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    if (mql) mql.addEventListener('change', updateTheme);
+
+    return () => {
+      observer.disconnect();
+      if (mql) mql.removeEventListener('change', updateTheme);
+    };
+  }, []);
+
+  // Update Cytoscape styles when isDark changes
+  useEffect(() => {
+    if (!cyRef.current) return;
+    const cy = cyRef.current;
+    cy.style()
+      .selector('node')
+      .style({
+        'color': isDark ? '#f8fafc' : '#0f172a',
+        'text-outline-color': isDark ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.95)',
+        'text-outline-width': 2,
+        'border-color': isDark ? 'rgba(255, 255, 255, 0.45)' : 'rgba(0, 0, 0, 0.25)'
+      })
+      .selector('edge')
+      .style({
+        'line-color': isDark ? 'rgba(255, 255, 255, 0.22)' : 'rgba(15, 23, 42, 0.25)',
+        'target-arrow-color': isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(15, 23, 42, 0.38)',
+        'color': isDark ? '#cbd5e1' : '#334155',
+        'text-background-color': isDark ? '#0f172a' : '#ffffff'
+      })
+      .update();
+  }, [isDark]);
+
   // 1. Initialize Cytoscape on elements change
   useEffect(() => {
     if (!containerRef.current) return;
@@ -42,7 +95,9 @@ export default function CytoscapeGraph({
           selector: 'node',
           style: {
             'label': 'data(label)',
-            'color': '#f8fafc',
+            'color': isDark ? '#f8fafc' : '#0f172a',
+            'text-outline-color': isDark ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.95)',
+            'text-outline-width': 2,
             'font-size': '11px',
             'font-family': 'Plus Jakarta Sans, sans-serif',
             'text-valign': 'bottom',
@@ -63,7 +118,7 @@ export default function CytoscapeGraph({
             'width': 28,
             'height': 28,
             'border-width': 2,
-            'border-color': 'rgba(255, 255, 255, 0.45)',
+            'border-color': isDark ? 'rgba(255, 255, 255, 0.45)' : 'rgba(0, 0, 0, 0.25)',
             'overlay-opacity': 0,
             'transition-property': 'background-color, border-color, border-width, opacity',
             'transition-duration': '0.3s'
@@ -73,15 +128,15 @@ export default function CytoscapeGraph({
           selector: 'edge',
           style: {
             'width': 1.5,
-            'line-color': 'rgba(255, 255, 255, 0.18)',
-            'target-arrow-color': 'rgba(255, 255, 255, 0.28)',
+            'line-color': isDark ? 'rgba(255, 255, 255, 0.22)' : 'rgba(15, 23, 42, 0.25)',
+            'target-arrow-color': isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(15, 23, 42, 0.38)',
             'target-arrow-shape': 'triangle',
             'curve-style': 'bezier',
             'label': 'data(label)',
             'font-size': '9px',
-            'color': '#94a3b8',
+            'color': isDark ? '#cbd5e1' : '#334155',
             'text-rotation': 'autorotate',
-            'text-background-color': '#07090e',
+            'text-background-color': isDark ? '#0f172a' : '#ffffff',
             'text-background-opacity': 0.85,
             'text-background-padding': 2
           }
@@ -90,10 +145,10 @@ export default function CytoscapeGraph({
           selector: ':selected',
           style: {
             'border-width': 4,
-            'border-color': '#ffffff',
-            'background-color': '#38bdf8',
-            'line-color': '#38bdf8',
-            'target-arrow-color': '#38bdf8'
+            'border-color': isDark ? '#ffffff' : '#0f172a',
+            'background-color': '#0284c7',
+            'line-color': '#0284c7',
+            'target-arrow-color': '#0284c7'
           }
         }
       ],
@@ -195,7 +250,7 @@ export default function CytoscapeGraph({
               'display': 'element',
               'opacity': 0.12,
               'border-width': 1,
-              'border-color': 'rgba(255, 255, 255, 0.1)'
+              'border-color': 'var(--border-subtle)'
             });
           }
         }
@@ -281,137 +336,54 @@ export default function CytoscapeGraph({
   };
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', borderRadius: '12px' }}>
+    <div className="relative w-full h-full overflow-hidden rounded-xl border border-base-300">
       {/* Cytoscape Canvas Container */}
       <div 
         ref={containerRef} 
         style={{
           width: '100%',
           height: '100%',
-          background: 'radial-gradient(circle at center, rgba(14, 19, 31, 0.95) 0%, rgba(7, 9, 14, 0.98) 100%)'
+          background: isDark
+            ? 'radial-gradient(circle at center, rgba(14, 19, 31, 0.95) 0%, rgba(7, 9, 14, 0.98) 100%)'
+            : 'radial-gradient(circle at center, #ffffff 0%, #e2e8f0 100%)'
         }} 
       />
 
       {/* Floating Canvas Action Bar (Zoom, Fit, Re-layout) */}
-      <div style={{
-        position: 'absolute',
-        top: '16px',
-        right: '16px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '6px',
-        background: 'rgba(11, 15, 25, 0.85)',
-        backdropFilter: 'blur(12px)',
-        border: '1px solid rgba(255, 255, 255, 0.12)',
-        borderRadius: '10px',
-        padding: '6px',
-        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)',
-        zIndex: 10
-      }}>
+      <div className="absolute top-4 right-4 flex flex-col gap-1 bg-base-100/90 backdrop-blur-md border border-base-300 rounded-xl p-1.5 shadow-xl z-10">
         <button
           onClick={handleZoomIn}
           title="Perbesar Canvas (Zoom In)"
-          style={{
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            color: '#ffffff',
-            borderRadius: '6px',
-            width: '32px',
-            height: '32px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease'
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.25)'; e.currentTarget.style.color = '#818cf8'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; e.currentTarget.style.color = '#ffffff'; }}
+          className="btn btn-xs btn-ghost btn-square text-base-content hover:bg-base-200"
         >
           <ZoomIn size={16} />
         </button>
         <button
           onClick={handleZoomOut}
           title="Perkecil Canvas (Zoom Out)"
-          style={{
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            color: '#ffffff',
-            borderRadius: '6px',
-            width: '32px',
-            height: '32px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease'
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.25)'; e.currentTarget.style.color = '#818cf8'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; e.currentTarget.style.color = '#ffffff'; }}
+          className="btn btn-xs btn-ghost btn-square text-base-content hover:bg-base-200"
         >
           <ZoomOut size={16} />
         </button>
         <button
           onClick={handleFit}
           title="Pusatkan Seluruh Jaringan (Fit View)"
-          style={{
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            color: '#ffffff',
-            borderRadius: '6px',
-            width: '32px',
-            height: '32px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease'
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(6, 182, 212, 0.25)'; e.currentTarget.style.color = '#22d3ee'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; e.currentTarget.style.color = '#ffffff'; }}
+          className="btn btn-xs btn-ghost btn-square text-base-content hover:bg-base-200"
         >
           <Maximize2 size={15} />
         </button>
         <button
           onClick={handleReLayout}
           title="Jalankan Ulang Algoritma Tata Letak (Re-layout)"
-          style={{
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            color: '#ffffff',
-            borderRadius: '6px',
-            width: '32px',
-            height: '32px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease'
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(16, 185, 129, 0.25)'; e.currentTarget.style.color = '#34d399'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; e.currentTarget.style.color = '#ffffff'; }}
+          className="btn btn-xs btn-ghost btn-square text-base-content hover:bg-base-200"
         >
           <RotateCcw size={15} />
         </button>
       </div>
 
       {/* Floating Interactive Entity Legend (Bottom-Left) */}
-      <div style={{
-        position: 'absolute',
-        bottom: '16px',
-        left: '16px',
-        background: 'rgba(11, 15, 25, 0.85)',
-        backdropFilter: 'blur(12px)',
-        border: '1px solid rgba(255, 255, 255, 0.12)',
-        borderRadius: '10px',
-        padding: '8px 14px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '14px',
-        flexWrap: 'wrap',
-        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)',
-        zIndex: 10
-      }}>
-        <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+      <div className="absolute bottom-4 left-4 max-w-[calc(100%-32px)] bg-base-100/90 backdrop-blur-md border border-base-300 rounded-xl px-3.5 py-2 flex items-center gap-3 flex-wrap shadow-xl z-10">
+        <span className="text-[11px] font-bold text-base-content/60 uppercase tracking-wider">
           Tipe Entitas:
         </span>
         {ENTITY_LEGEND.map((leg, lIdx) => {
@@ -426,41 +398,29 @@ export default function CytoscapeGraph({
               }}
               onMouseEnter={() => setHoveredType(leg.type)}
               onMouseLeave={() => setHoveredType(null)}
+              className={`flex items-center gap-1.5 text-xs font-semibold cursor-pointer px-2 py-1 rounded-md transition-all ${
+                isFilterActive 
+                  ? 'bg-base-300 text-base-content shadow-sm' 
+                  : 'text-base-content/80 hover:bg-base-200 hover:text-base-content'
+              }`}
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '11px',
-                fontWeight: isFilterActive ? '700' : '600',
-                color: isFilterActive ? '#ffffff' : (hoveredType === leg.type ? '#ffffff' : '#cbd5e1'),
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                padding: '3px 8px',
-                borderRadius: '6px',
-                background: isFilterActive ? `${leg.color}35` : (hoveredType === leg.type ? 'rgba(255, 255, 255, 0.06)' : 'transparent'),
-                border: isFilterActive ? `1px solid ${leg.color}90` : '1px solid transparent',
-                opacity: hoveredType && hoveredType !== leg.type && !isFilterActive ? 0.35 : 1
+                opacity: hoveredType && hoveredType !== leg.type && !isFilterActive ? 0.4 : 1
               }}
               title={isFilterActive ? `Klik untuk membatalkan filter ${leg.label}` : `Klik untuk memfilter hanya tipe ${leg.label}`}
             >
-              <span style={{
-                width: '10px',
-                height: '10px',
-                borderRadius: '50%',
-                backgroundColor: leg.color,
-                boxShadow: isFilterActive ? `0 0 10px ${leg.color}` : `0 0 6px ${leg.color}88`,
-                display: 'inline-block'
-              }} />
-              {leg.label}
+              <span
+                className="w-2.5 h-2.5 rounded-full inline-block"
+                style={{
+                  backgroundColor: leg.color,
+                  boxShadow: isFilterActive ? `0 0 8px ${leg.color}` : 'none'
+                }}
+              />
+              <span className="text-[11px]">{leg.label}</span>
               {isFilterActive && (
-                <span style={{
-                  fontSize: '9px',
-                  background: leg.color,
-                  color: '#ffffff',
-                  padding: '1px 4px',
-                  borderRadius: '3px',
-                  fontWeight: '800'
-                }}>
+                <span 
+                  className="text-[9px] text-white px-1 py-0.5 rounded font-extrabold ml-0.5"
+                  style={{ backgroundColor: leg.color }}
+                >
                   AKTIF
                 </span>
               )}

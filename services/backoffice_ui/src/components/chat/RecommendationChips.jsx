@@ -91,7 +91,7 @@ export default function RecommendationChips({
       <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Compass size={16} color="var(--accent-primary)" />
-          <span style={{ fontSize: '13px', fontWeight: '700', color: '#ffffff' }}>
+          <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-main)' }}>
             Rekomendasi Eksplorasi Cepat
           </span>
           <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
@@ -112,14 +112,14 @@ export default function RecommendationChips({
               <div
                 key={cat.id}
                 style={{
-                  background: 'rgba(15, 23, 42, 0.65)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  background: 'var(--bg-glass-1)',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: '12px',
                   padding: '12px 14px',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '8px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: cat.color }}>
@@ -142,9 +142,9 @@ export default function RecommendationChips({
                         textAlign: 'left',
                         fontSize: '11px',
                         lineHeight: '1.4',
-                        color: 'var(--text-secondary)',
-                        background: 'rgba(255, 255, 255, 0.03)',
-                        border: '1px solid rgba(255, 255, 255, 0.06)',
+                        color: 'var(--text-main)',
+                        background: 'var(--bg-glass-2)',
+                        border: '1px solid var(--border-subtle)',
                         borderRadius: '8px',
                         padding: '6px 10px',
                         cursor: disabled ? 'not-allowed' : 'pointer',
@@ -158,14 +158,14 @@ export default function RecommendationChips({
                         if (!disabled) {
                           e.currentTarget.style.background = 'rgba(99, 102, 241, 0.12)';
                           e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.35)';
-                          e.currentTarget.style.color = '#ffffff';
+                          e.currentTarget.style.color = 'var(--text-main)';
                         }
                       }}
                       onMouseLeave={(e) => {
                         if (!disabled) {
-                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
-                          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.06)';
-                          e.currentTarget.style.color = 'var(--text-secondary)';
+                          e.currentTarget.style.background = 'var(--bg-glass-2)';
+                          e.currentTarget.style.borderColor = 'var(--border-subtle)';
+                          e.currentTarget.style.color = 'var(--text-main)';
                         }
                       }}
                     >
@@ -190,7 +190,7 @@ export default function RecommendationChips({
       style={{
         marginTop: '12px',
         paddingTop: '10px',
-        borderTop: '1px dashed rgba(255, 255, 255, 0.08)',
+        borderTop: '1px dashed var(--border-subtle)',
         display: 'flex',
         flexDirection: 'column',
         gap: '6px'
@@ -220,9 +220,9 @@ export default function RecommendationChips({
               gap: '6px',
               padding: '5px 12px',
               borderRadius: '20px',
-              background: 'rgba(99, 102, 241, 0.08)',
+              background: 'rgba(99, 102, 241, 0.1)',
               border: '1px solid rgba(99, 102, 241, 0.25)',
-              color: '#c7d2fe',
+              color: 'var(--text-main)',
               fontSize: '11px',
               fontWeight: '500',
               cursor: disabled ? 'not-allowed' : 'pointer',
@@ -233,21 +233,21 @@ export default function RecommendationChips({
               if (!disabled) {
                 e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)';
                 e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.5)';
-                e.currentTarget.style.color = '#ffffff';
+                e.currentTarget.style.color = 'var(--text-main)';
                 e.currentTarget.style.transform = 'translateY(-1px)';
               }
             }}
             onMouseLeave={(e) => {
               if (!disabled) {
-                e.currentTarget.style.background = 'rgba(99, 102, 241, 0.08)';
+                e.currentTarget.style.background = 'rgba(99, 102, 241, 0.1)';
                 e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.25)';
-                e.currentTarget.style.color = '#c7d2fe';
+                e.currentTarget.style.color = 'var(--text-main)';
                 e.currentTarget.style.transform = 'none';
               }
             }}
           >
             <span>{prompt}</span>
-            <ArrowRight size={10} color="#a5b4fc" />
+            <ArrowRight size={10} color="var(--accent-primary)" />
           </button>
         ))}
       </div>

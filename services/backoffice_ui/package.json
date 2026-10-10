@@ -10,13 +10,16 @@
     "postinstall": "node -e \"const fs=require('fs'); const p='./node_modules/react-router/dist'; if(fs.existsSync(p+'/react-router.development.js') && (!fs.existsSync(p+'/index.js') || fs.statSync(p+'/index.js').size === 0)) fs.copyFileSync(p+'/react-router.development.js', p+'/index.js');\""
   },
   "dependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "axios": "^1.6.7",
     "cytoscape": "^3.28.1",
     "cytoscape-cose-bilkent": "^4.1.0",
+    "daisyui": "^5.7.47",
     "lucide-react": "^0.330.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.22.0",
+    "tailwindcss": "^4.3.3",
     "zustand": "^4.5.0"
   },
   "devDependencies": {

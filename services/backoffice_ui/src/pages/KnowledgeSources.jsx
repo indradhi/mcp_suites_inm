@@ -243,7 +243,7 @@ export default function KnowledgeSources() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '28px', fontWeight: '800', letterSpacing: '-0.03em', color: '#ffffff' }}>
+          <h1 style={{ fontSize: '28px', fontWeight: '800', letterSpacing: '-0.03em', color: 'var(--text-main)' }}>
             Knowledge Base Catalog
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>
@@ -305,9 +305,9 @@ export default function KnowledgeSources() {
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
-                borderColor: 'rgba(236, 72, 153, 0.4)',
-                color: '#ec4899',
-                background: 'rgba(236, 72, 153, 0.08)'
+                borderColor: 'var(--border-subtle)',
+                color: 'var(--text-main)',
+                background: 'var(--bg-glass-2)'
               }}
             >
               <Cpu size={15} />
@@ -326,11 +326,6 @@ export default function KnowledgeSources() {
             id="btn-add-mcp-source"
             className="btn-secondary" 
             onClick={() => { setEditingSource(null); setActiveModal('mcp'); }}
-            style={{
-              borderColor: 'rgba(168, 85, 247, 0.4)',
-              color: '#c084fc',
-              background: 'rgba(168, 85, 247, 0.12)'
-            }}
           >
             <Cpu size={15} /> Server MCP
           </button>
@@ -440,10 +435,10 @@ export default function KnowledgeSources() {
           {/* Status Filter Tabs */}
           <div style={{
             display: 'flex',
-            background: 'rgba(0, 0, 0, 0.25)',
+            background: 'var(--bg-glass-2)',
             padding: '3px',
             borderRadius: '8px',
-            border: '1px solid var(--border-color)',
+            border: '1px solid var(--border-subtle)',
             gap: '2px'
           }}>
             <button
@@ -457,8 +452,9 @@ export default function KnowledgeSources() {
                 borderRadius: '6px',
                 border: 'none',
                 cursor: 'pointer',
-                background: statusFilter === 'all' ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
-                color: statusFilter === 'all' ? '#ffffff' : 'var(--text-muted)',
+                background: statusFilter === 'all' ? 'var(--bg-glass-1)' : 'transparent',
+                color: statusFilter === 'all' ? 'var(--text-main)' : 'var(--text-secondary)',
+                boxShadow: statusFilter === 'all' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                 transition: 'all 0.15s ease'
               }}
             >
@@ -476,7 +472,7 @@ export default function KnowledgeSources() {
                 border: 'none',
                 cursor: 'pointer',
                 background: statusFilter === 'active' ? 'rgba(16, 185, 129, 0.18)' : 'transparent',
-                color: statusFilter === 'active' ? '#34d399' : 'var(--text-muted)',
+                color: statusFilter === 'active' ? 'var(--accent-emerald)' : 'var(--text-secondary)',
                 transition: 'all 0.15s ease'
               }}
             >
@@ -494,7 +490,7 @@ export default function KnowledgeSources() {
                 border: 'none',
                 cursor: 'pointer',
                 background: statusFilter === 'disabled' ? 'rgba(239, 68, 68, 0.18)' : 'transparent',
-                color: statusFilter === 'disabled' ? '#fca5a5' : 'var(--text-muted)',
+                color: statusFilter === 'disabled' ? '#dc2626' : 'var(--text-secondary)',
                 transition: 'all 0.15s ease'
               }}
             >
@@ -505,10 +501,10 @@ export default function KnowledgeSources() {
           {/* Validity Filter Tabs */}
           <div style={{
             display: 'flex',
-            background: 'rgba(0, 0, 0, 0.25)',
+            background: 'var(--bg-glass-2)',
             padding: '3px',
             borderRadius: '8px',
-            border: '1px solid var(--border-color)',
+            border: '1px solid var(--border-subtle)',
             gap: '2px',
             flexWrap: 'wrap'
           }}>
@@ -522,8 +518,9 @@ export default function KnowledgeSources() {
                 borderRadius: '6px',
                 border: 'none',
                 cursor: 'pointer',
-                background: validityFilter === 'all' ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
-                color: validityFilter === 'all' ? '#ffffff' : 'var(--text-muted)'
+                background: validityFilter === 'all' ? 'var(--bg-glass-1)' : 'transparent',
+                color: validityFilter === 'all' ? 'var(--text-main)' : 'var(--text-secondary)',
+                boxShadow: validityFilter === 'all' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
               }}
             >
               Semua Validitas
@@ -538,8 +535,8 @@ export default function KnowledgeSources() {
                 borderRadius: '6px',
                 border: 'none',
                 cursor: 'pointer',
-                background: validityFilter === 'authoritative' ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
-                color: validityFilter === 'authoritative' ? '#34d399' : 'var(--text-muted)'
+                background: validityFilter === 'authoritative' ? 'rgba(16, 185, 129, 0.18)' : 'transparent',
+                color: validityFilter === 'authoritative' ? 'var(--accent-emerald)' : 'var(--text-secondary)'
               }}
             >
               🟢 Tingkat 1 (Otoritatif)
@@ -554,8 +551,8 @@ export default function KnowledgeSources() {
                 borderRadius: '6px',
                 border: 'none',
                 cursor: 'pointer',
-                background: validityFilter === 'verified' ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
-                color: validityFilter === 'verified' ? '#60a5fa' : 'var(--text-muted)'
+                background: validityFilter === 'verified' ? 'rgba(59, 130, 246, 0.18)' : 'transparent',
+                color: validityFilter === 'verified' ? 'var(--accent-primary)' : 'var(--text-secondary)'
               }}
             >
               🔵 Tingkat 2 (Terverifikasi)
@@ -570,8 +567,8 @@ export default function KnowledgeSources() {
                 borderRadius: '6px',
                 border: 'none',
                 cursor: 'pointer',
-                background: validityFilter === 'secondary' ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
-                color: validityFilter === 'secondary' ? '#fbbf24' : 'var(--text-muted)'
+                background: validityFilter === 'secondary' ? 'rgba(245, 158, 11, 0.18)' : 'transparent',
+                color: validityFilter === 'secondary' ? '#d97706' : 'var(--text-secondary)'
               }}
             >
               🟡 Tingkat 3 (Sekunder)
@@ -586,8 +583,8 @@ export default function KnowledgeSources() {
                 borderRadius: '6px',
                 border: 'none',
                 cursor: 'pointer',
-                background: validityFilter === 'unverified' ? 'rgba(148, 163, 184, 0.2)' : 'transparent',
-                color: validityFilter === 'unverified' ? '#cbd5e1' : 'var(--text-muted)'
+                background: validityFilter === 'unverified' ? 'var(--bg-glass-1)' : 'transparent',
+                color: validityFilter === 'unverified' ? 'var(--text-main)' : 'var(--text-secondary)'
               }}
             >
               ⚪ Tingkat 4 (Pendukung)
@@ -632,10 +629,10 @@ export default function KnowledgeSources() {
                 justifyContent: 'space-between',
                 cursor: 'pointer',
                 border: !isActive 
-                  ? '1px dashed rgba(255, 255, 255, 0.15)' 
+                  ? '1px dashed var(--border-subtle)' 
                   : (isTool ? `1px solid ${accentBorder}` : '1px solid var(--border-color)'),
                 background: !isActive
-                  ? 'rgba(15, 23, 42, 0.35)'
+                  ? 'var(--bg-glass-3)'
                   : (isTool ? (isMcp ? 'rgba(168, 85, 247, 0.04)' : (isDbTool ? 'rgba(99, 102, 241, 0.03)' : 'rgba(6, 182, 212, 0.03)')) : undefined),
                 opacity: !isActive ? 0.72 : 1,
                 transition: 'all 0.2s ease',
@@ -648,7 +645,7 @@ export default function KnowledgeSources() {
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = 'translateY(0)';
                 e.currentTarget.style.borderColor = !isActive 
-                  ? 'rgba(255, 255, 255, 0.15)' 
+                  ? 'var(--border-subtle)' 
                   : (isTool ? accentBorder : 'var(--border-color)');
               }}
             >
@@ -660,11 +657,11 @@ export default function KnowledgeSources() {
                       width: '32px',
                       height: '32px',
                       borderRadius: '8px',
-                      background: !isActive ? 'rgba(255, 255, 255, 0.03)' : (isTool ? accentBg : 'rgba(255, 255, 255, 0.05)'),
+                      background: !isActive ? 'var(--bg-glass-light)' : (isTool ? accentBg : 'var(--bg-glass-light)'),
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      border: !isActive ? '1px solid rgba(255, 255, 255, 0.1)' : (isTool ? `1px solid ${accentBorder}` : '1px solid var(--border-color)')
+                      border: !isActive ? '1px solid var(--border-subtle)' : (isTool ? `1px solid ${accentBorder}` : '1px solid var(--border-color)')
                     }}>
                       {isTool ? <Zap size={18} color={!isActive ? 'var(--text-muted)' : accentColor} /> : getSourceIcon(source.source_type)}
                     </div>
@@ -682,16 +679,16 @@ export default function KnowledgeSources() {
                           fontWeight: '700',
                           padding: '1px 7px',
                           borderRadius: '10px',
-                          background: isActive ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
-                          color: isActive ? '#34d399' : '#94a3b8',
-                          border: `1px solid ${isActive ? 'rgba(16, 185, 129, 0.3)' : 'rgba(148, 163, 184, 0.25)'}`
+                          background: isActive ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-glass-light)',
+                          color: isActive ? '#059669' : 'var(--text-muted)',
+                          border: `1px solid ${isActive ? 'rgba(16, 185, 129, 0.3)' : 'var(--border-subtle)'}`
                         }}>
                           <span style={{
                             width: '5px',
                             height: '5px',
                             borderRadius: '50%',
-                            background: isActive ? '#34d399' : '#64748b',
-                            boxShadow: isActive ? '0 0 6px #34d399' : 'none'
+                            background: isActive ? '#059669' : '#64748b',
+                            boxShadow: isActive ? '0 0 6px rgba(16, 185, 129, 0.5)' : 'none'
                           }} />
                           {isActive ? 'Aktif' : 'Nonaktif'}
                         </span>
@@ -708,7 +705,7 @@ export default function KnowledgeSources() {
                     />
                     {isTool ? (
                       <span style={{
-                        background: !isActive ? 'rgba(255, 255, 255, 0.05)' : accentBg,
+                        background: !isActive ? 'var(--bg-glass-light)' : accentBg,
                         color: !isActive ? 'var(--text-muted)' : accentColor,
                         padding: '3px 9px',
                         borderRadius: '12px',
@@ -735,7 +732,7 @@ export default function KnowledgeSources() {
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '4px',
-                          background: !isActive ? 'rgba(255,255,255,0.04)' : 'rgba(234, 179, 8, 0.12)',
+                          background: !isActive ? 'var(--bg-glass-light)' : 'rgba(234, 179, 8, 0.12)',
                           color: !isActive ? 'var(--text-muted)' : '#fbbf24',
                           padding: '3px 9px',
                           borderRadius: '12px',
@@ -785,7 +782,7 @@ export default function KnowledgeSources() {
                           width: '16px',
                           height: '16px',
                           borderRadius: '50%',
-                          backgroundColor: '#ffffff',
+                          backgroundColor: 'var(--text-main)',
                           boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
                           transform: isActive ? 'translateX(18px)' : 'translateX(0)',
                           transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
@@ -795,7 +792,7 @@ export default function KnowledgeSources() {
                   </div>
                 </div>
 
-                <h3 style={{ fontSize: '16px', fontWeight: '700', color: !isActive ? '#cbd5e1' : '#ffffff', marginBottom: '6px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '700', color: !isActive ? 'var(--text-sub)' : 'var(--text-main)', marginBottom: '6px' }}>
                   {source.name}
                 </h3>
                 {isMcp && source.config?.endpoint && (
@@ -853,12 +850,12 @@ export default function KnowledgeSources() {
                 {isMcp && source.config?.tools && source.config.tools.length > 0 && (
                   <div style={{ marginBottom: '16px' }}>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Cpu size={12} color="#c084fc" /> <span style={{ color: !isActive ? '#cbd5e1' : '#ffffff', fontWeight: '600' }}>Alat MCP Terdaftar:</span>
+                      <Cpu size={12} color="#c084fc" /> <span style={{ color: !isActive ? 'var(--text-sub)' : 'var(--text-main)', fontWeight: '600' }}>Alat MCP Terdaftar:</span>
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                       {source.config.tools.slice(0, 6).map((t, tIdx) => (
                         <span key={tIdx} style={{
-                          background: t.enabled !== false ? 'rgba(168, 85, 247, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                          background: t.enabled !== false ? 'rgba(168, 85, 247, 0.12)' : 'var(--bg-glass-light)',
                           border: `1px solid ${t.enabled !== false ? 'rgba(168, 85, 247, 0.3)' : 'var(--border-color)'}`,
                           borderRadius: '4px',
                           padding: '2px 6px',
@@ -882,12 +879,12 @@ export default function KnowledgeSources() {
                 {!isMcp && isTool && source.config?.parameters && source.config.parameters.length > 0 && (
                   <div style={{ marginBottom: '16px' }}>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Code size={12} color={!isActive ? 'var(--text-muted)' : accentColor} /> <span style={{ color: !isActive ? '#cbd5e1' : '#ffffff', fontWeight: '600' }}>{toolSlug}</span>
+                      <Code size={12} color={!isActive ? 'var(--text-muted)' : accentColor} /> <span style={{ color: !isActive ? 'var(--text-sub)' : 'var(--text-main)', fontWeight: '600' }}>{toolSlug}</span>
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                       {source.config.parameters.map((p, pIdx) => (
                         <span key={pIdx} style={{
-                          background: 'rgba(255, 255, 255, 0.05)',
+                          background: 'var(--bg-glass-light)',
                           border: '1px solid var(--border-color)',
                           borderRadius: '4px',
                           padding: '2px 6px',
@@ -907,14 +904,14 @@ export default function KnowledgeSources() {
                   <div style={{ marginBottom: '14px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-muted)' }}>
                       <BookOpen size={12} color="var(--accent-primary)" />
-                      <span style={{ color: '#cbd5e1', fontWeight: '600' }}>Kamus Data:</span>
+                      <span style={{ color: 'var(--text-sub)', fontWeight: '600' }}>Kamus Data:</span>
                       <span style={{
-                        background: 'rgba(99, 102, 241, 0.15)',
-                        border: '1px solid rgba(99, 102, 241, 0.3)',
+                        background: 'var(--bg-glass-3)',
+                        border: '1px solid var(--border-subtle)',
                         borderRadius: '4px',
                         padding: '1px 6px',
                         fontSize: '10px',
-                        color: '#a5b4fc',
+                        color: 'var(--accent-primary)',
                         fontWeight: '700'
                       }}>
                         {source.config.field_definitions.length} field terdefinisi
@@ -928,9 +925,10 @@ export default function KnowledgeSources() {
                 <div style={{
                   padding: '10px 12px',
                   borderRadius: '6px',
-                  background: 'rgba(0,0,0,0.25)',
+                  background: 'var(--bg-glass-2)',
+                  border: '1px solid var(--border-subtle)',
                   fontSize: '12px',
-                  color: 'var(--text-muted)',
+                  color: 'var(--text-secondary)',
                   marginBottom: '16px',
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -941,11 +939,11 @@ export default function KnowledgeSources() {
                   </span>
                   <span 
                     style={{ 
-                      color: !isActive ? 'var(--text-muted)' : (isTool ? accentColor : 'var(--text-secondary)'),
-                      background: 'rgba(255, 255, 255, 0.05)',
+                      color: !isActive ? 'var(--text-muted)' : (isTool ? 'var(--accent-primary)' : 'var(--text-main)'),
+                      background: 'var(--bg-glass-3)',
                       padding: '2px 8px',
                       borderRadius: '6px',
-                      border: '1px solid var(--border-color)',
+                      border: '1px solid var(--border-subtle)',
                       cursor: 'pointer',
                       fontWeight: '600',
                       transition: 'all 0.15s ease'
@@ -970,10 +968,7 @@ export default function KnowledgeSources() {
                       fontSize: '12px',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '5px',
-                      color: 'var(--accent-cyan)',
-                      borderColor: 'rgba(6, 182, 212, 0.35)',
-                      background: 'rgba(6, 182, 212, 0.08)'
+                      gap: '5px'
                     }}
                     onClick={(e) => {
                       e.stopPropagation();

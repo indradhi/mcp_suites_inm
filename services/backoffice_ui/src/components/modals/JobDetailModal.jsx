@@ -200,7 +200,7 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                <h2 style={{ fontSize: '19px', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em', margin: 0 }}>
+                <h2 style={{ fontSize: '19px', fontWeight: '800', color: 'var(--text-main)', letterSpacing: '-0.01em', margin: 0 }}>
                   Detail Job Ingestion #{currentJob.id}
                 </h2>
                 <span className={`badge ${currentJob.status === 'completed' ? 'badge-success' : currentJob.status === 'processing' ? 'badge-info' : 'badge-danger'}`} style={{ fontSize: '11px' }}>
@@ -212,7 +212,7 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
                   textTransform: 'uppercase',
                   padding: '2px 8px',
                   borderRadius: '6px',
-                  background: 'rgba(255, 255, 255, 0.08)',
+                  background: 'var(--bg-glass-light)',
                   color: 'var(--text-secondary)',
                   border: '1px solid var(--border-color)'
                 }}>
@@ -220,7 +220,7 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
                 </span>
               </div>
               <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: '600', color: '#e2e8f0' }}>{currentJob.source_name}</span>
+                <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>{currentJob.source_name}</span>
                 <span>•</span>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--text-muted)' }}>
                   <Clock size={12} /> {formatDateTimeWIB(currentJob.started_at)} ({durationText})
@@ -246,7 +246,7 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
               onClick={onClose}
               title="Tutup"
               style={{
-                background: 'rgba(255, 255, 255, 0.05)',
+                background: 'var(--bg-glass-light)',
                 border: '1px solid var(--border-color)',
                 borderRadius: '8px',
                 width: '32px',
@@ -299,12 +299,12 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
             alignItems: 'center',
             gap: '12px'
           }}>
-            <GitFork size={20} color="#a5b4fc" />
+            <GitFork size={20} color="var(--accent-primary)" />
             <div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '700' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: '700' }}>
                 Relasi Graph (Neo4j)
               </div>
-              <div style={{ fontSize: '18px', fontWeight: '800', color: '#a5b4fc' }}>
+              <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--accent-primary)' }}>
                 {stats.relations_count.toLocaleString()}
               </div>
             </div>
@@ -319,12 +319,12 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
             alignItems: 'center',
             gap: '12px'
           }}>
-            <Database size={20} color="#34d399" />
+            <Database size={20} color="var(--accent-emerald)" />
             <div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '700' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: '700' }}>
                 Chunk Vektor (ChromaDB)
               </div>
-              <div style={{ fontSize: '18px', fontWeight: '800', color: '#34d399' }}>
+              <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--accent-emerald)' }}>
                 {stats.chunks_count.toLocaleString()}
                 {stats.total_chunks_in_store ? (
                   <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: '6px' }}>
@@ -339,7 +339,7 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
         {/* Tab Selector & Search Row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
           {/* Tabs */}
-          <div style={{ display: 'flex', gap: '8px', background: 'rgba(255, 255, 255, 0.04)', padding: '4px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+          <div style={{ display: 'flex', gap: '8px', background: 'var(--bg-glass-light)', padding: '4px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
             <button
               type="button"
               onClick={() => { setActiveTab('entities'); setSelectedTypeFilter('ALL'); setSearchQuery(''); }}
@@ -377,7 +377,7 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
                 cursor: 'pointer',
                 transition: 'all 0.2s',
                 background: activeTab === 'relations' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
-                color: activeTab === 'relations' ? '#a5b4fc' : 'var(--text-secondary)'
+                color: activeTab === 'relations' ? 'var(--accent-primary)' : 'var(--text-secondary)'
               }}
             >
               <GitFork size={14} />
@@ -424,9 +424,9 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
                   width: '100%',
                   padding: '7px 12px 7px 34px',
                   borderRadius: '8px',
-                  background: 'rgba(255, 255, 255, 0.05)',
+                  background: 'var(--bg-glass-light)',
                   border: '1px solid var(--border-color)',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   fontSize: '12px',
                   outline: 'none'
                 }}
@@ -459,9 +459,9 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
                 style={{
                   padding: '7px 10px',
                   borderRadius: '8px',
-                  background: 'rgba(255, 255, 255, 0.06)',
+                  background: 'var(--bg-glass-light)',
                   border: '1px solid var(--border-color)',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   fontSize: '12px',
                   outline: 'none',
                   cursor: 'pointer'
@@ -481,9 +481,9 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
                 style={{
                   padding: '7px 10px',
                   borderRadius: '8px',
-                  background: 'rgba(255, 255, 255, 0.06)',
+                  background: 'var(--bg-glass-light)',
                   border: '1px solid var(--border-color)',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   fontSize: '12px',
                   outline: 'none',
                   cursor: 'pointer'
@@ -547,7 +547,7 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
                       <div
                         key={idx}
                         style={{
-                          background: 'rgba(255, 255, 255, 0.03)',
+                          background: 'var(--bg-glass-light)',
                           border: '1px solid rgba(255, 255, 255, 0.07)',
                           borderRadius: '10px',
                           padding: '14px',
@@ -558,7 +558,7 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
                         }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                          <div style={{ fontWeight: '700', color: '#ffffff', fontSize: '14px', wordBreak: 'break-word' }}>
+                          <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '14px', wordBreak: 'break-word' }}>
                             {ent.name}
                           </div>
                           <span
@@ -633,7 +633,7 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
                       <div
                         key={idx}
                         style={{
-                          background: 'rgba(255, 255, 255, 0.03)',
+                          background: 'var(--bg-glass-light)',
                           border: '1px solid rgba(255, 255, 255, 0.07)',
                           borderRadius: '10px',
                           padding: '12px 16px',
@@ -659,7 +659,7 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
                           >
                             {rel.source_type || 'ENT'}
                           </span>
-                          <span style={{ fontWeight: '700', color: '#ffffff', fontSize: '13px' }}>
+                          <span style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '13px' }}>
                             {rel.source}
                           </span>
                         </div>
@@ -673,7 +673,7 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
                           borderRadius: '20px',
                           background: 'rgba(99, 102, 241, 0.12)',
                           border: '1px solid rgba(99, 102, 241, 0.3)',
-                          color: '#a5b4fc',
+                          color: 'var(--accent-primary)',
                           fontSize: '11px',
                           fontWeight: '700'
                         }}>
@@ -686,7 +686,7 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
 
                         {/* Target Entity */}
                         <div style={{ flex: '1', minWidth: '180px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
-                          <span style={{ fontWeight: '700', color: '#ffffff', fontSize: '13px', textAlign: 'right' }}>
+                          <span style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '13px', textAlign: 'right' }}>
                             {rel.target}
                           </span>
                           <span
@@ -730,7 +730,7 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
                       <div
                         key={chunk.id || idx}
                         style={{
-                          background: 'rgba(255, 255, 255, 0.03)',
+                          background: 'var(--bg-glass-light)',
                           border: isBankData ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)',
                           borderRadius: '10px',
                           padding: '14px',
@@ -782,7 +782,7 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
                               type="button"
                               onClick={() => handleCopy(chunk.id, chunk.content)}
                               style={{
-                                background: 'rgba(255, 255, 255, 0.05)',
+                                background: 'var(--bg-glass-light)',
                                 border: '1px solid var(--border-color)',
                                 borderRadius: '6px',
                                 padding: '4px 8px',
@@ -803,7 +803,7 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
                               type="button"
                               onClick={() => toggleExpandChunk(chunk.id)}
                               style={{
-                                background: 'rgba(255, 255, 255, 0.05)',
+                                background: 'var(--bg-glass-light)',
                                 border: '1px solid var(--border-color)',
                                 borderRadius: '6px',
                                 padding: '4px 8px',
@@ -831,7 +831,7 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
                             fontFamily: 'JetBrains Mono, monospace',
                             fontSize: '11px',
                             lineHeight: '1.6',
-                            color: '#cbd5e1',
+                            color: 'var(--text-sub)',
                             whiteSpace: 'pre-wrap',
                             wordBreak: 'break-word',
                             maxHeight: isExpanded ? 'none' : '120px',
@@ -847,7 +847,7 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
                               left: 0,
                               right: 0,
                               height: '40px',
-                              background: 'linear-gradient(transparent, rgba(15, 23, 42, 0.95))',
+                              background: 'linear-gradient(transparent, var(--bg-glass-2))',
                               pointerEvents: 'none'
                             }} />
                           )}
@@ -858,19 +858,19 @@ export default function JobDetailModal({ isOpen, job, onClose }) {
                           <div style={{
                             padding: '10px',
                             borderRadius: '6px',
-                            background: 'rgba(255, 255, 255, 0.02)',
+                            background: 'var(--bg-glass-light)',
                             border: '1px solid rgba(255, 255, 255, 0.05)',
                             fontSize: '11px',
                             color: 'var(--text-secondary)'
                           }}>
-                            <div style={{ fontWeight: '700', color: '#e2e8f0', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <div style={{ fontWeight: '700', color: 'var(--text-main)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <Tag size={12} /> Metadata:
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '6px' }}>
                               {Object.entries(chunk.metadata).map(([k, v]) => (
                                 <div key={k} style={{ display: 'flex', gap: '6px' }}>
                                   <span style={{ color: 'var(--text-muted)' }}>{k}:</span>
-                                  <span style={{ color: '#ffffff', wordBreak: 'break-word' }}>{String(v)}</span>
+                                  <span style={{ color: 'var(--text-main)', wordBreak: 'break-word' }}>{String(v)}</span>
                                 </div>
                               ))}
                             </div>

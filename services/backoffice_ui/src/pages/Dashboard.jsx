@@ -70,28 +70,28 @@ export default function Dashboard() {
       value: stats.total_sources,
       subtext: 'Databases, APIs, Files, Web',
       icon: Database,
-      color: '#6366f1'
+      color: '#3b82f6'
     },
     {
       title: 'Graph Entities',
       value: graphMetrics.node_count,
       subtext: `${graphMetrics.edge_count} relation connections`,
       icon: Network,
-      color: '#06b6d4'
+      color: '#0284c7'
     },
     {
       title: 'Active LLM Backends',
       value: stats.active_backends,
       subtext: 'vLLM / Ollama connected',
       icon: Cpu,
-      color: '#8b5cf6'
+      color: '#475569'
     },
     {
       title: 'Ingestion Jobs',
       value: stats.total_jobs,
       subtext: `${stats.failed_jobs} failed`,
       icon: Layers,
-      color: '#10b981'
+      color: '#059669'
     }
   ];
 
@@ -100,7 +100,7 @@ export default function Dashboard() {
       {/* Header Banner */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1 style={{ fontSize: '28px', fontWeight: '800', letterSpacing: '-0.03em', color: '#ffffff' }}>
+          <h1 style={{ fontSize: '28px', fontWeight: '800', letterSpacing: '-0.03em', color: 'var(--text-main)' }}>
             Mission Control
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>
@@ -140,7 +140,7 @@ export default function Dashboard() {
                   <Icon size={20} color={card.color} />
                 </div>
               </div>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: '#ffffff', marginTop: '16px', letterSpacing: '-0.02em' }}>
+              <div style={{ fontSize: '32px', fontWeight: '800', color: 'var(--text-main)', marginTop: '16px', letterSpacing: '-0.02em' }}>
                 {card.value}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
@@ -231,8 +231,8 @@ export default function Dashboard() {
         return (
           <div className="glass-panel" style={{
             marginBottom: '28px',
-            border: '1px solid rgba(99, 102, 241, 0.35)',
-            background: 'linear-gradient(135deg, rgba(30, 27, 75, 0.5) 0%, rgba(15, 23, 42, 0.7) 100%)',
+            border: '1px solid var(--border-subtle)',
+            background: 'var(--bg-glass-1)',
             overflow: 'hidden'
           }}>
             {/* Collapsible Header */}
@@ -245,8 +245,8 @@ export default function Dashboard() {
                 alignItems: 'center',
                 cursor: 'pointer',
                 userSelect: 'none',
-                background: 'rgba(255, 255, 255, 0.02)',
-                borderBottom: isEndpointsExpanded ? '1px solid rgba(255, 255, 255, 0.08)' : 'none'
+                background: 'var(--bg-glass-2)',
+                borderBottom: isEndpointsExpanded ? '1px solid var(--border-subtle)' : 'none'
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
@@ -254,20 +254,28 @@ export default function Dashboard() {
                   width: '40px',
                   height: '40px',
                   borderRadius: '10px',
-                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.3) 0%, rgba(6, 182, 212, 0.3) 100%)',
+                  background: 'var(--bg-glass-3)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  border: '1px solid rgba(255, 255, 255, 0.1)'
+                  border: '1px solid var(--border-subtle)'
                 }}>
                   <Server size={20} color="var(--accent-cyan)" />
                 </div>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                    <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#ffffff', margin: 0 }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>
                       System Access Points & OpenWebUI Integration
                     </h3>
-                    <span className="badge badge-info" style={{ fontSize: '11px' }}>
+                    <span style={{
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      background: 'var(--bg-glass-3)',
+                      color: 'var(--text-main)',
+                      border: '1px solid var(--border-subtle)'
+                    }}>
                       OpenWebUI Ready
                     </span>
                     <span style={{
@@ -275,13 +283,13 @@ export default function Dashboard() {
                       alignItems: 'center',
                       gap: '5px',
                       fontSize: '11px',
-                      color: '#10b981',
-                      background: 'rgba(16, 185, 129, 0.12)',
+                      color: 'var(--accent-emerald)',
+                      background: 'rgba(5, 150, 105, 0.1)',
                       padding: '2px 8px',
                       borderRadius: '12px',
-                      border: '1px solid rgba(16, 185, 129, 0.3)'
+                      border: '1px solid rgba(5, 150, 105, 0.25)'
                     }}>
-                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-emerald)' }} />
                       MCP SSE Active
                     </span>
                   </div>
@@ -297,9 +305,9 @@ export default function Dashboard() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  color: 'var(--text-primary)',
+                  background: 'var(--bg-glass-3)',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--text-main)',
                   padding: '6px 14px',
                   borderRadius: '8px',
                   fontSize: '12px',
@@ -330,7 +338,7 @@ export default function Dashboard() {
                 <div style={{ marginBottom: '24px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
                     <Globe size={16} color="var(--accent-cyan)" />
-                    <h4 style={{ fontSize: '14px', fontWeight: '700', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
+                    <h4 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
                       Available Service Access Points
                     </h4>
                   </div>
@@ -346,8 +354,8 @@ export default function Dashboard() {
                         <div 
                           key={ep.id}
                           style={{
-                            background: 'rgba(15, 23, 42, 0.65)',
-                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            background: 'var(--bg-glass-2)',
+                            border: '1px solid var(--border-subtle)',
                             borderRadius: '10px',
                             padding: '14px 16px',
                             display: 'flex',
@@ -359,7 +367,7 @@ export default function Dashboard() {
                         >
                           <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                              <span style={{ fontSize: '13px', fontWeight: '700', color: '#ffffff' }}>
+                              <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-main)' }}>
                                 {ep.name}
                               </span>
                               <span style={{
@@ -383,8 +391,8 @@ export default function Dashboard() {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            background: 'rgba(0, 0, 0, 0.35)',
-                            border: '1px solid rgba(255, 255, 255, 0.06)',
+                            background: 'var(--bg-glass-3)',
+                            border: '1px solid var(--border-subtle)',
                             borderRadius: '6px',
                             padding: '6px 10px',
                             gap: '8px'
@@ -426,9 +434,9 @@ export default function Dashboard() {
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '4px',
-                                background: isCopied ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.08)',
-                                border: isCopied ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.12)',
-                                color: isCopied ? '#10b981' : 'var(--text-secondary)',
+                                background: isCopied ? 'rgba(5, 150, 105, 0.15)' : 'var(--bg-glass-light)',
+                                border: isCopied ? '1px solid #059669' : '1px solid var(--border-subtle)',
+                                color: isCopied ? '#059669' : 'var(--text-main)',
                                 padding: '4px 8px',
                                 borderRadius: '4px',
                                 fontSize: '11px',
@@ -458,15 +466,23 @@ export default function Dashboard() {
 
                 {/* 2. Open WebUI Connection Guide */}
                 <div style={{
-                  background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 27, 75, 0.4) 100%)',
-                  border: '1px solid rgba(99, 102, 241, 0.25)',
+                  background: 'var(--bg-glass-2)',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: '12px',
                   padding: '20px'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span className="badge badge-info">Open WebUI Guide</span>
-                      <h4 style={{ fontSize: '14px', fontWeight: '700', color: '#ffffff', margin: 0 }}>
+                      <span style={{
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        background: 'var(--bg-glass-3)',
+                        color: 'var(--text-main)',
+                        border: '1px solid var(--border-subtle)'
+                      }}>Open WebUI Guide</span>
+                      <h4 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>
                         How to Connect Open WebUI to this MCP Server
                       </h4>
                     </div>
@@ -479,9 +495,9 @@ export default function Dashboard() {
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '6px',
-                          background: copiedKey === 'mcp-rec-prod' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(99, 102, 241, 0.25)',
-                          border: copiedKey === 'mcp-rec-prod' ? '1px solid #10b981' : '1px solid rgba(99, 102, 241, 0.4)',
-                          color: copiedKey === 'mcp-rec-prod' ? '#10b981' : '#ffffff',
+                          background: copiedKey === 'mcp-rec-prod' ? 'rgba(5, 150, 105, 0.15)' : 'var(--bg-glass-3)',
+                          border: copiedKey === 'mcp-rec-prod' ? '1px solid #059669' : '1px solid var(--border-subtle)',
+                          color: copiedKey === 'mcp-rec-prod' ? '#059669' : 'var(--text-main)',
                           padding: '6px 12px',
                           borderRadius: '6px',
                           fontSize: '11px',
@@ -500,9 +516,9 @@ export default function Dashboard() {
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '6px',
-                          background: copiedKey === 'mcp-rec-direct' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.08)',
-                          border: copiedKey === 'mcp-rec-direct' ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.15)',
-                          color: copiedKey === 'mcp-rec-direct' ? '#10b981' : 'var(--text-primary)',
+                          background: copiedKey === 'mcp-rec-direct' ? 'rgba(5, 150, 105, 0.15)' : 'var(--bg-glass-3)',
+                          border: copiedKey === 'mcp-rec-direct' ? '1px solid #059669' : '1px solid var(--border-subtle)',
+                          color: copiedKey === 'mcp-rec-direct' ? '#059669' : 'var(--text-main)',
                           padding: '6px 12px',
                           borderRadius: '6px',
                           fontSize: '11px',
@@ -521,11 +537,11 @@ export default function Dashboard() {
                     gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
                     gap: '12px'
                   }}>
-                    <div style={{ background: 'rgba(0, 0, 0, 0.25)', padding: '12px 14px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                    <div style={{ background: 'var(--bg-glass-3)', padding: '12px 14px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
                       <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--accent-cyan)', marginBottom: '4px' }}>
                         STEP 1
                       </div>
-                      <div style={{ fontSize: '12px', color: '#ffffff', fontWeight: '600' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-main)', fontWeight: '600' }}>
                         Open WebUI Settings
                       </div>
                       <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', margin: 0 }}>
@@ -533,11 +549,11 @@ export default function Dashboard() {
                       </p>
                     </div>
 
-                    <div style={{ background: 'rgba(0, 0, 0, 0.25)', padding: '12px 14px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                    <div style={{ background: 'var(--bg-glass-3)', padding: '12px 14px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
                       <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--accent-cyan)', marginBottom: '4px' }}>
                         STEP 2
                       </div>
-                      <div style={{ fontSize: '12px', color: '#ffffff', fontWeight: '600' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-main)', fontWeight: '600' }}>
                         Add New MCP Server
                       </div>
                       <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', margin: 0 }}>
@@ -545,11 +561,11 @@ export default function Dashboard() {
                       </p>
                     </div>
 
-                    <div style={{ background: 'rgba(0, 0, 0, 0.25)', padding: '12px 14px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                    <div style={{ background: 'var(--bg-glass-3)', padding: '12px 14px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
                       <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--accent-cyan)', marginBottom: '4px' }}>
                         STEP 3
                       </div>
-                      <div style={{ fontSize: '12px', color: '#ffffff', fontWeight: '600' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-main)', fontWeight: '600' }}>
                         Paste SSE URL
                       </div>
                       <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', margin: 0 }}>
@@ -557,15 +573,15 @@ export default function Dashboard() {
                       </p>
                     </div>
 
-                    <div style={{ background: 'rgba(0, 0, 0, 0.25)', padding: '12px 14px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                    <div style={{ background: 'var(--bg-glass-3)', padding: '12px 14px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
                       <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--accent-cyan)', marginBottom: '4px' }}>
                         STEP 4
                       </div>
-                      <div style={{ fontSize: '12px', color: '#ffffff', fontWeight: '600' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-main)', fontWeight: '600' }}>
                         Tools Auto-Discovered
                       </div>
                       <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', margin: 0 }}>
-                        Save &amp; test. Tools (<code style={{ color: '#10b981' }}>search_knowledge_base</code>, <code style={{ color: '#10b981' }}>get_entity_network_profile</code>, <code style={{ color: '#10b981' }}>recognize_face</code>) are immediately ready!
+                        Save &amp; test. Tools (<code style={{ color: 'var(--accent-emerald)' }}>search_knowledge_base</code>, <code style={{ color: 'var(--accent-emerald)' }}>get_entity_network_profile</code>, <code style={{ color: 'var(--accent-emerald)' }}>recognize_face</code>) are immediately ready!
                       </p>
                     </div>
                   </div>
@@ -585,7 +601,7 @@ export default function Dashboard() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Clock size={18} color="var(--accent-primary)" />
-              <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#ffffff' }}>Recent Ingest Jobs</h3>
+              <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-main)' }}>Recent Ingest Jobs</h3>
             </div>
             <Link to="/jobs" style={{ fontSize: '13px', color: 'var(--accent-primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
               View all <ArrowUpRight size={14} />
@@ -602,14 +618,14 @@ export default function Dashboard() {
                 <div key={job.id} style={{
                   padding: '12px 16px',
                   borderRadius: '8px',
-                  background: 'rgba(255, 255, 255, 0.02)',
+                  background: 'var(--bg-glass-light)',
                   border: '1px solid var(--border-color)',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center'
                 }}>
                   <div>
-                    <div style={{ fontSize: '14px', fontWeight: '600', color: '#ffffff' }}>{job.source_name}</div>
+                    <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-main)' }}>{job.source_name}</div>
                     <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
                       {job.chunks_created} chunks · {job.entities_extracted} entities extracted
                     </div>
@@ -628,7 +644,7 @@ export default function Dashboard() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Sparkles size={18} color="var(--accent-cyan)" />
-              <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#ffffff' }}>Network Profiling Insights</h3>
+              <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-main)' }}>Network Profiling Insights</h3>
             </div>
             <Link to="/network" style={{ fontSize: '13px', color: 'var(--accent-cyan)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
               Open Graph <ArrowUpRight size={14} />
@@ -644,7 +660,7 @@ export default function Dashboard() {
                 border: '1px solid rgba(6, 182, 212, 0.15)'
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: '700', color: '#ffffff' }}>{ins.title}</span>
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-main)' }}>{ins.title}</span>
                   <span className="badge badge-info">{ins.category}</span>
                 </div>
                 <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>

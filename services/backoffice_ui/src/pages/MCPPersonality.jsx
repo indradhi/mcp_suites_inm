@@ -34,9 +34,9 @@ const PRESET_ICONS = {
 
 const PRESET_COLORS = {
   kpk_investigator: {
-    bg: 'rgba(239, 68, 68, 0.12)',
-    border: 'rgba(239, 68, 68, 0.35)',
-    accent: '#ef4444',
+    bg: 'rgba(51, 65, 85, 0.15)',
+    border: 'rgba(51, 65, 85, 0.35)',
+    accent: '#475569',
     badge: 'KPK Official'
   },
   legal_compliance: {
@@ -345,17 +345,18 @@ export default function MCPPersonality() {
             width: '46px',
             height: '46px',
             borderRadius: '12px',
-            background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+            background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 4px 16px rgba(239, 68, 68, 0.35)'
+            boxShadow: '0 4px 14px rgba(15, 23, 42, 0.25)',
+            border: '1px solid rgba(255, 255, 255, 0.12)'
           }}>
             <Sparkles size={24} color="#ffffff" />
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <h1 style={{ fontSize: '22px', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.02em', margin: 0 }}>
+              <h1 style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-main)', letterSpacing: '-0.02em', margin: 0 }}>
                 MCP Personality & System Prompting
               </h1>
               <span style={{
@@ -398,9 +399,7 @@ export default function MCPPersonality() {
               alignItems: 'center', 
               gap: '8px', 
               padding: '9px 16px', 
-              fontSize: '13px',
-              borderColor: 'rgba(239, 68, 68, 0.3)',
-              color: '#f87171'
+              fontSize: '13px'
             }}
             title="Kembalikan ke Kepribadian Asli Analis KPK"
           >
@@ -456,10 +455,7 @@ export default function MCPPersonality() {
               alignItems: 'center', 
               gap: '8px', 
               padding: '9px 20px', 
-              fontSize: '13px',
-              background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
-              border: 'none',
-              boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)'
+              fontSize: '13px'
             }}
           >
             {saving ? <RotateCcw size={16} className="animate-spin" /> : <Save size={16} />}
@@ -510,7 +506,7 @@ export default function MCPPersonality() {
       {/* Section 1: Preset Switcher Cards */}
       <div style={{ marginBottom: '28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-          <h2 style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff', margin: 0 }}>
+          <h2 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>
             Pilih Template Kepribadian (Presets)
           </h2>
           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
@@ -535,8 +531,8 @@ export default function MCPPersonality() {
                 style={{
                   padding: '18px',
                   borderRadius: '12px',
-                  background: isSelected ? color.bg : 'rgba(15, 23, 42, 0.65)',
-                  border: isSelected ? `2px solid ${color.accent}` : '1px solid var(--border-color)',
+                  background: isSelected ? color.bg : 'var(--bg-glass-2)',
+                  border: isSelected ? `2px solid ${color.accent}` : '1px solid var(--border-subtle)',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
                   position: 'relative',
@@ -589,11 +585,11 @@ export default function MCPPersonality() {
                     width: '36px',
                     height: '36px',
                     borderRadius: '10px',
-                    background: isSelected ? color.accent : 'rgba(255, 255, 255, 0.06)',
+                    background: isSelected ? color.accent : 'var(--bg-glass-light)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: isSelected ? '#ffffff' : color.accent
+                    color: isSelected ? 'var(--text-main)' : color.accent
                   }}>
                     <Icon size={18} />
                   </div>
@@ -601,7 +597,7 @@ export default function MCPPersonality() {
                     <h3 style={{ 
                       fontSize: '14px', 
                       fontWeight: '700', 
-                      color: isSelected ? '#ffffff' : 'var(--text-primary)', 
+                      color: isSelected ? 'var(--text-main)' : 'var(--text-primary)', 
                       margin: 0,
                       paddingRight: isSelected ? '24px' : '0'
                     }}>
@@ -610,7 +606,7 @@ export default function MCPPersonality() {
                     {presetItem.nickname && (
                       <div style={{
                         fontSize: '11px',
-                        color: isSelected ? '#ffffff' : color.accent,
+                        color: isSelected ? 'var(--text-main)' : color.accent,
                         opacity: isSelected ? 0.95 : 1,
                         fontWeight: '600',
                         marginTop: '3px',
@@ -667,7 +663,7 @@ export default function MCPPersonality() {
         <div className="glass-panel" style={{ padding: '24px', borderRadius: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
             <ActiveIcon size={20} color={activeColor.accent} />
-            <h2 style={{ fontSize: '16px', fontWeight: '700', color: '#ffffff', margin: 0 }}>
+            <h2 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>
               Konfigurasi Parameter Kepribadian
             </h2>
           </div>
@@ -723,9 +719,7 @@ export default function MCPPersonality() {
                     gap: '6px', 
                     padding: '10px 16px', 
                     fontSize: '13px',
-                    whiteSpace: 'nowrap',
-                    borderColor: 'rgba(59, 130, 246, 0.5)',
-                    color: '#60a5fa'
+                    whiteSpace: 'nowrap'
                   }}
                   title={`Simpan nama panggilan "${personality.nickname || ''}" ke template yang dipilih (${presets.find(p => p.id === personality.preset)?.name || personality.preset})`}
                 >
@@ -856,8 +850,8 @@ export default function MCPPersonality() {
                   gap: '8px', 
                   padding: '10px 20px', 
                   fontSize: '14px',
-                  borderColor: personality.preset?.startsWith('custom_') ? 'var(--text-secondary)' : 'rgba(56, 189, 248, 0.6)',
-                  color: personality.preset?.startsWith('custom_') ? 'inherit' : '#38bdf8'
+                  borderColor: 'var(--border-strong)',
+                  color: 'var(--text-main)'
                 }}
                 title={personality.preset?.startsWith('custom_') 
                   ? "Perbarui template kustom yang dipilih" 
@@ -879,9 +873,10 @@ export default function MCPPersonality() {
                   gap: '8px', 
                   padding: '10px 24px', 
                   fontSize: '14px',
-                  background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
-                  border: 'none',
-                  boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)'
+                  background: 'linear-gradient(135deg, #2b394e 0%, #172233 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.16)',
+                  boxShadow: '0 4px 14px rgba(15, 23, 42, 0.25)',
+                  color: '#ffffff'
                 }}
               >
                 {saving ? <RotateCcw size={16} className="animate-spin" /> : <Check size={16} />}
@@ -896,8 +891,8 @@ export default function MCPPersonality() {
           <div className="glass-panel" style={{ padding: '22px', borderRadius: '14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Eye size={18} color="#38bdf8" />
-                <h2 style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff', margin: 0 }}>
+                <Eye size={18} color="var(--accent-primary)" />
+                <h2 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>
                   Live System Prompt Preview
                 </h2>
               </div>
@@ -910,7 +905,7 @@ export default function MCPPersonality() {
                   gap: '6px',
                   padding: '6px 12px',
                   borderRadius: '6px',
-                  background: copiedPrompt ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                  background: copiedPrompt ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-glass-light)',
                   border: `1px solid ${copiedPrompt ? 'rgba(16, 185, 129, 0.4)' : 'var(--border-color)'}`,
                   color: copiedPrompt ? '#34d399' : 'var(--text-secondary)',
                   fontSize: '12px',
@@ -924,13 +919,13 @@ export default function MCPPersonality() {
               </button>
             </div>
 
-            <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 12px 0', lineHeight: '1.45' }}>
-              Berikut adalah teks System Instruction lengkap yang diinjeksikan ke LLM (vLLM, Ollama, OpenRouter, Google AI, OpenAI) dan diekspos melalui protokol MCP (<code style={{ color: '#38bdf8' }}>prompts/get</code>):
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 12px 0', lineHeight: '1.45' }}>
+              Berikut adalah teks System Instruction lengkap yang diinjeksikan ke LLM (vLLM, Ollama, OpenRouter, Google AI, OpenAI) dan diekspos melalui protokol MCP (<code style={{ color: 'var(--accent-primary)', fontWeight: '600' }}>prompts/get</code>):
             </p>
 
             <div style={{
-              background: '#090d16',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'var(--bg-glass-3)',
+              border: '1px solid var(--border-subtle)',
               borderRadius: '10px',
               padding: '16px',
               maxHeight: '440px',
@@ -938,7 +933,7 @@ export default function MCPPersonality() {
               fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
               fontSize: '12px',
               lineHeight: '1.6',
-              color: '#e2e8f0',
+              color: 'var(--text-main)',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word'
             }}>
@@ -950,7 +945,7 @@ export default function MCPPersonality() {
           <div className="glass-panel" style={{ padding: '20px', borderRadius: '14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
               <Info size={16} color="var(--accent-primary)" />
-              <h3 style={{ fontSize: '13px', fontWeight: '700', color: '#ffffff', margin: 0 }}>
+              <h3 style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>
                 Bagaimana Kepribadian Ini Bekerja?
               </h3>
             </div>
@@ -965,16 +960,16 @@ export default function MCPPersonality() {
               gap: '6px'
             }}>
               <li>
-                <strong style={{ color: '#ffffff' }}>AI Knowledge Chat:</strong> Diinjeksikan sebagai dasar kepribadian (System Role) pada backend LLM di setiap sesi obrolan.
+                <strong style={{ color: 'var(--text-main)' }}>AI Knowledge Chat:</strong> Diinjeksikan sebagai dasar kepribadian (System Role) pada backend LLM di setiap sesi obrolan.
               </li>
               <li>
-                <strong style={{ color: '#ffffff' }}>Klien MCP Eksternal:</strong> Klien seperti OpenWebUI atau Claude Desktop dapat memanggil method <code style={{ color: '#38bdf8' }}>prompts/get</code> dengan nama <code style={{ color: '#38bdf8' }}>default_personality</code>.
+                <strong style={{ color: 'var(--text-main)' }}>Klien MCP Eksternal:</strong> Klien seperti OpenWebUI atau Claude Desktop dapat memanggil method <code style={{ color: 'var(--accent-primary)', fontWeight: '600' }}>prompts/get</code> dengan nama <code style={{ color: 'var(--accent-primary)', fontWeight: '600' }}>default_personality</code>.
               </li>
               <li>
-                <strong style={{ color: '#ffffff' }}>Knowledge Orchestration Guidelines:</strong> Tool <code style={{ color: '#38bdf8' }}>get_knowledge_orchestration_guidelines</code> secara otomatis mengadopsi core mission dan kepribadian aktif ini.
+                <strong style={{ color: 'var(--text-main)' }}>Knowledge Orchestration Guidelines:</strong> Tool <code style={{ color: 'var(--accent-primary)', fontWeight: '600' }}>get_knowledge_orchestration_guidelines</code> secara otomatis mengadopsi core mission dan kepribadian aktif ini.
               </li>
               <li>
-                <strong style={{ color: '#ffffff' }}>Anti-Halusinasi Terjaga:</strong> Seluruh fitur pencarian vektor, graf relasi, dan penelusuran data real-time tetap berjalan dengan kepribadian ini sebagai panduan etika & nada bicara.
+                <strong style={{ color: 'var(--text-main)' }}>Anti-Halusinasi Terjaga:</strong> Seluruh fitur pencarian vektor, graf relasi, dan penelusuran data real-time tetap berjalan dengan kepribadian ini sebagai panduan etika & nada bicara.
               </li>
             </ul>
           </div>

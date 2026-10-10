@@ -113,7 +113,7 @@ export default function ApiKeys() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ fontSize: '28px', fontWeight: '800', letterSpacing: '-0.03em', color: '#ffffff' }}>
+          <h1 style={{ fontSize: '28px', fontWeight: '800', letterSpacing: '-0.03em', color: 'var(--text-main)' }}>
             API Keys
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>
@@ -127,7 +127,7 @@ export default function ApiKeys() {
 
       {/* Integration Snippets */}
       <div className="glass-panel" style={{ padding: '24px' }}>
-        <h2 style={{ fontSize: '16px', fontWeight: '700', color: '#ffffff', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <h2 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-main)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Key size={18} style={{ color: 'var(--accent-primary)' }} />
           MCP Server Connection
         </h2>
@@ -135,7 +135,7 @@ export default function ApiKeys() {
           <div>
             <h3 style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase' }}>OpenWebUI Configuration</h3>
             <div style={{ 
-              background: 'rgba(0,0,0,0.3)', 
+              background: 'var(--bg-glass-3)', 
               padding: '16px', 
               borderRadius: '8px', 
               border: '1px solid var(--border-color)', 
@@ -160,7 +160,7 @@ export default function ApiKeys() {
           <div>
             <h3 style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase' }}>Claude Desktop Configuration</h3>
             <div style={{ 
-              background: 'rgba(0,0,0,0.3)', 
+              background: 'var(--bg-glass-3)', 
               padding: '16px', 
               borderRadius: '8px', 
               border: '1px solid var(--border-color)', 
@@ -216,7 +216,7 @@ export default function ApiKeys() {
             ) : (
               apiKeys.map((key) => (
                 <tr key={key.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: '14px' }}>
-                  <td style={{ padding: '14px 12px', fontWeight: '700', color: '#ffffff' }}>{key.name}</td>
+                  <td style={{ padding: '14px 12px', fontWeight: '700', color: 'var(--text-main)' }}>{key.name}</td>
                   <td style={{ padding: '14px 12px', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>{key.key_prefix}...</td>
                   <td style={{ padding: '14px 12px' }}>
                     <span style={{ 
@@ -224,7 +224,7 @@ export default function ApiKeys() {
                       fontSize: '12px', 
                       fontWeight: '600',
                       padding: '4px 8px',
-                      background: key.is_active ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                      background: key.is_active ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-glass-light)',
                       borderRadius: '12px'
                     }}>
                       {key.is_active ? 'Active' : 'Disabled'}
@@ -277,7 +277,7 @@ export default function ApiKeys() {
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ padding: '32px', maxWidth: '500px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#ffffff' }}>Generate New API Key</h2>
+              <h2 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-main)' }}>Generate New API Key</h2>
               <button onClick={closeModal} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <X size={20} />
               </button>
@@ -314,16 +314,16 @@ export default function ApiKeys() {
                     <div style={{ 
                       maxHeight: '150px', 
                       overflowY: 'auto', 
-                      background: 'rgba(0,0,0,0.2)', 
+                      background: 'var(--bg-glass-3)', 
                       padding: '12px', 
                       borderRadius: '8px', 
-                      border: '1px solid var(--border-color)',
+                      border: '1px solid var(--border-subtle)',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '8px'
                     }}>
                       {/* Hardcoded native tools */}
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#fff', cursor: 'pointer' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-main)', cursor: 'pointer' }}>
                         <input 
                           type="checkbox" 
                           checked={selectedTools.includes('search_knowledge_base')}
@@ -334,7 +334,7 @@ export default function ApiKeys() {
                         />
                         Search Knowledge Base (Native)
                       </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#fff', cursor: 'pointer' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-main)', cursor: 'pointer' }}>
                         <input 
                           type="checkbox" 
                           checked={selectedTools.includes('get_retrieval_flow_for_prompt')}
@@ -345,7 +345,7 @@ export default function ApiKeys() {
                         />
                         Get Retrieval Flow (Native)
                       </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#fff', cursor: 'pointer' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-main)', cursor: 'pointer' }}>
                         <input 
                           type="checkbox" 
                           checked={selectedTools.includes('manage_retrieval_flow')}
@@ -358,7 +358,7 @@ export default function ApiKeys() {
                       </label>
                       {/* Dynamic tools */}
                       {apiTools.map(t => (
-                        <label key={t.name} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#fff', cursor: 'pointer' }}>
+                        <label key={t.name} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-main)', cursor: 'pointer' }}>
                           <input 
                             type="checkbox" 
                             checked={selectedTools.includes(t.name)}
@@ -380,16 +380,16 @@ export default function ApiKeys() {
                     <div style={{ 
                       maxHeight: '150px', 
                       overflowY: 'auto', 
-                      background: 'rgba(0,0,0,0.2)', 
+                      background: 'var(--bg-glass-3)', 
                       padding: '12px', 
                       borderRadius: '8px', 
-                      border: '1px solid var(--border-color)',
+                      border: '1px solid var(--border-subtle)',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '8px'
                     }}>
                       {knowledgeSources.filter(s => s.type !== 'api').map(s => (
-                        <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#fff', cursor: 'pointer' }}>
+                        <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-main)', cursor: 'pointer' }}>
                           <input 
                             type="checkbox" 
                             checked={selectedKBs.includes(s.name)}
@@ -427,10 +427,10 @@ export default function ApiKeys() {
                   alignItems: 'flex-start', 
                   gap: '12px' 
                 }}>
-                  <AlertCircle style={{ color: '#f59e0b', marginTop: '2px', flexShrink: 0 }} size={20} />
+                  <AlertCircle style={{ color: 'var(--accent-amber, #d97706)', marginTop: '2px', flexShrink: 0 }} size={20} />
                   <div>
-                    <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#fcd34d', marginBottom: '4px' }}>Please copy your API key now</h4>
-                    <p style={{ fontSize: '13px', color: 'rgba(252, 211, 77, 0.8)', lineHeight: '1.5' }}>
+                    <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--accent-amber, #d97706)', marginBottom: '4px' }}>Please copy your API key now</h4>
+                    <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
                       For security reasons, this key will not be shown again. If you lose it, you will need to generate a new one.
                     </p>
                   </div>
@@ -444,7 +444,7 @@ export default function ApiKeys() {
                       readOnly
                       value={newKeyData.api_key}
                       className="input-field"
-                      style={{ fontFamily: 'monospace', paddingRight: '100px', color: '#ffffff' }}
+                      style={{ fontFamily: 'monospace', paddingRight: '100px', color: 'var(--text-main)' }}
                     />
                     <button
                       onClick={() => copyToClipboard(newKeyData.api_key)}
@@ -454,10 +454,10 @@ export default function ApiKeys() {
                         top: '8px', 
                         bottom: '8px', 
                         padding: '0 12px', 
-                        background: 'rgba(255,255,255,0.1)', 
-                        border: '1px solid rgba(255,255,255,0.1)', 
+                        background: 'var(--bg-glass-light)', 
+                        border: '1px solid var(--border-subtle)', 
                         borderRadius: '4px', 
-                        color: '#ffffff', 
+                        color: 'var(--text-main)', 
                         cursor: 'pointer', 
                         display: 'flex', 
                         alignItems: 'center', 

@@ -344,7 +344,7 @@ export default function NetworkExplorer() {
       {/* Top Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '26px', fontWeight: '800', letterSpacing: '-0.03em', color: '#ffffff' }}>
+          <h1 style={{ fontSize: '26px', fontWeight: '800', letterSpacing: '-0.03em', color: 'var(--text-main)' }}>
             Data Network & Relation Profiler
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginTop: '2px' }}>
@@ -353,39 +353,25 @@ export default function NetworkExplorer() {
         </div>
 
         {/* Actions & Tab Switcher */}
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+        <div className="flex items-center gap-3">
           {/* Graph Action Buttons Group */}
-          <div style={{ display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)', alignItems: 'center' }}>
+          <div className="flex items-center gap-2 bg-base-200/90 border border-base-300 p-1.5 rounded-xl shadow-sm">
             {isRemapping && remapStatus && (
-              <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#fcd34d', padding: '0 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div className="text-xs font-bold text-warning px-2 flex items-center gap-1.5">
                  <RefreshCw size={13} className="spin-animation" />
                  {remapStatus.status} 
                  {remapStatus.progress?.total > 0 && ` (${remapStatus.progress.current}/${remapStatus.progress.total})`}
               </div>
             )}
             {!isRemapping && (
-              <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#10b981', padding: '0 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div className="text-xs font-bold text-success px-2 flex items-center gap-1.5">
                  <Check size={13} /> Grafik Siap
               </div>
             )}
             <button
               onClick={handleClearGraph}
               disabled={loading || isRemapping}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: '600',
-                border: '1px solid rgba(239, 68, 68, 0.4)',
-                cursor: (loading || isRemapping) ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                background: 'rgba(239, 68, 68, 0.1)',
-                color: '#fca5a5',
-                transition: 'all 0.15s ease',
-                opacity: (loading || isRemapping) ? 0.6 : 1
-              }}
+              className="btn btn-xs btn-error btn-outline"
               title="Hapus semua graph"
             >
               <X size={13} />
@@ -394,21 +380,7 @@ export default function NetworkExplorer() {
             <button
               onClick={handleRemapGraph}
               disabled={isRemapping}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: '600',
-                border: '1px solid rgba(245, 158, 11, 0.4)',
-                cursor: isRemapping ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                background: 'rgba(245, 158, 11, 0.1)',
-                color: '#fcd34d',
-                transition: 'all 0.15s ease',
-                opacity: isRemapping ? 0.6 : 1
-              }}
+              className="btn btn-xs btn-warning btn-outline"
               title="Re-map ulang (menghapus yang lama)"
             >
               <RefreshCw size={13} className={isRemapping ? 'spin-animation' : ''} />
@@ -417,21 +389,7 @@ export default function NetworkExplorer() {
             <button
               onClick={handleContinueMapping}
               disabled={isRemapping}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: '600',
-                border: '1px solid rgba(16, 185, 129, 0.4)',
-                cursor: isRemapping ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                background: 'rgba(16, 185, 129, 0.1)',
-                color: '#6ee7b7',
-                transition: 'all 0.15s ease',
-                opacity: isRemapping ? 0.6 : 1
-              }}
+              className="btn btn-xs btn-success btn-outline"
               title="Lanjutkan mapping tanpa menghapus yang ada"
             >
               <Layers size={13} />
@@ -440,21 +398,7 @@ export default function NetworkExplorer() {
             <button
               onClick={handleTestMapping}
               disabled={isRemapping}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: '600',
-                border: '1px solid rgba(56, 189, 248, 0.4)',
-                cursor: isRemapping ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                background: 'rgba(56, 189, 248, 0.1)',
-                color: '#7dd3fc',
-                transition: 'all 0.15s ease',
-                opacity: isRemapping ? 0.6 : 1
-              }}
+              className="btn btn-xs btn-info btn-outline"
               title="Test pembuatan graph"
             >
               <Sparkles size={13} />
@@ -462,65 +406,27 @@ export default function NetworkExplorer() {
             </button>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.3)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-          <button
-            onClick={() => setActiveTab('graph')}
-            style={{
-              padding: '6px 14px',
-              borderRadius: '6px',
-              fontSize: '13px',
-              fontWeight: '600',
-              border: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: activeTab === 'graph' ? 'var(--accent-primary)' : 'transparent',
-              color: '#ffffff',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <Network size={15} /> Graph View
-          </button>
-          <button
-            onClick={() => setActiveTab('path')}
-            style={{
-              padding: '6px 14px',
-              borderRadius: '6px',
-              fontSize: '13px',
-              fontWeight: '600',
-              border: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: activeTab === 'path' ? 'var(--accent-primary)' : 'transparent',
-              color: '#ffffff',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <Route size={15} /> Path Finder
-          </button>
-          <button
-            onClick={() => setActiveTab('insights')}
-            style={{
-              padding: '6px 14px',
-              borderRadius: '6px',
-              fontSize: '13px',
-              fontWeight: '600',
-              border: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: activeTab === 'insights' ? 'var(--accent-primary)' : 'transparent',
-              color: '#ffffff',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <Sparkles size={15} /> AI Insights
-          </button>
-        </div>
+          {/* View Mode Tabs */}
+          <div className="flex items-center gap-1 bg-base-200/90 border border-base-300 p-1 rounded-xl shadow-sm">
+            <button
+              onClick={() => setActiveTab('graph')}
+              className={`btn btn-sm border-none ${activeTab === 'graph' ? 'btn-primary shadow-sm' : 'btn-ghost text-base-content/70 hover:text-base-content'}`}
+            >
+              <Network size={15} /> Graph View
+            </button>
+            <button
+              onClick={() => setActiveTab('path')}
+              className={`btn btn-sm border-none ${activeTab === 'path' ? 'btn-primary shadow-sm' : 'btn-ghost text-base-content/70 hover:text-base-content'}`}
+            >
+              <Route size={15} /> Path Finder
+            </button>
+            <button
+              onClick={() => setActiveTab('insights')}
+              className={`btn btn-sm border-none ${activeTab === 'insights' ? 'btn-primary shadow-sm' : 'btn-ghost text-base-content/70 hover:text-base-content'}`}
+            >
+              <Sparkles size={15} /> AI Insights
+            </button>
+          </div>
         </div>
       </div>
 
@@ -531,16 +437,7 @@ export default function NetworkExplorer() {
           <div className="glass-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
             
             {/* Graph Control Bar */}
-            <div style={{
-              padding: '12px 18px',
-              borderBottom: '1px solid var(--border-color)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              background: 'rgba(10, 14, 23, 0.75)',
-              backdropFilter: 'blur(10px)',
-              zIndex: 20
-            }}>
+            <div className="px-4 py-3 border-b border-base-300 flex justify-between items-center bg-base-200/80 backdrop-blur-md z-20">
               {/* Left: Node Search, Autocomplete & Multi-Dimension Filter Controls */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 
@@ -574,26 +471,12 @@ export default function NetworkExplorer() {
 
                   {/* Autocomplete Suggestions Popover */}
                   {showSearchDropdown && searchQuery.trim() && (
-                    <div style={{
-                      position: 'absolute',
-                      top: 'calc(100% + 6px)',
-                      left: 0,
-                      width: '280px',
-                      background: 'rgba(13, 18, 30, 0.98)',
-                      backdropFilter: 'blur(20px)',
-                      border: '1px solid rgba(255, 255, 255, 0.16)',
-                      borderRadius: '10px',
-                      boxShadow: '0 12px 30px rgba(0,0,0,0.7)',
-                      padding: '6px',
-                      zIndex: 110,
-                      maxHeight: '260px',
-                      overflowY: 'auto'
-                    }}>
-                      <div style={{ padding: '4px 8px 6px', fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div className="absolute top-[calc(100%+6px)] left-0 w-72 bg-base-100 border border-base-300 rounded-xl shadow-2xl p-2 z-50 max-h-64 overflow-y-auto">
+                      <div className="px-2 py-1 text-[10px] font-bold text-base-content/60 uppercase border-b border-base-200 mb-1">
                         Saran Hasil ({filteredNodes.length})
                       </div>
                       {filteredNodes.length === 0 ? (
-                        <div style={{ padding: '12px 8px', fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center' }}>
+                        <div className="p-3 text-xs text-base-content/50 text-center">
                           Tidak ada entitas yang cocok
                         </div>
                       ) : (
@@ -608,22 +491,11 @@ export default function NetworkExplorer() {
                                 setSearchQuery(node.data.label);
                                 setShowSearchDropdown(false);
                               }}
-                              style={{
-                                padding: '6px 8px',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                gap: '8px',
-                                transition: 'all 0.15s ease'
-                              }}
-                              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
-                              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                              className="px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between gap-2 hover:bg-base-200 transition-colors"
                             >
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
                                 <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: typeMeta.color, flexShrink: 0 }} />
-                                <span style={{ fontSize: '11px', color: '#ffffff', fontWeight: '600', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                                <span className="text-xs font-semibold text-base-content truncate">
                                   {node.data.label}
                                 </span>
                               </div>
@@ -642,47 +514,22 @@ export default function NetworkExplorer() {
                 <div ref={typeDropdownRef} style={{ position: 'relative' }}>
                   <button
                     onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      background: selectedType !== 'ALL' ? `${activeTypeObj.color}22` : 'rgba(255, 255, 255, 0.05)',
-                      border: selectedType !== 'ALL' ? `1px solid ${activeTypeObj.color}80` : '1px solid var(--border-color)',
-                      color: selectedType !== 'ALL' ? '#ffffff' : 'var(--text-secondary)',
-                      padding: '5px 10px',
-                      borderRadius: '8px',
-                      fontSize: '11px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
+                    className="flex items-center gap-1.5 bg-base-200 border border-base-300 text-base-content px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer shadow-sm hover:border-base-content/20 transition-all"
                   >
                     <Filter size={12} color={selectedType !== 'ALL' ? activeTypeObj.color : 'currentColor'} />
                     <span>Tipe: <strong>{activeTypeObj.label.split('/')[0].trim()}</strong></span>
                     {selectedType !== 'ALL' && (
-                      <span style={{ fontSize: '10px', background: activeTypeObj.color, color: '#000', borderRadius: '10px', padding: '0 5px', fontWeight: '800' }}>
+                      <span style={{ fontSize: '10px', background: activeTypeObj.color, color: '#fff', borderRadius: '10px', padding: '0 5px', fontWeight: '800' }}>
                         {filteredNodes.length}
                       </span>
                     )}
-                    <ChevronDown size={12} style={{ transform: isTypeDropdownOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s ease' }} />
+                    <ChevronDown size={12} className={`transition-transform duration-200 ${isTypeDropdownOpen ? 'rotate-180' : 'rotate-0'}`} />
                   </button>
 
                   {/* Type Filter Popover Menu */}
                   {isTypeDropdownOpen && (
-                    <div style={{
-                      position: 'absolute',
-                      top: 'calc(100% + 6px)',
-                      left: 0,
-                      width: '240px',
-                      background: 'rgba(13, 18, 30, 0.98)',
-                      backdropFilter: 'blur(20px)',
-                      border: '1px solid rgba(255, 255, 255, 0.16)',
-                      borderRadius: '10px',
-                      boxShadow: '0 12px 30px rgba(0,0,0,0.7)',
-                      padding: '8px',
-                      zIndex: 110
-                    }}>
-                      <div style={{ padding: '2px 6px 6px', fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: '4px' }}>
+                    <div className="absolute top-[calc(100%+6px)] left-0 w-60 bg-base-100 border border-base-300 rounded-xl shadow-2xl p-2 z-50">
+                      <div className="px-2 py-1 text-[10px] font-bold text-base-content/60 uppercase border-b border-base-200 mb-1">
                         Filter Menurut Tipe Entitas
                       </div>
                       {ENTITY_TYPES.map(t => {
@@ -695,27 +542,17 @@ export default function NetworkExplorer() {
                               setSelectedType(t.id);
                               setIsTypeDropdownOpen(false);
                             }}
-                            style={{
-                              padding: '6px 8px',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              background: isSelected ? `${t.color}25` : 'transparent',
-                              border: isSelected ? `1px solid ${t.color}60` : '1px solid transparent',
-                              transition: 'all 0.12s ease'
-                            }}
-                            onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
-                            onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
+                            className={`px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between text-xs transition-colors ${
+                              isSelected ? 'bg-base-300 font-bold' : 'hover:bg-base-200 font-medium'
+                            }`}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: t.color }} />
-                              <span style={{ fontSize: '11px', color: isSelected ? '#ffffff' : 'var(--text-secondary)', fontWeight: isSelected ? '700' : '500' }}>
+                              <span className="text-base-content">
                                 {t.label}
                               </span>
                             </div>
-                            <span style={{ fontSize: '10px', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.06)', padding: '1px 5px', borderRadius: '4px' }}>
+                            <span className="text-[10px] text-base-content/60 bg-base-200 px-1.5 py-0.5 rounded">
                               {count}
                             </span>
                           </div>
@@ -729,20 +566,11 @@ export default function NetworkExplorer() {
                 <button
                   onClick={() => setFilterMode(filterMode === 'highlight' ? 'isolate' : 'highlight')}
                   title={filterMode === 'highlight' ? 'Mode Sorot: Redupkan node yang tidak cocok (klik untuk sembunyikan sepenuhnya)' : 'Mode Isolasi: Sembunyikan node non-target (klik untuk redupkan saja)'}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    background: filterMode === 'isolate' ? 'rgba(236, 72, 153, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                    border: filterMode === 'isolate' ? '1px solid rgba(236, 72, 153, 0.4)' : '1px solid var(--border-color)',
-                    color: filterMode === 'isolate' ? '#f472b6' : 'var(--text-secondary)',
-                    padding: '5px 9px',
-                    borderRadius: '8px',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border shadow-sm transition-all ${
+                    filterMode === 'isolate' 
+                      ? 'bg-secondary/15 border-secondary text-secondary' 
+                      : 'bg-base-200 border-base-300 text-base-content/70 hover:text-base-content hover:border-base-content/20'
+                  }`}
                 >
                   {filterMode === 'isolate' ? <EyeOff size={12} /> : <Eye size={12} />}
                   <span>{filterMode === 'isolate' ? 'Isolasi' : 'Sorot'}</span>
@@ -755,20 +583,7 @@ export default function NetworkExplorer() {
                       setSearchQuery('');
                       setSelectedType('ALL');
                     }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      background: 'rgba(239, 68, 68, 0.15)',
-                      border: '1px solid rgba(239, 68, 68, 0.35)',
-                      color: '#f87171',
-                      padding: '5px 8px',
-                      borderRadius: '8px',
-                      fontSize: '11px',
-                      fontWeight: '700',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
+                    className="btn btn-xs btn-error btn-outline"
                     title="Kembalikan semua filter ke awal"
                   >
                     <RotateCcw size={11} />
@@ -777,31 +592,14 @@ export default function NetworkExplorer() {
                 )}
 
                 {/* Match Result Stats Pill */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: isFilterActive ? 'rgba(56, 189, 248, 0.1)' : 'rgba(255, 255, 255, 0.04)',
-                  padding: '5px 10px',
-                  borderRadius: '6px',
-                  border: isFilterActive ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid rgba(255, 255, 255, 0.06)',
-                  fontSize: '11px',
-                  color: isFilterActive ? '#38bdf8' : 'var(--text-secondary)'
-                }}>
-                  <span style={{
-                    width: '6px',
-                    height: '6px',
-                    borderRadius: '50%',
-                    background: isFilterActive ? '#38bdf8' : '#34d399',
-                    boxShadow: isFilterActive ? '0 0 6px #38bdf8' : '0 0 6px #34d399',
-                    display: 'inline-block'
-                  }} />
+                <div className="flex items-center gap-1.5 bg-base-200 border border-base-300 px-2.5 py-1 rounded-lg text-xs font-medium text-base-content shadow-sm">
+                  <span className={`w-1.5 h-1.5 rounded-full inline-block ${isFilterActive ? 'bg-info shadow-[0_0_6px_var(--color-info)]' : 'bg-success shadow-[0_0_6px_var(--color-success)]'}`} />
                   {isFilterActive ? (
                     <span><strong>{filteredNodes.length}</strong> / {allNodes.length} cocok</span>
                   ) : (
                     <>
                       <span><strong>{graphData.stats.total_nodes}</strong> entitas</span>
-                      <span style={{ color: 'rgba(255,255,255,0.2)' }}>·</span>
+                      <span className="opacity-40">·</span>
                       <span><strong>{graphData.stats.total_edges}</strong> relasi</span>
                     </>
                   )}
@@ -815,15 +613,7 @@ export default function NetworkExplorer() {
                 </span>
 
                 {/* Quick Switch Pills for Top 3 Layouts */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  background: 'rgba(0, 0, 0, 0.35)',
-                  padding: '3px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  gap: '3px'
-                }}>
+                <div className="flex items-center bg-base-200 border border-base-300 p-1 rounded-lg gap-1">
                   {NETWORK_LAYOUTS.slice(0, 3).map((l) => {
                     const isSelected = layoutName === l.id;
                     const IconComp = l.icon;
@@ -832,22 +622,13 @@ export default function NetworkExplorer() {
                         key={l.id}
                         onClick={() => setLayoutName(l.id)}
                         title={l.description}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          padding: '4px 10px',
-                          borderRadius: '6px',
-                          fontSize: '11px',
-                          fontWeight: isSelected ? '700' : '500',
-                          border: isSelected ? `1px solid ${l.accent}88` : '1px solid transparent',
-                          background: isSelected ? `${l.accent}25` : 'transparent',
-                          color: isSelected ? '#ffffff' : 'var(--text-secondary)',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease'
-                        }}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                          isSelected
+                            ? 'bg-primary text-primary-content shadow-sm'
+                            : 'text-base-content/70 hover:bg-base-300/60 hover:text-base-content'
+                        }`}
                       >
-                        <IconComp size={12} color={isSelected ? l.accent : 'currentColor'} />
+                        <IconComp size={12} color={isSelected ? 'currentColor' : l.accent} />
                         {l.shortName}
                       </button>
                     );
@@ -855,73 +636,36 @@ export default function NetworkExplorer() {
                 </div>
 
                 {/* Main Custom Layout Dropdown Selector */}
-                <div ref={layoutDropdownRef} style={{ position: 'relative' }}>
+                <div ref={layoutDropdownRef} className="relative">
                   <button
                     onClick={() => setIsLayoutDropdownOpen(!isLayoutDropdownOpen)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      background: isLayoutDropdownOpen ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                      border: isLayoutDropdownOpen ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
-                      color: '#ffffff',
-                      padding: '6px 12px',
-                      borderRadius: '8px',
-                      fontSize: '12px',
-                      cursor: 'pointer',
-                      outline: 'none',
-                      transition: 'all 0.18s ease',
-                      boxShadow: isLayoutDropdownOpen ? '0 0 12px rgba(99, 102, 241, 0.3)' : 'none'
-                    }}
+                    className="flex items-center gap-2 bg-base-200 border border-base-300 hover:border-base-content/20 text-base-content px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer shadow-sm transition-all"
                   >
-                    <div style={{
-                      width: '20px',
-                      height: '20px',
-                      borderRadius: '5px',
-                      background: `${activeLayout.accent}30`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}>
+                    <div 
+                      className="w-5 h-5 rounded flex items-center justify-center"
+                      style={{ background: `${activeLayout.accent}25` }}
+                    >
                       <ActiveLayoutIcon size={12} color={activeLayout.accent} />
                     </div>
-                    <span style={{ fontWeight: '600' }}>{activeLayout.name}</span>
-                    <span style={{
-                      fontSize: '10px',
-                      padding: '1px 6px',
-                      borderRadius: '4px',
-                      background: activeLayout.tagBg,
-                      color: activeLayout.tagColor,
-                      fontWeight: '700'
-                    }}>
+                    <span className="font-semibold">{activeLayout.name}</span>
+                    <span 
+                      className="text-[10px] px-1.5 py-0.5 rounded font-bold"
+                      style={{
+                        background: activeLayout.tagBg,
+                        color: activeLayout.tagColor
+                      }}
+                    >
                       {activeLayout.tag}
                     </span>
                     <ChevronDown
                       size={14}
-                      color="var(--text-muted)"
-                      style={{
-                        transition: 'transform 0.2s ease',
-                        transform: isLayoutDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)'
-                      }}
+                      className={`text-base-content/60 transition-transform duration-200 ${isLayoutDropdownOpen ? 'rotate-180' : 'rotate-0'}`}
                     />
                   </button>
 
                   {/* Popover Dropdown Menu */}
                   {isLayoutDropdownOpen && (
-                    <div style={{
-                      position: 'absolute',
-                      top: 'calc(100% + 8px)',
-                      right: 0,
-                      width: '370px',
-                      background: 'rgba(11, 15, 25, 0.97)',
-                      backdropFilter: 'blur(20px)',
-                      border: '1px solid rgba(255, 255, 255, 0.16)',
-                      borderRadius: '12px',
-                      boxShadow: '0 16px 40px rgba(0, 0, 0, 0.7), 0 0 1px rgba(255, 255, 255, 0.25)',
-                      padding: '12px',
-                      zIndex: 100,
-                      animation: 'fadeIn 0.15s ease-out'
-                    }}>
+                    <div className="absolute top-[calc(100%+8px)] right-0 w-[370px] bg-base-100 border border-base-300 rounded-2xl shadow-2xl p-3 z-50 animate-fadeIn">
                       {/* Menu Header */}
                       <div style={{
                         display: 'flex',
@@ -939,7 +683,7 @@ export default function NetworkExplorer() {
                         </div>
                         <span style={{
                           fontSize: '10px',
-                          background: 'rgba(255, 255, 255, 0.06)',
+                          background: 'var(--bg-glass-light)',
                           color: '#94a3b8',
                           padding: '2px 6px',
                           borderRadius: '4px',
@@ -969,19 +713,19 @@ export default function NetworkExplorer() {
                                 padding: '9px 10px',
                                 borderRadius: '8px',
                                 cursor: 'pointer',
-                                background: isSelected ? `${l.accent}18` : 'rgba(255, 255, 255, 0.02)',
+                                background: isSelected ? `${l.accent}18` : 'var(--bg-glass-light)',
                                 border: isSelected ? `1px solid ${l.accent}60` : '1px solid transparent',
                                 transition: 'all 0.15s ease'
                               }}
                               onMouseEnter={(e) => {
                                 if (!isSelected) {
-                                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                                  e.currentTarget.style.background = 'var(--bg-glass-light)';
                                   e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
                                 }
                               }}
                               onMouseLeave={(e) => {
                                 if (!isSelected) {
-                                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+                                  e.currentTarget.style.background = 'var(--bg-glass-light)';
                                   e.currentTarget.style.borderColor = 'transparent';
                                 }
                               }}
@@ -1005,7 +749,7 @@ export default function NetworkExplorer() {
                               {/* Text info */}
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
-                                  <span style={{ fontSize: '13px', fontWeight: isSelected ? '700' : '600', color: isSelected ? '#ffffff' : '#e2e8f0' }}>
+                                  <span style={{ fontSize: '13px', fontWeight: isSelected ? '700' : '600', color: isSelected ? 'var(--text-main)' : '#e2e8f0' }}>
                                     {l.name}
                                   </span>
                                   <span style={{
@@ -1068,13 +812,13 @@ export default function NetworkExplorer() {
                 </div>
 
                 {/* Divider */}
-                <div style={{ width: '1px', height: '20px', background: 'rgba(255, 255, 255, 0.1)', margin: '0 2px' }} />
+                <div style={{ width: '1px', height: '20px', background: 'var(--border-subtle)', margin: '0 2px' }} />
 
                 {/* Reload Button */}
                 <button
                   onClick={fetchGraph}
                   style={{
-                    background: 'rgba(255, 255, 255, 0.05)',
+                    background: 'var(--bg-glass-light)',
                     border: '1px solid var(--border-color)',
                     color: 'var(--text-secondary)',
                     cursor: 'pointer',
@@ -1087,7 +831,7 @@ export default function NetworkExplorer() {
                     fontWeight: '600',
                     transition: 'all 0.15s ease'
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)'; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'var(--border-color)'; }}
                   title="Reload Graph Data"
                 >
@@ -1133,7 +877,7 @@ export default function NetworkExplorer() {
         <div className="glass-panel" style={{ padding: '28px', flex: 1, overflowY: 'auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
             <Sparkles size={22} color="var(--accent-cyan)" />
-            <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#ffffff' }}>Network Profiling Insights</h2>
+            <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-main)' }}>Network Profiling Insights</h2>
           </div>
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '24px' }}>
             Continuous algorithmic synthesis of hub authority, communities, and cross-silo data relationships.
@@ -1144,7 +888,7 @@ export default function NetworkExplorer() {
               <div key={i} style={{
                 padding: '20px',
                 borderRadius: '12px',
-                background: 'rgba(255, 255, 255, 0.02)',
+                background: 'var(--bg-glass-light)',
                 border: '1px solid var(--border-color)',
                 display: 'flex',
                 flexDirection: 'column',
@@ -1157,7 +901,7 @@ export default function NetworkExplorer() {
                       {ins.importance} PRIORITY
                     </span>
                   </div>
-                  <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#ffffff', marginBottom: '8px' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-main)', marginBottom: '8px' }}>
                     {ins.title}
                   </h3>
                   <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
@@ -1174,20 +918,20 @@ export default function NetworkExplorer() {
       {showTestModal && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+          background: 'var(--bg-glass-3)', backdropFilter: 'blur(4px)',
           zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center'
         }}>
           <div style={{
-            background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px',
+            background: 'var(--bg-dark-1)', border: '1px solid var(--border-subtle)', borderRadius: '12px',
             width: '800px', maxWidth: '90vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
           }}>
             {/* Header */}
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Sparkles size={16} color="#7dd3fc" /> Test Pemetaan Otomatis (LLM)
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sparkles size={16} color="var(--accent-primary)" /> Test Pemetaan Otomatis (LLM)
               </h3>
-              <button onClick={() => setShowTestModal(false)} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+              <button onClick={() => setShowTestModal(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                 <X size={18} />
               </button>
             </div>
@@ -1197,24 +941,24 @@ export default function NetworkExplorer() {
               {!testMappingResult ? (
                 <>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '500' }}>Pilih Jenis Mapping:</label>
+                    <label style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>Pilih Jenis Mapping:</label>
                     <select 
                       value={testMappingType}
                       onChange={(e) => setTestMappingType(e.target.value)}
                       style={{
-                        padding: '10px 12px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px',
-                        color: '#f8fafc', fontSize: '14px', outline: 'none'
+                        padding: '10px 12px', background: 'var(--bg-glass-2)', border: '1px solid var(--border-subtle)', borderRadius: '8px',
+                        color: 'var(--text-main)', fontSize: '14px', outline: 'none'
                       }}
                     >
-                      <option value="Pemetaan Orang">Pemetaan Orang</option>
-                      <option value="Perusahaan">Perusahaan</option>
-                      <option value="Komunikasi">Komunikasi</option>
-                      <option value="Data Bank">Data Bank</option>
+                      <option value="Pemetaan Orang" style={{ background: 'var(--bg-dark-1)', color: 'var(--text-main)' }}>Pemetaan Orang</option>
+                      <option value="Perusahaan" style={{ background: 'var(--bg-dark-1)', color: 'var(--text-main)' }}>Perusahaan</option>
+                      <option value="Komunikasi" style={{ background: 'var(--bg-dark-1)', color: 'var(--text-main)' }}>Komunikasi</option>
+                      <option value="Data Bank" style={{ background: 'var(--bg-dark-1)', color: 'var(--text-main)' }}>Data Bank</option>
                     </select>
                   </div>
                   
                   <div style={{ background: 'rgba(56, 189, 248, 0.1)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(56, 189, 248, 0.2)' }}>
-                    <p style={{ margin: 0, fontSize: '12px', color: '#bae6fd', lineHeight: '1.5' }}>
+                    <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-main)', lineHeight: '1.5' }}>
                       Mode ini akan mengambil salah satu sampel potongan teks (chunk) dari Vector DB yang relevan dengan tipe di atas, kemudian mengekstrak Entitas (Nodes) dan Relasinya (Edges) menggunakan AI tanpa menyimpannya ke database Neo4j.
                     </p>
                   </div>
@@ -1223,19 +967,19 @@ export default function NetworkExplorer() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                    {/* Source Data */}
                    <div>
-                     <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#94a3b8' }}>Sumber Data Teks (Chunk):</h4>
-                     <div style={{ background: '#1e293b', padding: '12px', borderRadius: '8px', fontSize: '13px', color: '#cbd5e1', whiteSpace: 'pre-wrap', maxHeight: '150px', overflowY: 'auto', border: '1px solid #334155' }}>
+                     <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: 'var(--text-secondary)' }}>Sumber Data Teks (Chunk):</h4>
+                     <div style={{ background: 'var(--bg-glass-3)', padding: '12px', borderRadius: '8px', fontSize: '13px', color: 'var(--text-main)', whiteSpace: 'pre-wrap', maxHeight: '150px', overflowY: 'auto', border: '1px solid var(--border-subtle)' }}>
                        {testMappingResult.source_data}
                      </div>
                    </div>
                    
                    {/* Extracted Nodes */}
                    <div>
-                     <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#34d399' }}>Entitas (Nodes) yang Ditemukan ({testMappingResult.entities.length}):</h4>
+                     <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: 'var(--accent-emerald)' }}>Entitas (Nodes) yang Ditemukan ({testMappingResult.entities.length}):</h4>
                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                       {testMappingResult.entities.length === 0 ? <span style={{fontSize:'12px', color:'#64748b'}}>Tidak ada entitas ditemukan.</span> : testMappingResult.entities.map((ent, idx) => (
+                       {testMappingResult.entities.length === 0 ? <span style={{fontSize:'12px', color:'var(--text-muted)'}}>Tidak ada entitas ditemukan.</span> : testMappingResult.entities.map((ent, idx) => (
                          <div key={idx} style={{ background: 'rgba(52, 211, 153, 0.1)', border: '1px solid rgba(52, 211, 153, 0.3)', padding: '6px 10px', borderRadius: '6px', fontSize: '12px' }}>
-                           <strong style={{ color: '#6ee7b7' }}>{ent.name || ent.id}</strong> <span style={{ color: '#94a3b8', fontSize: '11px' }}>({ent.type})</span>
+                           <strong style={{ color: 'var(--text-main)' }}>{ent.name || ent.id}</strong> <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>({ent.type})</span>
                          </div>
                        ))}
                      </div>
@@ -1243,13 +987,13 @@ export default function NetworkExplorer() {
                    
                    {/* Extracted Edges */}
                    <div>
-                     <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#fcd34d' }}>Relasi (Edges) yang Ditemukan ({testMappingResult.relationships.length}):</h4>
+                     <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: 'var(--accent-amber, #d97706)' }}>Relasi (Edges) yang Ditemukan ({testMappingResult.relationships.length}):</h4>
                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '120px', overflowY: 'auto' }}>
-                       {testMappingResult.relationships.length === 0 ? <span style={{fontSize:'12px', color:'#64748b'}}>Tidak ada relasi ditemukan.</span> : testMappingResult.relationships.map((rel, idx) => (
+                       {testMappingResult.relationships.length === 0 ? <span style={{fontSize:'12px', color:'var(--text-muted)'}}>Tidak ada relasi ditemukan.</span> : testMappingResult.relationships.map((rel, idx) => (
                          <div key={idx} style={{ background: 'rgba(251, 191, 36, 0.1)', border: '1px solid rgba(251, 191, 36, 0.3)', padding: '6px 10px', borderRadius: '6px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                           <span style={{ color: '#e2e8f0' }}>{rel.source}</span>
-                           <span style={{ color: '#fbbf24', fontSize: '10px', background: 'rgba(251, 191, 36, 0.2)', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>{rel.relation || rel.type}</span>
-                           <span style={{ color: '#e2e8f0' }}>{rel.target}</span>
+                           <span style={{ color: 'var(--text-main)' }}>{rel.source}</span>
+                           <span style={{ color: '#d97706', fontSize: '10px', background: 'rgba(251, 191, 36, 0.2)', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>{rel.relation || rel.type}</span>
+                           <span style={{ color: 'var(--text-main)' }}>{rel.target}</span>
                          </div>
                        ))}
                      </div>
@@ -1257,8 +1001,8 @@ export default function NetworkExplorer() {
 
                    {/* Graph Visualization */}
                    <div>
-                     <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#7dd3fc' }}>Visualisasi Graph:</h4>
-                     <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', height: '300px', overflow: 'hidden', position: 'relative' }}>
+                     <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: 'var(--text-main)' }}>Visualisasi Graph:</h4>
+                     <div style={{ background: 'var(--bg-glass-3)', border: '1px solid var(--border-subtle)', borderRadius: '8px', height: '300px', overflow: 'hidden', position: 'relative' }}>
                        <CytoscapeGraph 
                          elements={[
                            ...(testMappingResult.entities.map(ent => ({
@@ -1286,18 +1030,19 @@ export default function NetworkExplorer() {
             </div>
 
             {/* Footer */}
-            <div style={{ padding: '16px 20px', borderTop: '1px solid #1e293b', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+            <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               {testMappingResult ? (
                 <button
                   onClick={() => setTestMappingResult(null)}
-                  style={{ padding: '8px 16px', background: 'transparent', border: '1px solid #334155', color: '#f8fafc', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}
+                  className="btn-secondary"
+                  style={{ padding: '8px 16px', fontSize: '13px', fontWeight: '500' }}
                 >
                   Uji Ulang
                 </button>
               ) : (
                 <button
                   onClick={() => setShowTestModal(false)}
-                  style={{ padding: '8px 16px', background: 'transparent', border: '1px solid transparent', color: '#94a3b8', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}
+                  style={{ padding: '8px 16px', background: 'transparent', border: '1px solid transparent', color: 'var(--text-secondary)', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}
                 >
                   Batal
                 </button>
@@ -1307,7 +1052,8 @@ export default function NetworkExplorer() {
                 <button
                   onClick={executeTestMapping}
                   disabled={isTestMappingLoading}
-                  style={{ padding: '8px 16px', background: '#3b82f6', border: 'none', color: '#ffffff', borderRadius: '6px', cursor: isTestMappingLoading ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: '600', opacity: isTestMappingLoading ? 0.7 : 1 }}
+                  className="btn-primary"
+                  style={{ padding: '8px 16px', fontSize: '13px', fontWeight: '600', opacity: isTestMappingLoading ? 0.7 : 1 }}
                 >
                   {isTestMappingLoading ? 'Memproses LLM...' : 'Eksekusi Mapping'}
                 </button>

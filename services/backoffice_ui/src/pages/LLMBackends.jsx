@@ -140,7 +140,7 @@ const FALLBACK_PROVIDERS = [
     default_models: ['llama3:latest', 'qwen2.5:latest'],
     api_key_placeholder: 'EMPTY',
     docs_url: 'https://ollama.ai',
-    color: '#ec4899'
+    color: '#0284c7'
   },
   {
     id: 'custom',
@@ -452,16 +452,17 @@ export default function LLMBackends() {
               width: '36px',
               height: '36px',
               borderRadius: '10px',
-              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(168, 85, 247, 0.2) 100%)',
-              border: '1px solid rgba(99, 102, 241, 0.3)',
+              background: 'linear-gradient(135deg, #2b394e 0%, #172233 100%)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'var(--accent-primary)'
+              color: '#f8fafc',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
             }}>
               <Cloud size={20} />
             </div>
-            <h1 style={{ fontSize: '26px', fontWeight: '800', letterSpacing: '-0.02em', color: '#ffffff', margin: 0 }}>
+            <h1 style={{ fontSize: '26px', fontWeight: '800', letterSpacing: '-0.02em', color: 'var(--text-main)', margin: 0 }}>
               LLM Backends & Cloud Multi-Model Engine
             </h1>
           </div>
@@ -498,14 +499,14 @@ export default function LLMBackends() {
       {/* Cloud Presets Fast Bar */}
       <div className="glass-panel" style={{
         padding: '16px 20px',
-        background: 'linear-gradient(90deg, rgba(20, 24, 39, 0.7) 0%, rgba(15, 23, 42, 0.6) 100%)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
+        background: 'var(--bg-glass-2)',
+        border: '1px solid var(--border-subtle)',
         display: 'flex',
         flexDirection: 'column',
         gap: '12px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '700', color: '#ffffff' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '700', color: 'var(--text-main)' }}>
             <Sparkles size={16} color="var(--accent-cyan)" />
             <span>Penyedia Model Eksternal Cloud & Lokal yang Didukung:</span>
           </div>
@@ -523,9 +524,9 @@ export default function LLMBackends() {
                 gap: '6px',
                 padding: '6px 12px',
                 borderRadius: '8px',
-                background: 'rgba(255, 255, 255, 0.04)',
+                background: 'var(--bg-glass-light)',
                 border: `1px solid ${p.color}40`,
-                color: '#ffffff',
+                color: 'var(--text-main)',
                 fontSize: '12px',
                 fontWeight: '600',
                 cursor: 'pointer',
@@ -537,7 +538,7 @@ export default function LLMBackends() {
                 e.currentTarget.style.transform = 'translateY(-1px)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
+                e.currentTarget.style.background = 'var(--bg-glass-light)';
                 e.currentTarget.style.borderColor = `${p.color}40`;
                 e.currentTarget.style.transform = 'none';
               }}
@@ -546,7 +547,7 @@ export default function LLMBackends() {
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: p.color }} />
               {p.name}
               {p.category === 'cloud' && (
-                <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(255,255,255,0.08)', color: 'var(--text-muted)' }}>
+                <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', background: 'var(--bg-glass-3)', color: 'var(--text-secondary)', fontWeight: '600' }}>
                   Cloud
                 </span>
               )}
@@ -558,7 +559,7 @@ export default function LLMBackends() {
       {/* Backends Grid */}
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-          <h2 style={{ fontSize: '17px', fontWeight: '700', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <h2 style={{ fontSize: '17px', fontWeight: '700', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Server size={18} color="var(--accent-primary)" />
             Backend Terdaftar ({backends.length})
           </h2>
@@ -596,8 +597,8 @@ export default function LLMBackends() {
                     position: 'absolute',
                     top: 0,
                     right: 0,
-                    background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.8) 0%, rgba(168, 85, 247, 0.8) 100%)',
-                    color: '#ffffff',
+                    background: 'linear-gradient(135deg, #2b394e 0%, #172233 100%)',
+                    color: '#f8fafc',
                     fontSize: '10px',
                     fontWeight: '700',
                     padding: '3px 10px',
@@ -626,7 +627,7 @@ export default function LLMBackends() {
                         {meta.category === 'cloud' ? <Cloud size={17} /> : <Server size={17} />}
                       </div>
                       <div>
-                        <div style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff' }}>{b.name}</div>
+                        <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)' }}>{b.name}</div>
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                           ID: #{b.id} · Dibuat: {new Date(b.created_at).toLocaleDateString()}
                         </div>
@@ -666,16 +667,16 @@ export default function LLMBackends() {
                     </p>
                   )}
 
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '6px', fontWeight: '600' }}>
                     Endpoint URL:
                   </div>
                   <div style={{
                     padding: '8px 10px',
                     borderRadius: '6px',
-                    background: 'rgba(0,0,0,0.35)',
-                    border: '1px solid rgba(255,255,255,0.08)',
+                    background: 'var(--bg-glass-3)',
+                    border: '1px solid var(--border-subtle)',
                     fontSize: '12px',
-                    color: 'var(--accent-cyan)',
+                    color: 'var(--text-main)',
                     marginBottom: '14px',
                     wordBreak: 'break-all',
                     fontFamily: 'monospace'
@@ -696,10 +697,10 @@ export default function LLMBackends() {
                         style={{
                           padding: '3px 8px',
                           borderRadius: '4px',
-                          background: 'rgba(255, 255, 255, 0.05)',
-                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          background: 'var(--bg-glass-2)',
+                          border: '1px solid var(--border-subtle)',
                           fontSize: '11px',
-                          color: '#e2e8f0',
+                          color: 'var(--text-main)',
                           fontFamily: 'monospace'
                         }}
                       >
@@ -752,7 +753,7 @@ export default function LLMBackends() {
       <div className="glass-panel" style={{ padding: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
           <Sliders size={20} color="var(--accent-primary)" />
-          <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#ffffff', margin: 0 }}>
+          <h2 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>
             Perutean Model Berdasarkan Tugas (Task Model Assignments)
           </h2>
         </div>
@@ -783,7 +784,7 @@ export default function LLMBackends() {
 
                 return (
                   <tr key={taskObj.key} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: '14px' }}>
-                    <td style={{ padding: '14px 12px', fontWeight: '600', color: '#ffffff' }}>
+                    <td style={{ padding: '14px 12px', fontWeight: '600', color: 'var(--text-main)' }}>
                       {taskObj.label}
                     </td>
                     <td style={{ padding: '14px 12px' }}>
@@ -874,15 +875,15 @@ export default function LLMBackends() {
               overflowY: 'auto',
               padding: '28px',
               borderRadius: '16px',
-              background: 'linear-gradient(135deg, #181d2f 0%, #0f1422 100%)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)'
+              background: 'var(--bg-glass-1)',
+              border: '1px solid var(--border-subtle)',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)'
             }}
           >
             {/* Modal Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
-                <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#ffffff', margin: 0 }}>
+                <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-main)', margin: 0 }}>
                   {editingBackendId ? 'Edit Konfigurasi LLM Backend' : 'Hubungkan Model LLM (Cloud / Lokal)'}
                 </h2>
                 <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
@@ -922,9 +923,9 @@ export default function LLMBackends() {
                           gap: '6px',
                           padding: '8px 10px',
                           borderRadius: '8px',
-                          background: isSelected ? `${p.color}30` : 'rgba(255, 255, 255, 0.03)',
-                          border: isSelected ? `1.5px solid ${p.color}` : '1px solid rgba(255, 255, 255, 0.08)',
-                          color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                          background: isSelected ? `${p.color}30` : 'var(--bg-glass-light)',
+                          border: isSelected ? `1.5px solid ${p.color}` : '1px solid var(--border-subtle)',
+                          color: isSelected ? 'var(--text-main)' : 'var(--text-secondary)',
                           fontSize: '12px',
                           fontWeight: '600',
                           cursor: 'pointer',
@@ -954,7 +955,7 @@ export default function LLMBackends() {
                 justifyContent: 'space-between',
                 fontSize: '12px'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ffffff' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)' }}>
                   <Key size={14} color={currentActiveProvider.color} />
                   <span>Belum memiliki API Key untuk <strong>{currentActiveProvider.name}</strong>?</span>
                 </div>
@@ -1069,8 +1070,8 @@ export default function LLMBackends() {
                 <div style={{
                   padding: '10px',
                   borderRadius: '8px',
-                  background: 'rgba(0,0,0,0.3)',
-                  border: '1px solid rgba(255,255,255,0.08)',
+                  background: 'var(--bg-glass-3)',
+                  border: '1px solid var(--border-subtle)',
                   display: 'flex',
                   flexWrap: 'wrap',
                   gap: '6px',
@@ -1089,7 +1090,7 @@ export default function LLMBackends() {
                         background: 'rgba(99, 102, 241, 0.15)',
                         border: '1px solid rgba(99, 102, 241, 0.3)',
                         fontSize: '11px',
-                        color: '#ffffff',
+                        color: 'var(--text-main)',
                         fontFamily: 'monospace'
                       }}
                     >
@@ -1168,8 +1169,8 @@ export default function LLMBackends() {
                                 padding: '3px 8px',
                                 borderRadius: '4px',
                                 border: isPicked ? '1px solid var(--accent-primary)' : '1px solid rgba(255,255,255,0.1)',
-                                background: isPicked ? 'rgba(99, 102, 241, 0.3)' : 'rgba(0,0,0,0.3)',
-                                color: isPicked ? '#ffffff' : 'var(--text-muted)',
+                                background: isPicked ? 'rgba(99, 102, 241, 0.3)' : 'var(--bg-glass-3)',
+                                color: isPicked ? 'var(--text-main)' : 'var(--text-muted)',
                                 fontSize: '11px',
                                 cursor: 'pointer',
                                 fontFamily: 'monospace'

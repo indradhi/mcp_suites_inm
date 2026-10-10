@@ -101,7 +101,7 @@ export default function AddFileModal({ isOpen, onClose, onSuccess, initialData =
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {initialData ? <Edit2 size={20} color="#f472b6" /> : <FileText size={20} color="var(--accent-primary)" />}
-            <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#ffffff' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-main)' }}>
               {initialData ? 'Edit Knowledge Document' : 'Upload Knowledge Document'}
             </h2>
           </div>
@@ -110,7 +110,7 @@ export default function AddFileModal({ isOpen, onClose, onSuccess, initialData =
             onClick={onClose}
             title="Tutup Modal"
             style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', borderRadius: '6px' }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.background = 'var(--border-subtle)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'none'; }}
           >
             <X size={20} />
@@ -122,14 +122,14 @@ export default function AddFileModal({ isOpen, onClose, onSuccess, initialData =
             <div style={{
               padding: '12px 16px',
               borderRadius: '8px',
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: 'var(--bg-glass-light)',
               border: '1px solid var(--border-color)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between'
             }}>
               <div>
-                <div style={{ fontSize: '13px', fontWeight: '600', color: '#ffffff' }}>
+                <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-main)' }}>
                   Current File: {initialData.config.filename || initialData.name}
                 </div>
                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
@@ -161,7 +161,7 @@ export default function AddFileModal({ isOpen, onClose, onSuccess, initialData =
                 onChange={handleFileChange}
               />
               <Upload size={26} color={file ? 'var(--accent-primary)' : 'var(--text-muted)'} style={{ margin: '0 auto 8px' }} />
-              <div style={{ fontSize: '13px', fontWeight: '600', color: '#ffffff' }}>
+              <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-main)' }}>
                 {file ? file.name : (initialData ? 'Click to select a replacement file' : 'Click to select or drag and drop file')}
               </div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
@@ -181,7 +181,7 @@ export default function AddFileModal({ isOpen, onClose, onSuccess, initialData =
           }}>
             <Sparkles size={18} color="var(--accent-primary)" />
             <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-              <strong style={{ color: '#ffffff' }}>Automatic OCR Enabled:</strong> If a PDF is image-based or scanned without digital text, Tesseract OCR will automatically extract the content.
+              <strong style={{ color: 'var(--text-main)' }}>Automatic OCR Enabled:</strong> If a PDF is image-based or scanned without digital text, Tesseract OCR will automatically extract the content.
             </div>
           </div>
 

@@ -49,9 +49,9 @@ export default function ReasoningCard({
         margin: '10px 0 14px 0',
         borderRadius: '12px',
         border: '1px solid rgba(245, 158, 11, 0.3)',
-        background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(15, 23, 42, 0.6) 100%)',
+        background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, var(--bg-glass-1) 100%)',
         overflow: 'hidden',
-        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)',
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1)',
         backdropFilter: 'blur(8px)'
       }}
     >
@@ -64,17 +64,17 @@ export default function ReasoningCard({
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '9px 14px',
-          background: isExpanded ? 'rgba(30, 41, 59, 0.7)' : 'rgba(30, 41, 59, 0.4)',
+          background: isExpanded ? 'rgba(245, 158, 11, 0.12)' : 'var(--bg-glass-2)',
           borderBottom: isExpanded ? '1px solid rgba(245, 158, 11, 0.2)' : 'none',
           cursor: 'pointer',
           userSelect: 'none',
           transition: 'background 0.2s ease'
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'rgba(30, 41, 59, 0.85)';
+          e.currentTarget.style.background = 'rgba(245, 158, 11, 0.18)';
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.background = isExpanded ? 'rgba(30, 41, 59, 0.7)' : 'rgba(30, 41, 59, 0.4)';
+          e.currentTarget.style.background = isExpanded ? 'rgba(245, 158, 11, 0.12)' : 'var(--bg-glass-2)';
         }}
       >
         {/* Left side: Icon, title, badges */}
@@ -130,9 +130,9 @@ export default function ReasoningCard({
               fontSize: '10px',
               padding: '1px 6px',
               borderRadius: '4px',
-              background: 'rgba(99, 102, 241, 0.15)',
-              border: '1px solid rgba(99, 102, 241, 0.3)',
-              color: '#a5b4fc',
+              background: 'var(--bg-glass-3)',
+              border: '1px solid var(--border-subtle)',
+              color: 'var(--accent-primary)',
               fontWeight: '600'
             }}
           >
@@ -153,15 +153,15 @@ export default function ReasoningCard({
                 gap: '4px',
                 padding: '3px 8px',
                 borderRadius: '6px',
-                background: copied ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.06)',
-                border: `1px solid ${copied ? 'rgba(16, 185, 129, 0.4)' : 'rgba(255, 255, 255, 0.1)'}`,
+                background: copied ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-glass-light)',
+                border: `1px solid ${copied ? 'rgba(16, 185, 129, 0.4)' : 'var(--border-subtle)'}`,
                 color: copied ? '#34d399' : '#94a3b8',
                 fontSize: '11px',
                 cursor: 'pointer',
                 transition: 'all 0.15s ease'
               }}
               onMouseEnter={(e) => {
-                if (!copied) e.currentTarget.style.color = '#ffffff';
+                if (!copied) e.currentTarget.style.color = 'var(--text-main)';
               }}
               onMouseLeave={(e) => {
                 if (!copied) e.currentTarget.style.color = '#94a3b8';
@@ -195,13 +195,13 @@ export default function ReasoningCard({
             padding: '14px 16px',
             fontSize: '12px',
             lineHeight: '1.7',
-            color: '#cbd5e1',
+            color: 'var(--text-sub)',
             fontFamily: 'JetBrains Mono, Menlo, Consolas, monospace',
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
             maxHeight: '360px',
             overflowY: 'auto',
-            background: 'rgba(10, 15, 29, 0.75)',
+            background: 'var(--bg-glass-1)',
             borderLeft: '3px solid rgba(245, 158, 11, 0.6)'
           }}
         >

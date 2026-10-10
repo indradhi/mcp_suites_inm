@@ -4,17 +4,9 @@ import Sidebar from './Sidebar';
 
 export default function Layout() {
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <div className="flex min-h-screen bg-base-100">
       <Sidebar />
-      <main style={{
-        marginLeft: '260px',
-        flex: 1,
-        padding: '32px 40px',
-        maxWidth: '1600px',
-        width: 'calc(100% - 260px)',
-        minHeight: '100vh',
-        boxSizing: 'border-box'
-      }}>
+      <main className="flex-1 ml-[260px] p-8 md:p-10 max-w-[1600px] w-[calc(100%-260px)] min-h-screen">
         <Outlet />
       </main>
     </div>

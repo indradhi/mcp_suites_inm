@@ -40,7 +40,7 @@ export default function Jobs() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ fontSize: '28px', fontWeight: '800', letterSpacing: '-0.03em', color: '#ffffff' }}>
+          <h1 style={{ fontSize: '28px', fontWeight: '800', letterSpacing: '-0.03em', color: 'var(--text-main)' }}>
             Ingestion & Processing Jobs
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>
@@ -90,13 +90,13 @@ export default function Jobs() {
                       cursor: 'pointer',
                       transition: 'background 0.2s ease'
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)'}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-glass-light)'}
                     onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                   >
                     <td style={{ padding: '14px 12px', color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>
                       #{job.id}
                     </td>
-                    <td style={{ padding: '14px 12px', fontWeight: '600', color: '#ffffff' }}>
+                    <td style={{ padding: '14px 12px', fontWeight: '600', color: 'var(--text-main)' }}>
                       {job.source_name}
                     </td>
                     <td style={{ padding: '14px 12px' }}>
@@ -161,9 +161,9 @@ export default function Jobs() {
                               borderRadius: '6px',
                               fontSize: '11px',
                               fontWeight: '600',
-                              background: 'rgba(239, 68, 68, 0.15)',
-                              border: '1px solid rgba(239, 68, 68, 0.3)',
-                              color: '#ef4444',
+                              background: 'rgba(225, 29, 72, 0.12)',
+                              border: '1px solid rgba(225, 29, 72, 0.25)',
+                              color: '#fb7185',
                               cursor: 'pointer'
                             }}
                           >

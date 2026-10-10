@@ -71,7 +71,7 @@ export const VALIDITY_TIERS = {
     minScore: 30,
     maxScore: 54,
     color: '#94a3b8',
-    lightColor: '#cbd5e1',
+    lightColor: 'var(--text-sub)',
     bg: 'rgba(148, 163, 184, 0.12)',
     border: 'rgba(148, 163, 184, 0.35)',
     icon: ShieldAlert,
@@ -109,11 +109,12 @@ export function ValidityBadge({ tier, score, showScore = true, size = 'normal' }
       <span>{meta.shortName}</span>
       {showScore && (
         <span style={{
-          background: 'rgba(0, 0, 0, 0.25)',
+          background: 'var(--bg-glass-3)',
+          border: '1px solid var(--border-subtle)',
           padding: '1px 5px',
           borderRadius: '4px',
           fontSize: isSmall ? '10px' : '11px',
-          color: meta.lightColor,
+          color: meta.color,
           fontWeight: '700'
         }}>
           {score !== undefined && score !== null ? score : meta.defaultScore}
@@ -182,7 +183,7 @@ export default function ValidityTierSelector({
                 borderRadius: '8px',
                 padding: '12px',
                 border: isSelected ? `2px solid ${t.color}` : '1px solid rgba(255, 255, 255, 0.08)',
-                background: isSelected ? t.bg : 'rgba(255, 255, 255, 0.02)',
+                background: isSelected ? t.bg : 'var(--bg-glass-light)',
                 boxShadow: isSelected ? `0 0 12px ${t.border}` : 'none',
                 transition: 'all 0.18s ease',
                 display: 'flex',

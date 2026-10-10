@@ -154,12 +154,12 @@ export default function ExploreToolsModal({
           width: '100%',
           maxWidth: '920px',
           maxHeight: '85vh',
-          background: 'rgba(15, 23, 42, 0.95)',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
+          background: 'var(--bg-glass-1)',
+          border: '1px solid var(--border-subtle)',
           borderRadius: '16px',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5)',
+          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.3)',
           overflow: 'hidden'
         }}
         onClick={(e) => e.stopPropagation()}
@@ -168,7 +168,7 @@ export default function ExploreToolsModal({
         <div
           style={{
             padding: '16px 24px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            borderBottom: '1px solid var(--border-subtle)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -181,17 +181,18 @@ export default function ExploreToolsModal({
                 width: '36px',
                 height: '36px',
                 borderRadius: '10px',
-                background: 'linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)',
+                background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+                boxShadow: '0 4px 12px rgba(15, 23, 42, 0.25)',
+                border: '1px solid rgba(255, 255, 255, 0.12)'
               }}
             >
               <Zap size={20} color="#ffffff" />
             </div>
             <div>
-              <h2 style={{ fontSize: '17px', fontWeight: '700', color: '#ffffff', margin: 0 }}>
+              <h2 style={{ fontSize: '17px', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>
                 Explore AI Tools & Function Calling
               </h2>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
@@ -204,8 +205,8 @@ export default function ExploreToolsModal({
             type="button"
             onClick={onClose}
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              background: 'var(--bg-glass-light)',
+              border: '1px solid var(--border-subtle)',
               borderRadius: '8px',
               padding: '6px',
               color: 'var(--text-muted)',
@@ -216,12 +217,12 @@ export default function ExploreToolsModal({
               transition: 'all 0.15s ease'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.color = '#ffffff';
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+              e.currentTarget.style.color = 'var(--text-main)';
+              e.currentTarget.style.background = 'var(--border-subtle)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.color = 'var(--text-muted)';
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+              e.currentTarget.style.background = 'var(--bg-glass-light)';
             }}
           >
             <X size={18} />
@@ -232,13 +233,13 @@ export default function ExploreToolsModal({
         <div
           style={{
             padding: '14px 24px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+            borderBottom: '1px solid var(--border-subtle)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: '12px',
             flexWrap: 'wrap',
-            background: 'rgba(10, 15, 29, 0.6)'
+            background: 'var(--bg-glass-2)'
           }}
         >
           {/* Search Box */}
@@ -263,9 +264,9 @@ export default function ExploreToolsModal({
                 width: '100%',
                 padding: '8px 12px 8px 36px',
                 borderRadius: '8px',
-                background: 'rgba(0, 0, 0, 0.3)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                color: '#ffffff',
+                background: 'var(--bg-glass-3)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-main)',
                 fontSize: '12px',
                 outline: 'none',
                 boxSizing: 'border-box'
@@ -292,9 +293,9 @@ export default function ExploreToolsModal({
                     borderRadius: '8px',
                     fontSize: '12px',
                     fontWeight: active ? '600' : '400',
-                    background: active ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                    border: `1px solid ${active ? 'rgba(99, 102, 241, 0.5)' : 'rgba(255, 255, 255, 0.08)'}`,
-                    color: active ? '#a5b4fc' : 'var(--text-muted)',
+                    background: active ? 'rgba(99, 102, 241, 0.2)' : 'var(--bg-glass-light)',
+                    border: `1px solid ${active ? 'rgba(99, 102, 241, 0.5)' : 'var(--border-subtle)'}`,
+                    color: active ? 'var(--accent-primary)' : 'var(--text-muted)',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
@@ -336,15 +337,15 @@ export default function ExploreToolsModal({
             filteredTools.map((tool, idx) => {
               const isDb = tool.source_type === 'database' || (tool.name && tool.name.startsWith('db_'));
               const isMcp = tool.source_type === 'mcp' || tool.source_type === 'mcp_server';
-              const themeColor = isDb ? 'var(--accent-primary)' : isMcp ? '#ec4899' : 'var(--accent-cyan)';
+              const themeColor = isDb ? 'var(--accent-primary)' : isMcp ? '#6366f1' : 'var(--accent-cyan)';
               const isSchemaOpen = Boolean(expandedSchema[tool.name]);
 
               return (
                 <div
                   key={idx}
                   style={{
-                    background: 'rgba(20, 28, 48, 0.5)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    background: 'var(--bg-glass-2)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '12px',
                     padding: '14px 18px',
                     display: 'flex',
@@ -353,10 +354,10 @@ export default function ExploreToolsModal({
                     transition: 'border-color 0.2s ease, transform 0.2s ease'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.35)';
+                    e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.4)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                    e.currentTarget.style.borderColor = 'var(--border-subtle)';
                   }}
                 >
                   {/* Tool Header */}
@@ -417,8 +418,8 @@ export default function ExploreToolsModal({
                           gap: '5px',
                           padding: '4px 10px',
                           borderRadius: '6px',
-                          background: copiedTool === tool.name ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                          border: `1px solid ${copiedTool === tool.name ? 'rgba(16, 185, 129, 0.4)' : 'rgba(255, 255, 255, 0.1)'}`,
+                          background: copiedTool === tool.name ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-glass-light)',
+                          border: `1px solid ${copiedTool === tool.name ? 'rgba(16, 185, 129, 0.4)' : 'var(--border-subtle)'}`,
                           color: copiedTool === tool.name ? '#34d399' : 'var(--text-muted)',
                           fontSize: '11px',
                           cursor: 'pointer'
@@ -440,7 +441,7 @@ export default function ExploreToolsModal({
                           borderRadius: '6px',
                           background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(6, 182, 212, 0.25) 100%)',
                           border: '1px solid rgba(99, 102, 241, 0.4)',
-                          color: '#ffffff',
+                          color: 'var(--text-main)',
                           fontSize: '11px',
                           fontWeight: '600',
                           cursor: 'pointer'
@@ -481,8 +482,8 @@ export default function ExploreToolsModal({
                       {isSchemaOpen ? (
                         <div
                           style={{
-                            background: 'rgba(0, 0, 0, 0.35)',
-                            border: '1px solid rgba(255, 255, 255, 0.06)',
+                            background: 'var(--bg-glass-3)',
+                            border: '1px solid var(--border-subtle)',
                             borderRadius: '8px',
                             padding: '10px 12px',
                             display: 'flex',
@@ -503,13 +504,13 @@ export default function ExploreToolsModal({
                               <span
                                 style={{
                                   fontFamily: 'JetBrains Mono, monospace',
-                                  color: '#38bdf8',
+                                  color: 'var(--accent-cyan)',
                                   fontWeight: '600'
                                 }}
                               >
                                 {p.name}
                               </span>
-                              <span style={{ color: '#94a3b8', fontSize: '10px' }}>
+                              <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
                                 ({p.type || 'string'}){p.required ? ' *wajib' : ' opsional'}
                               </span>
                               {p.description && (
@@ -529,8 +530,8 @@ export default function ExploreToolsModal({
                                 fontSize: '10px',
                                 padding: '2px 8px',
                                 borderRadius: '6px',
-                                background: 'rgba(255, 255, 255, 0.04)',
-                                border: '1px solid rgba(255, 255, 255, 0.08)',
+                                background: 'var(--bg-glass-light)',
+                                border: '1px solid var(--border-subtle)',
                                 color: 'var(--text-secondary)',
                                 fontFamily: 'JetBrains Mono, monospace'
                               }}
@@ -553,11 +554,11 @@ export default function ExploreToolsModal({
         <div
           style={{
             padding: '12px 24px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+            borderTop: '1px solid var(--border-subtle)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            background: 'rgba(10, 15, 29, 0.8)',
+            background: 'var(--bg-glass-2)',
             fontSize: '11px',
             color: 'var(--text-muted)'
           }}
@@ -571,9 +572,9 @@ export default function ExploreToolsModal({
             style={{
               padding: '6px 14px',
               borderRadius: '6px',
-              background: 'rgba(255, 255, 255, 0.08)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              color: '#ffffff',
+              background: 'var(--bg-glass-light)',
+              border: '1px solid var(--border-subtle)',
+              color: 'var(--text-main)',
               fontSize: '12px',
               cursor: 'pointer'
             }}

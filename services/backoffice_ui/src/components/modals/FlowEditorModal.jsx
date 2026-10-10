@@ -281,8 +281,8 @@ export default function FlowEditorModal({
     const currentMapping = step.parameters_mapping || {};
 
     return (
-      <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }}>
-        <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '8px', color: '#94a3b8' }}>
+      <div style={{ marginTop: '10px', padding: '10px', background: 'var(--bg-glass-light)', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
+        <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '8px', color: 'var(--text-muted)' }}>
           Pemetaan Parameter (Ambil dari langkah sebelumnya):
         </div>
         {inputParams.map((param, pIdx) => {
@@ -299,11 +299,11 @@ export default function FlowEditorModal({
                   const newMapping = { ...currentMapping, [paramName]: e.target.value };
                   handleStepChange(idx, 'parameters_mapping', newMapping);
                 }}
-                style={{ fontSize: '11px', padding: '4px 6px', flex: 1, minWidth: '150px', backgroundColor: '#1e293b', color: '#fff' }}
+                style={{ fontSize: '11px', padding: '4px 6px', flex: 1, minWidth: '150px', backgroundColor: 'var(--bg-glass-3)', color: 'var(--text-main)', border: '1px solid var(--border-subtle)' }}
               >
-                <option value="" style={{ backgroundColor: '#1e293b', color: '#fff' }}>-- Manual / Dinamis dari Chat --</option>
+                <option value="">-- Manual / Dinamis dari Chat --</option>
                 {availableOutputs.map(out => (
-                  <option key={`${out.stepIdx}-${out.fieldName}`} value={`step_${out.stepIdx}.${out.fieldName}`} style={{ backgroundColor: '#1e293b', color: '#fff' }}>
+                  <option key={`${out.stepIdx}-${out.fieldName}`} value={`step_${out.stepIdx}.${out.fieldName}`}>
                     {out.label}
                   </option>
                 ))}
@@ -348,7 +348,7 @@ export default function FlowEditorModal({
               <GitMerge size={20} color="var(--accent-primary)" />
             </div>
             <div>
-              <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#ffffff' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-main)' }}>
                 {activeFlow ? 'Sunting Alur Perolehan Informasi' : 'Buat Alur Perolehan Informasi Baru (Prompt Flow Memory)'}
               </h2>
               <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
@@ -361,7 +361,7 @@ export default function FlowEditorModal({
             onClick={onClose}
             title="Tutup Modal"
             style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', borderRadius: '6px' }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.background = 'var(--border-subtle)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'none'; }}
           >
             <X size={20} />
@@ -482,7 +482,7 @@ export default function FlowEditorModal({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Layers size={16} color="var(--accent-primary)" />
-                <span style={{ fontSize: '13px', fontWeight: '700', color: '#ffffff' }}>
+                <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-main)' }}>
                   Urutan Tahapan Perolehan Informasi (Sequential Flow Steps)
                 </span>
               </div>
@@ -523,7 +523,7 @@ export default function FlowEditorModal({
                     onDrop={(e) => handleDrop(e, idx)}
                     onDragEnd={handleDragEnd}
                     style={{
-                      background: isDragOver ? 'rgba(99, 102, 241, 0.12)' : isDragging ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.03)',
+                      background: isDragOver ? 'rgba(99, 102, 241, 0.12)' : isDragging ? 'var(--bg-glass-light)' : 'var(--bg-glass-light)',
                       border: isDragOver ? '2px dashed #6366f1' : isDragging ? '1px dashed rgba(255, 255, 255, 0.25)' : '1px solid rgba(255, 255, 255, 0.08)',
                       borderRadius: '8px',
                       padding: '12px 14px',
@@ -580,7 +580,7 @@ export default function FlowEditorModal({
                             disabled={idx === 0}
                             title="Tukar ke atas (Langkah sebelumnya)"
                             style={{
-                              background: 'rgba(255, 255, 255, 0.06)',
+                              background: 'var(--bg-glass-light)',
                               border: '1px solid rgba(255, 255, 255, 0.12)',
                               borderRadius: '4px',
                               color: idx === 0 ? 'rgba(255, 255, 255, 0.2)' : 'var(--text-primary)',
@@ -598,7 +598,7 @@ export default function FlowEditorModal({
                             disabled={idx === steps.length - 1}
                             title="Tukar ke bawah (Langkah berikutnya)"
                             style={{
-                              background: 'rgba(255, 255, 255, 0.06)',
+                              background: 'var(--bg-glass-light)',
                               border: '1px solid rgba(255, 255, 255, 0.12)',
                               borderRadius: '4px',
                               color: idx === steps.length - 1 ? 'rgba(255, 255, 255, 0.2)' : 'var(--text-primary)',
