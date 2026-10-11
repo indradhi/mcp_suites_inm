@@ -10,6 +10,7 @@ from services.graph.neo4j_client import neo4j_client
 from services.llm_service import llm_service
 from services.personality_service import personality_service
 from services.context_rot_guard import context_rot_guard
+from services.media_cache_service import media_cache_service
 
 logger = logging.getLogger(__name__)
 
@@ -1580,6 +1581,7 @@ Patuhi aturan:
                         self.nik = str(nik).strip() if nik else None
                         self.source = source
                         self.is_truncated = "..." in photo or "[truncated" in photo or len(clean_p) < 1000
+                        self.media_url = None
 
                 extracted_entities: List[EntityPhoto] = []
 
@@ -1691,6 +1693,18 @@ Patuhi aturan:
                     else:
                         unique_entities.append(ep)
 
+                # Pre-convert and cache Base64 entity photos to lightweight image files in temp directory
+                for u_ep in unique_entities:
+                    if u_ep.photo and not u_ep.is_truncated:
+                        try:
+                            m_res = media_cache_service.save_base64_as_file(
+                                u_ep.photo, ref_nik=u_ep.nik, ref_name=u_ep.name, source_name=u_ep.source, db=db
+                            )
+                            if m_res.get("url"):
+                                u_ep.media_url = m_res["url"]
+                        except Exception as m_err:
+                            logger.warning(f"Notice caching entity photo for {u_ep.name or u_ep.nik}: {m_err}")
+
                 generic_names = {"admin", "user", "kpk", "indonesia", "pemerintah", "null", "none", "unknown", "foto", "profil", "subjek", "data"}
 
                 def _matches_subject(ep: EntityPhoto, text: str) -> bool:
@@ -1771,9 +1785,12 @@ Patuhi aturan:
                             matched_ep = matching_subjs[0]
 
                     if matched_ep and not matched_ep.is_truncated:
-                        healed_uri = _normalize_data_uri(matched_ep.photo)
                         clean_label = f"Foto Profil - {matched_ep.name}" if matched_ep.name else (label or "Foto Profil Terverifikasi")
-                        return f"![{clean_label}]({healed_uri})"
+                        cached_url = matched_ep.media_url or media_cache_service.save_base64_as_file(
+                            matched_ep.photo, ref_nik=matched_ep.nik, ref_name=matched_ep.name, source_name=matched_ep.source, db=db
+                        ).get("url")
+                        healed_src = cached_url if cached_url else _normalize_data_uri(matched_ep.photo)
+                        return f"![{clean_label}]({healed_src})"
 
                     return match.group(0)
 
@@ -1791,10 +1808,13 @@ Patuhi aturan:
                         target = matching_in_ans[0]
 
                     if target:
-                        target_uri = _normalize_data_uri(target.photo)
+                        target_url = target.media_url or media_cache_service.save_base64_as_file(
+                            target.photo, ref_nik=target.nik, ref_name=target.name, source_name=target.source, db=db
+                        ).get("url")
+                        target_src = target_url if target_url else _normalize_data_uri(target.photo)
                         label = f"Foto Profil - {target.name}" if target.name else "Foto Profil Terverifikasi"
-                        clean_answer = f"![{label}]({target_uri})\n\n" + clean_answer
-                        logger.info(f"Entity-aware photo injected for single subject '{target.name or target.nik}'")
+                        clean_answer = f"![{label}]({target_src})\n\n" + clean_answer
+                        logger.info(f"Entity-aware cached photo injected for single subject '{target.name or target.nik}'")
                     elif len(matching_in_ans) > 1:
                         # Multi-entity injection: inject each person's verified photo right below their section / table
                         entity_positions = []
@@ -1819,16 +1839,25 @@ Patuhi aturan:
                             else:
                                 insert_pos = len(clean_answer)
 
-                            ep_uri = _normalize_data_uri(ep.photo)
-                            photo_tag = f"\n\n![Foto Profil - {ep.name}]({ep_uri})\n"
+                            ep_url = ep.media_url or media_cache_service.save_base64_as_file(
+                                ep.photo, ref_nik=ep.nik, ref_name=ep.name, source_name=ep.source, db=db
+                            ).get("url")
+                            ep_src = ep_url if ep_url else _normalize_data_uri(ep.photo)
+                            photo_tag = f"\n\n![Foto Profil - {ep.name}]({ep_src})\n"
                             clean_answer = clean_answer[:insert_pos] + photo_tag + clean_answer[insert_pos:]
-                        logger.info(f"Multi-entity photos injected for {len(entity_positions)} subjects in family/batch response.")
+                        logger.info(f"Multi-entity cached photos injected for {len(entity_positions)} subjects in family/batch response.")
 
             except Exception as heal_err:
                 logger.warning(f"Error during base64 image auto-healing: {heal_err}")
 
             if not clean_answer:
                 clean_answer = raw_answer or "No response generated by model."
+
+            # Ensure all remaining Base64 strings across clean_answer are converted to lightweight cached media URLs
+            try:
+                clean_answer = media_cache_service.sanitize_text_and_convert_images(clean_answer, db=db)
+            except Exception as b64_clean_err:
+                logger.warning(f"Notice converting answer images to media cache: {b64_clean_err}")
 
             # 6. Post-Synthesis Verification: Zero-Hallucination & Anti-Content-Rot Guard
             try:

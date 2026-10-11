@@ -5,7 +5,7 @@ import uuid
 from typing import List, Dict, Any, Optional, Union
 from pydantic import BaseModel, Field, ConfigDict
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.encoders import jsonable_encoder
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -17,6 +17,7 @@ from models.knowledge_source import KnowledgeSource
 from models.chat_feedback import ChatFeedback
 from services.chat_service import chat_service
 from services.document_parser import document_parser
+from services.media_cache_service import media_cache_service
 from models.api_key import ApiKey
 
 logger = logging.getLogger(__name__)
@@ -1142,3 +1143,30 @@ def get_feedback_stats(
         "like_rate_percent": round(total_likes / total * 100, 1) if total > 0 else 0,
         "by_model": model_stats
     }
+
+
+# ── Media Cache Endpoints ────────────────────────────────────────────────────────
+
+@router.get("/media/{filename}")
+def get_chat_media_file(filename: str, db: Session = Depends(get_db)):
+    """
+    Serves temporary image files for chat responses.
+    Automatically regenerates the image from ChatMediaCache if the temporary file was evicted.
+    Does not require bearer auth so standard <img> HTML tags in browser load seamlessly.
+    """
+    res = media_cache_service.get_or_regenerate_file(filename, db=db)
+    if not res:
+        raise HTTPException(status_code=404, detail="Media not found or expired")
+    file_path, mime_type = res
+    return FileResponse(file_path, media_type=mime_type, filename=filename)
+
+
+@openai_router.get("/media/{filename}")
+def get_openai_media_file(filename: str, db: Session = Depends(get_db)):
+    """OpenAI compatibility route for media images."""
+    res = media_cache_service.get_or_regenerate_file(filename, db=db)
+    if not res:
+        raise HTTPException(status_code=404, detail="Media not found or expired")
+    file_path, mime_type = res
+    return FileResponse(file_path, media_type=mime_type, filename=filename)
+

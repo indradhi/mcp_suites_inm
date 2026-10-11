@@ -168,6 +168,13 @@ class ContextRotGuard:
             if not content.strip():
                 continue
 
+            # Convert any raw Base64 or heavy data:image URIs from prior turns into lightweight media URLs
+            try:
+                from services.media_cache_service import media_cache_service
+                content = media_cache_service.sanitize_text_and_convert_images(content)
+            except Exception as b64_err:
+                logger.debug(f"Notice during history media conversion: {b64_err}")
+
             if role == "assistant":
                 # A. Strip fake/unregistered function references (anti-poisoning)
                 content, p_count = self._neutralize_hallucinated_functions(content, registered_tool_names)

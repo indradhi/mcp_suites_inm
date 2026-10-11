@@ -11,6 +11,7 @@ from models.knowledge_source import KnowledgeSource
 from models.ingest_job import IngestJob
 from models.llm_backend import LLMBackend
 from models.chat_feedback import ChatFeedback
+from models.chat_media_cache import ChatMediaCache
 from models.api_key import ApiKey
 from security import get_current_user
 
@@ -18,6 +19,9 @@ from routers import auth, users, knowledge, jobs, graph, llm_backends, chat, fac
 from routers.chat import openai_router, get_user_flexible
 from models.orchestration_flow import OrchestrationFlow
 from services.flow_orchestrator import flow_orchestrator
+from services.media_cache_service import media_cache_service
+from fastapi.responses import FileResponse
+from fastapi import HTTPException
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("backoffice_api")
@@ -48,6 +52,12 @@ async def lifespan(app: FastAPI):
             if stuck_jobs:
                 db.commit()
                 logger.info(f"Cleaned up {len(stuck_jobs)} orphaned ingest jobs.")
+
+            # Cleanup expired temporary chat media files on startup
+            try:
+                media_cache_service.cleanup_expired_files(max_age_hours=48)
+            except Exception as e_mc:
+                logger.warning(f"Notice during media cache cleanup: {e_mc}")
         except Exception as e_clean:
             logger.warning(f"Notice during startup initialization: {e_clean}")
         finally:
@@ -189,3 +199,12 @@ def get_dashboard_stats(db: Session = Depends(get_db), user = Depends(get_curren
         "active_backends": active_backends,
         "failed_jobs": failed_jobs
     }
+
+@app.get("/media/{filename}")
+def root_media_proxy(filename: str, db: Session = Depends(get_db)):
+    """Direct root fallback for cached media files."""
+    res = media_cache_service.get_or_regenerate_file(filename, db=db)
+    if not res:
+        raise HTTPException(status_code=404, detail="Media not found or expired")
+    return FileResponse(res[0], media_type=res[1], filename=filename)
+
