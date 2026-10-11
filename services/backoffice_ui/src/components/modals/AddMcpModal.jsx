@@ -336,37 +336,37 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
         maxHeight: '92vh',
         overflowY: 'auto',
         borderRadius: '16px',
-        border: '1px solid rgba(168, 85, 247, 0.3)',
-        background: 'var(--bg-dark-2)',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
+        border: '1px solid var(--border-subtle)',
+        background: 'var(--bg-dark-1)',
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
         display: 'flex',
         flexDirection: 'column'
       }}>
         {/* Modal Header */}
         <div style={{
           padding: '20px 24px',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          borderBottom: '1px solid var(--border-subtle)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          background: 'linear-gradient(to right, rgba(168, 85, 247, 0.12), transparent)'
+          background: 'var(--bg-glass-2)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
               width: '40px',
               height: '40px',
               borderRadius: '10px',
-              background: 'rgba(168, 85, 247, 0.2)',
-              border: '1px solid rgba(168, 85, 247, 0.4)',
+              background: 'rgba(124, 58, 237, 0.15)',
+              border: '1px solid rgba(124, 58, 237, 0.35)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#c084fc'
+              color: '#7c3aed'
             }}>
               <Cpu size={22} />
             </div>
             <div>
-              <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#fff', margin: 0 }}>
+              <h2 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>
                 {initialData ? 'Edit Koneksi Server MCP' : 'Koneksikan Server MCP Eksternal'}
               </h2>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
@@ -395,8 +395,8 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
           {/* Section 1: Connection Info */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div style={{ gridColumn: 'span 2' }}>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#e2e8f0', marginBottom: '6px' }}>
-                Nama Koneksi / Server MCP <span style={{ color: '#f43f5e' }}>*</span>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                Nama Koneksi / Server MCP <span style={{ color: '#ef4444' }}>*</span>
               </label>
               <input
                 type="text"
@@ -410,8 +410,8 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
             </div>
 
             <div style={{ gridColumn: 'span 2' }}>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#e2e8f0', marginBottom: '6px' }}>
-                Endpoint URL Server MCP <span style={{ color: '#f43f5e' }}>*</span>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                Endpoint URL Server MCP <span style={{ color: '#ef4444' }}>*</span>
               </label>
               <input
                 type="text"
@@ -428,7 +428,7 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#e2e8f0', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
                 Protokol Transport MCP
               </label>
               <select
@@ -444,7 +444,7 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#e2e8f0', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
                 Metode Otentikasi
               </label>
               <select
@@ -464,7 +464,7 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
           {/* Conditional Auth Inputs */}
           {authMode === 'bearer' && (
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#e2e8f0', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
                 Bearer Token
               </label>
               <input
@@ -481,7 +481,7 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
           {authMode === 'api_key' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#e2e8f0', marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
                   Header Name
                 </label>
                 <input
@@ -494,7 +494,7 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
                 />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#e2e8f0', marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
                   API Key Value
                 </label>
                 <input
@@ -511,7 +511,7 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
 
           {authMode === 'custom_headers' && (
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#e2e8f0', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
                 Custom Headers (JSON)
               </label>
               <textarea
@@ -531,9 +531,9 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
             flexWrap: 'wrap',
             gap: '16px',
             padding: '12px 16px',
-            background: 'var(--bg-glass-light)',
+            background: 'var(--bg-glass-2)',
             borderRadius: '10px',
-            border: '1px solid rgba(255, 255, 255, 0.06)'
+            border: '1px solid var(--border-subtle)'
           }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-sub)' }}>
               <input
@@ -582,8 +582,8 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
           {/* Test & Tool Discovery Button */}
           <div style={{
             padding: '16px',
-            background: 'rgba(168, 85, 247, 0.05)',
-            border: '1px solid rgba(168, 85, 247, 0.25)',
+            background: 'var(--bg-glass-2)',
+            border: '1px solid var(--border-subtle)',
             borderRadius: '12px',
             display: 'flex',
             flexDirection: 'column',
@@ -591,8 +591,8 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
               <div>
-                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Zap size={16} color="#c084fc" />
+                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Zap size={16} color="var(--accent-primary)" />
                   Uji Koneksi & Deteksi Tools Otomatis
                 </h4>
                 <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--text-secondary)' }}>
@@ -608,10 +608,7 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '6px',
-                  borderColor: 'rgba(168, 85, 247, 0.5)',
-                  background: 'rgba(168, 85, 247, 0.15)',
-                  color: '#c084fc'
+                  gap: '6px'
                 }}
               >
                 {testing ? <RefreshCw size={14} className="spin" /> : <Play size={14} />}
@@ -624,16 +621,16 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
               <div style={{
                 padding: '12px 14px',
                 borderRadius: '8px',
-                background: testResult.success ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-                border: `1px solid ${testResult.success ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                background: testResult.success ? 'rgba(5, 150, 105, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                border: `1px solid ${testResult.success ? 'rgba(5, 150, 105, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`,
                 fontSize: '13px',
-                color: testResult.success ? '#34d399' : '#f87171',
+                color: testResult.success ? '#059669' : '#dc2626',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px'
               }}>
-                {testResult.success ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
-                <span>{testResult.message}</span>
+                {testResult.success ? <CheckCircle size={16} color="#059669" /> : <AlertCircle size={16} color="#dc2626" />}
+                <span style={{ color: testResult.success ? '#059669' : '#dc2626' }}>{testResult.message}</span>
                 {testResult.latency_ms !== undefined && (
                   <span style={{ marginLeft: 'auto', fontSize: '11px', opacity: 0.8 }}>
                     {testResult.latency_ms} ms
@@ -646,14 +643,14 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
             {discoveredTools.length > 0 && (
               <div style={{ marginTop: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: '700', color: '#e2e8f0' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-main)' }}>
                     Daftar Alat Ditemukan ({discoveredTools.filter(t => t.enabled).length}/{discoveredTools.length} Aktif):
                   </span>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button
                       type="button"
                       onClick={() => toggleAllTools(true)}
-                      style={{ background: 'none', border: 'none', color: '#38bdf8', fontSize: '11px', cursor: 'pointer', padding: 0 }}
+                      style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', fontSize: '11px', cursor: 'pointer', padding: 0, fontWeight: '600' }}
                     >
                       Pilih Semua
                     </button>
@@ -661,7 +658,7 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
                     <button
                       type="button"
                       onClick={() => toggleAllTools(false)}
-                      style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '11px', cursor: 'pointer', padding: 0 }}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '11px', cursor: 'pointer', padding: 0 }}
                     >
                       Batal Semua
                     </button>
@@ -673,7 +670,7 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
                   overflowY: 'auto',
                   border: '1px solid var(--border-subtle)',
                   borderRadius: '8px',
-                  background: 'var(--bg-glass-3)'
+                  background: 'var(--bg-glass-1)'
                 }}>
                   {discoveredTools.map((tool, idx) => {
                     const isExpanded = expandedToolIndex === idx;
@@ -683,7 +680,7 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
                       <div
                         key={tool.name || idx}
                         style={{
-                          borderBottom: idx !== discoveredTools.length - 1 ? '1px solid rgba(255, 255, 255, 0.06)' : 'none',
+                          borderBottom: idx !== discoveredTools.length - 1 ? '1px solid var(--border-subtle)' : 'none',
                           padding: '10px 14px'
                         }}
                       >
@@ -702,7 +699,7 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
                                 style={{
                                   fontSize: '13px',
                                   fontWeight: '600',
-                                  color: tool.enabled !== false ? '#fff' : '#64748b',
+                                  color: tool.enabled !== false ? 'var(--text-main)' : 'var(--text-muted)',
                                   cursor: 'pointer',
                                   fontFamily: 'monospace'
                                 }}
@@ -730,7 +727,8 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
                               fontSize: '10px',
                               padding: '2px 6px',
                               borderRadius: '4px',
-                              background: 'rgba(148, 163, 184, 0.1)',
+                              background: 'var(--bg-glass-2)',
+                              border: '1px solid var(--border-subtle)',
                               color: 'var(--text-secondary)'
                             }}>
                               {paramList.length} parameter
@@ -755,29 +753,30 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
                         {isExpanded && (
                           <div style={{
                             marginTop: '10px',
-                            padding: '10px',
-                            background: 'var(--bg-glass-3)',
+                            padding: '10px 12px',
+                            background: 'var(--bg-glass-2)',
+                            border: '1px solid var(--border-subtle)',
                             borderRadius: '6px',
                             fontSize: '12px'
                           }}>
-                            <div style={{ color: 'var(--text-sub)', marginBottom: '6px', fontWeight: '500' }}>
+                            <div style={{ color: 'var(--text-secondary)', marginBottom: '6px', fontWeight: '500' }}>
                               Deskripsi: {tool.description || 'Tidak ada deskripsi'}
                             </div>
                             {paramList.length > 0 ? (
                               <div>
-                                <span style={{ color: '#94a3b8', fontSize: '11px', fontWeight: '600' }}>Parameter:</span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '11px', fontWeight: '600' }}>Parameter:</span>
                                 <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
                                   {paramList.map((p, pIdx) => (
-                                    <li key={pIdx} style={{ color: '#e2e8f0', fontSize: '11px', marginBottom: '2px' }}>
-                                      <code style={{ color: '#38bdf8' }}>{p.name}</code> ({p.type || 'string'})
-                                      {p.required && <span style={{ color: '#f43f5e', marginLeft: '4px' }}>*wajib</span>}
-                                      {p.description && <span style={{ color: '#94a3b8', marginLeft: '6px' }}>- {p.description}</span>}
+                                    <li key={pIdx} style={{ color: 'var(--text-main)', fontSize: '11px', marginBottom: '2px' }}>
+                                      <code style={{ color: 'var(--accent-primary)', fontWeight: '600' }}>{p.name}</code> ({p.type || 'string'})
+                                      {p.required && <span style={{ color: '#ef4444', marginLeft: '4px' }}>*wajib</span>}
+                                      {p.description && <span style={{ color: 'var(--text-muted)', marginLeft: '6px' }}>- {p.description}</span>}
                                     </li>
                                   ))}
                                 </ul>
                               </div>
                             ) : (
-                              <span style={{ color: '#64748b', fontSize: '11px' }}>Alat ini tidak memerlukan parameter.</span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>Alat ini tidak memerlukan parameter.</span>
                             )}
                           </div>
                         )}
@@ -794,15 +793,15 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
             <div style={{
               padding: '14px 16px',
               borderRadius: '12px',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              background: 'rgba(255, 255, 255, 0.01)',
+              border: '1px solid var(--border-subtle)',
+              background: 'var(--bg-glass-2)',
               display: 'flex',
               flexDirection: 'column',
               gap: '10px'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', fontWeight: '600', color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Terminal size={14} color="#38bdf8" />
+                <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Terminal size={14} color="var(--accent-cyan)" />
                   Tes Eksekusi Alat Terpilih (Dry Run)
                 </span>
               </div>
@@ -842,14 +841,14 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
 
               {toolExecResult && (
                 <div style={{
-                  background: '#020617',
+                  background: 'var(--bg-glass-1)',
                   borderRadius: '8px',
-                  padding: '10px',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  padding: '10px 14px',
+                  border: '1px solid var(--border-subtle)',
                   maxHeight: '160px',
                   overflowY: 'auto'
                 }}>
-                  <pre style={{ margin: 0, fontSize: '11px', color: '#38bdf8', whiteSpace: 'pre-wrap' }}>
+                  <pre style={{ margin: 0, fontSize: '11px', color: 'var(--text-main)', fontFamily: 'JetBrains Mono, monospace', whiteSpace: 'pre-wrap' }}>
                     {JSON.stringify(toolExecResult, null, 2)}
                   </pre>
                 </div>
@@ -874,7 +873,7 @@ export default function AddMcpModal({ isOpen, onClose, onSuccess, initialData = 
             gap: '12px',
             marginTop: '8px',
             paddingTop: '16px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.08)'
+            borderTop: '1px solid var(--border-subtle)'
           }}>
             <button
               type="button"

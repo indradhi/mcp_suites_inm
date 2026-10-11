@@ -21,19 +21,40 @@ class ContextRotGuard:
         self.max_message_chars = 1200      # Max chars for any single prior assistant message
 
     @staticmethod
-    def clean_person_name(name: str) -> str:
+    def clean_entity_name(name: str) -> str:
         """
-        Strips academic degrees, honorifics, quotes, and punctuation from person names
-        so database/API queries receive standard clean entity names without tripping upstream services.
+        Strips company / business entity prefixes (PT, CV, Yayasan, Koperasi, UD, PD, Perusahaan, dll),
+        honorifics, academic degrees, quotes, and punctuation so that database/API tools query
+        clean core entity names without failing due to prefix variations or punctuation.
         """
         if not name:
             return ""
         n = re.sub(r'[\'\"`]', '', str(name)).strip()
+        
+        # Strip entity prefixes like "PT", "PT.", "P.T.", "CV", "CV.", "Yayasan", "Koperasi", "UD", "Perusahaan", etc.
+        entity_prefix_pattern = r'^(?:\s*(?:pt|p\.t|cv|c\.v|yayasan|yys|koperasi|kop|ud|u\.d|pd|p\.d|perusahaan|perseroan|perum|persero|firma|fa|lembaga)\b\.?\s*)+'
+        cleaned = re.sub(entity_prefix_pattern, '', n, flags=re.IGNORECASE).strip()
+        while True:
+            m = re.match(r'^(?:pt|p\.t|cv|c\.v|yayasan|yys|koperasi|kop|ud|u\.d|pd|p\.d|perusahaan|perseroan|perum|persero|firma|fa|lembaga)\b\.?\s*', cleaned, flags=re.IGNORECASE)
+            if m:
+                cleaned = cleaned[m.end():].strip()
+            else:
+                break
+                
+        # Also strip academic titles & degrees
         title_pattern = r'\b(?:prof|dr|dra|drs|ir|h|hj|apt|ak|drg|drh|s\.?kom|s\.?t|s\.?pd|s\.?h|s\.?e|s\.?si|s\.?ked|s\.?sos|s\.?ip|s\.?farm|s\.?psi|s\.?ag|s\.?sn|m\.?kom|m\.?m|m\.?si|m\.?t|m\.?kn|m\.?pd|m\.?h|m\.?ag|m\.?sc|b\.?sc|ph\.?d|ll\.?m|mba)\b\.?'
-        cleaned = re.sub(title_pattern, '', n, flags=re.IGNORECASE)
+        cleaned = re.sub(title_pattern, '', cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r'[,.]+', ' ', cleaned)
         cleaned = re.sub(r'\s+', ' ', cleaned).strip()
-        return cleaned if len(cleaned) >= 2 else n
+        return cleaned if len(cleaned) >= 2 else str(name).strip()
+
+    @staticmethod
+    def clean_person_name(name: str) -> str:
+        """
+        Strips academic degrees, honorifics, quotes, and punctuation from person names
+        as well as accidental business entity prefixes so database/API queries receive standard clean entity names.
+        """
+        return ContextRotGuard.clean_entity_name(name)
 
     @classmethod
     def extract_target_subject_name(cls, query: str) -> Optional[str]:

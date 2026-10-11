@@ -122,8 +122,8 @@ export default function AddFileModal({ isOpen, onClose, onSuccess, initialData =
             <div style={{
               padding: '12px 16px',
               borderRadius: '8px',
-              background: 'var(--bg-glass-light)',
-              border: '1px solid var(--border-color)',
+              background: 'var(--bg-glass-2)',
+              border: '1px solid var(--border-subtle)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between'
@@ -145,13 +145,13 @@ export default function AddFileModal({ isOpen, onClose, onSuccess, initialData =
               {initialData ? 'Replace Document File (Optional)' : 'File Selection (PDF, Excel, Word, Text)'}
             </label>
             <div style={{
-              border: '2px dashed var(--border-color)',
+              border: '2px dashed var(--border-subtle)',
               borderRadius: '8px',
               padding: initialData ? '18px' : '30px',
               textAlign: 'center',
               cursor: 'pointer',
               background: file ? 'rgba(99, 102, 241, 0.05)' : 'transparent',
-              borderColor: file ? 'var(--accent-primary)' : 'var(--border-color)'
+              borderColor: file ? 'var(--accent-primary)' : 'var(--border-subtle)'
             }} onClick={() => document.getElementById('file-input').click()}>
               <input
                 id="file-input"
@@ -173,8 +173,8 @@ export default function AddFileModal({ isOpen, onClose, onSuccess, initialData =
           <div style={{
             padding: '12px 16px',
             borderRadius: '8px',
-            background: 'rgba(99, 102, 241, 0.1)',
-            border: '1px solid rgba(99, 102, 241, 0.25)',
+            background: 'color-mix(in srgb, var(--accent-primary) 8%, var(--bg-glass-2))',
+            border: '1px solid color-mix(in srgb, var(--accent-primary) 25%, transparent)',
             display: 'flex',
             alignItems: 'center',
             gap: '10px'

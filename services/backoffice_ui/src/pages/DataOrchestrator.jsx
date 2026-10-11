@@ -29,6 +29,9 @@ import {
   Plus,
   Trash2,
   Edit2,
+  Copy,
+  Download,
+  Upload,
   ShieldCheck,
   Check,
   ExternalLink,
@@ -130,6 +133,7 @@ export default function DataOrchestrator() {
   const [flowTestResult, setFlowTestResult] = useState(null);
 
   const fileInputRef = useRef(null);
+  const importFileRef = useRef(null);
 
   useEffect(() => {
     // Run initial orchestration for demonstration
@@ -270,6 +274,118 @@ export default function DataOrchestrator() {
     } finally {
       setFlowsLoading(false);
     }
+  };
+
+  const handleCopyFlow = async (flow) => {
+    try {
+      const res = await api.post(`/orchestrator/flows/${flow.id}/clone`);
+      if (res.data?.success) {
+        await fetchFlows();
+        alert(res.data.message || `Alur '${flow.name}' berhasil digandakan!`);
+      }
+    } catch (err) {
+      alert('Gagal menyalin alur: ' + (err.response?.data?.detail || err.message));
+    }
+  };
+
+  const handleExportSingleFlow = (flow) => {
+    try {
+      const exportData = {
+        version: "1.0",
+        type: "orchestration_flow",
+        exported_at: new Date().toISOString(),
+        flow: {
+          name: flow.name,
+          description: flow.description,
+          prompt_pattern: flow.prompt_pattern,
+          intent_category: flow.intent_category,
+          trigger_keywords: flow.trigger_keywords || [],
+          steps: flow.steps || [],
+          validity_priority_rule: flow.validity_priority_rule,
+          is_active: flow.is_active
+        }
+      };
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeName = (flow.name || 'alur').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+      a.download = `alur_${safeName}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Gagal mengekspor alur: ' + err.message);
+    }
+  };
+
+  const handleExportAllFlows = () => {
+    try {
+      if (!flows || flows.length === 0) {
+        alert('Tidak ada alur perolehan informasi untuk diekspor.');
+        return;
+      }
+      const exportData = {
+        version: "1.0",
+        type: "orchestration_flows_bundle",
+        exported_at: new Date().toISOString(),
+        total: flows.length,
+        flows: flows.map(f => ({
+          name: f.name,
+          description: f.description,
+          prompt_pattern: f.prompt_pattern,
+          intent_category: f.intent_category,
+          trigger_keywords: f.trigger_keywords || [],
+          steps: f.steps || [],
+          validity_priority_rule: f.validity_priority_rule,
+          is_active: f.is_active
+        }))
+      };
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const dateStr = new Date().toISOString().slice(0, 10);
+      a.download = `orchestration_flows_${dateStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Gagal mengekspor seluruh alur: ' + err.message);
+    }
+  };
+
+  const handleImportFlowFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const content = JSON.parse(event.target?.result);
+        const res = await api.post('/orchestrator/flows/import', content);
+        if (res.data?.success) {
+          await fetchFlows();
+          alert(res.data.message || `Berhasil mengimpor ${res.data.imported_count} alur!`);
+        }
+      } catch (err) {
+        const msg = err.response?.data?.detail || err.message;
+        alert('Gagal mengimpor file alur: ' + msg);
+      } finally {
+        if (importFileRef.current) {
+          importFileRef.current.value = '';
+        }
+      }
+    };
+    reader.onerror = () => {
+      alert('Gagal membaca berkas JSON.');
+      if (importFileRef.current) {
+        importFileRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
   };
 
   const handleTestFlow = async (flow, customInput = null) => {
@@ -781,7 +897,60 @@ export default function DataOrchestrator() {
               </p>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              {/* Hidden file input for import */}
+              <input
+                type="file"
+                ref={importFileRef}
+                accept=".json,application/json"
+                style={{ display: 'none' }}
+                onChange={handleImportFlowFile}
+              />
+
+              <button
+                type="button"
+                onClick={() => importFileRef.current?.click()}
+                title="Impor alur dari berkas JSON"
+                style={{
+                  background: 'var(--bg-glass-light)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  color: 'var(--text-main)',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Upload size={14} />
+                Import Alur
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportAllFlows}
+                title="Ekspor seluruh alur perolehan ke berkas JSON"
+                style={{
+                  background: 'var(--bg-glass-light)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  color: 'var(--text-main)',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Download size={14} />
+                Export Semua
+              </button>
+
               <button
                 onClick={handleResetDefaultFlows}
                 disabled={flowsLoading}
@@ -789,7 +958,7 @@ export default function DataOrchestrator() {
                   background: 'var(--bg-glass-light)',
                   border: '1px solid rgba(255, 255, 255, 0.15)',
                   color: 'var(--text-secondary)',
-                  padding: '8px 14px',
+                  padding: '8px 12px',
                   borderRadius: '8px',
                   fontSize: '12px',
                   fontWeight: '600',
@@ -1128,6 +1297,47 @@ export default function DataOrchestrator() {
                         >
                           <Edit2 size={13} />
                           Sunting
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleCopyFlow(fl)}
+                          title="Salin / Duplikasi Alur"
+                          style={{
+                            background: 'var(--bg-glass-light)',
+                            border: '1px solid rgba(255, 255, 255, 0.18)',
+                            color: 'var(--text-main)',
+                            padding: '5px 10px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          <Copy size={13} />
+                          Salin
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleExportSingleFlow(fl)}
+                          title="Ekspor Alur ke Berkas JSON"
+                          style={{
+                            background: 'var(--bg-glass-light)',
+                            border: '1px solid rgba(255, 255, 255, 0.18)',
+                            color: 'var(--text-main)',
+                            padding: '5px 8px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <Download size={13} />
                         </button>
 
                         <button

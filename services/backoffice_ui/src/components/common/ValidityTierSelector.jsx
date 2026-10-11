@@ -13,10 +13,10 @@ export const VALIDITY_TIERS = {
     defaultScore: 95,
     minScore: 90,
     maxScore: 100,
-    color: '#10b981',
-    lightColor: '#34d399',
-    bg: 'rgba(16, 185, 129, 0.12)',
-    border: 'rgba(16, 185, 129, 0.35)',
+    color: '#059669',
+    lightColor: '#059669',
+    bg: 'rgba(5, 150, 105, 0.12)',
+    border: 'rgba(5, 150, 105, 0.35)',
     icon: ShieldCheck,
     description: 'Sumber data resmi negara (Dukcapil, BPN ATR, Korlantas, AHU, Bank resmi). Berstatus Ground Truth mutlak yang dimenangkan jika ada perbedaan data.',
     examples: 'Dukcapil NIK, Sertifikat BPN, AHU Kemenkumham, BI Fast / OJK'
@@ -32,10 +32,10 @@ export const VALIDITY_TIERS = {
     defaultScore: 85,
     minScore: 75,
     maxScore: 89,
-    color: '#3b82f6',
-    lightColor: '#60a5fa',
-    bg: 'rgba(59, 130, 246, 0.12)',
-    border: 'rgba(59, 130, 246, 0.35)',
+    color: '#2563eb',
+    lightColor: '#2563eb',
+    bg: 'rgba(37, 99, 235, 0.12)',
+    border: 'rgba(37, 99, 235, 0.35)',
     icon: Shield,
     description: 'Basis data operasional terverifikasi, BAP resmi penyelidik, atau laporan audit forensik internal KPK.',
     examples: 'LHKPN terverifikasi, BAP Pemeriksaan Saksi, Audit Investigatif'
@@ -51,10 +51,10 @@ export const VALIDITY_TIERS = {
     defaultScore: 65,
     minScore: 55,
     maxScore: 74,
-    color: '#f59e0b',
-    lightColor: '#fbbf24',
-    bg: 'rgba(245, 158, 11, 0.12)',
-    border: 'rgba(245, 158, 11, 0.35)',
+    color: '#d97706',
+    lightColor: '#d97706',
+    bg: 'rgba(217, 119, 6, 0.12)',
+    border: 'rgba(217, 119, 6, 0.35)',
     icon: Info,
     description: 'Portal berita resmi, situs web kementerian/instansi, publikasi riset, atau kliping media massa terverifikasi.',
     examples: 'Kompaspedia, Siaran Pers Kementerian, Dokumen Studi Regulasi'
@@ -70,10 +70,10 @@ export const VALIDITY_TIERS = {
     defaultScore: 45,
     minScore: 30,
     maxScore: 54,
-    color: '#94a3b8',
-    lightColor: 'var(--text-sub)',
-    bg: 'rgba(148, 163, 184, 0.12)',
-    border: 'rgba(148, 163, 184, 0.35)',
+    color: '#64748b',
+    lightColor: '#64748b',
+    bg: 'rgba(100, 116, 139, 0.12)',
+    border: 'rgba(100, 116, 139, 0.35)',
     icon: ShieldAlert,
     description: 'Catatan observasi lapangan, tangkapan layar media sosial, atau laporan pengaduan masyarakat belum terkonfirmasi.',
     examples: 'Postingan Twitter/X, Catatan Informan Anonim, Aduan SMS/WA'
@@ -143,8 +143,8 @@ export default function ValidityTierSelector({
 
   return (
     <div style={{
-      background: 'rgba(15, 23, 42, 0.4)',
-      border: '1px solid var(--border-color)',
+      background: 'var(--bg-glass-2)',
+      border: '1px solid var(--border-subtle)',
       borderRadius: '10px',
       padding: '18px',
       marginBottom: '20px'
@@ -182,8 +182,8 @@ export default function ValidityTierSelector({
                 cursor: 'pointer',
                 borderRadius: '8px',
                 padding: '12px',
-                border: isSelected ? `2px solid ${t.color}` : '1px solid rgba(255, 255, 255, 0.08)',
-                background: isSelected ? t.bg : 'var(--bg-glass-light)',
+                border: isSelected ? `2px solid ${t.color}` : '1px solid var(--border-subtle)',
+                background: isSelected ? t.bg : 'var(--bg-glass-1)',
                 boxShadow: isSelected ? `0 0 12px ${t.border}` : 'none',
                 transition: 'all 0.18s ease',
                 display: 'flex',
@@ -195,13 +195,13 @@ export default function ValidityTierSelector({
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <Icon size={16} color={t.color} />
-                    <span style={{ fontSize: '12px', fontWeight: '700', color: isSelected ? t.lightColor : 'var(--text-main)' }}>
+                    <span style={{ fontSize: '12px', fontWeight: '700', color: isSelected ? t.color : 'var(--text-main)' }}>
                       {t.name}
                     </span>
                   </div>
                 </div>
 
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px', lineHeight: 1.4 }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px', lineHeight: 1.4 }}>
                   {t.description}
                 </div>
               </div>
@@ -211,14 +211,14 @@ export default function ValidityTierSelector({
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 paddingTop: '6px',
-                borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                borderTop: '1px solid var(--border-subtle)',
                 fontSize: '10px'
               }}>
                 <span style={{ color: 'var(--text-muted)' }}>Skor: <strong style={{ color: t.color }}>{t.scoreRange}</strong></span>
                 {t.groundTruth && (
                   <span style={{
-                    color: '#10b981',
-                    background: 'rgba(16, 185, 129, 0.15)',
+                    color: '#059669',
+                    background: 'rgba(5, 150, 105, 0.15)',
                     padding: '1px 6px',
                     borderRadius: '4px',
                     fontWeight: '700'
@@ -238,7 +238,7 @@ export default function ValidityTierSelector({
         gridTemplateColumns: '1fr 1fr',
         gap: '14px',
         paddingTop: '12px',
-        borderTop: '1px solid rgba(255, 255, 255, 0.08)'
+        borderTop: '1px solid var(--border-subtle)'
       }}>
         {/* Score Slider */}
         <div>

@@ -564,7 +564,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
           )}
 
           {authMode === 'oauth2' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px', background: 'rgba(0,0,0,0.25)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px', background: 'var(--bg-glass-2)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
                   Token Endpoint URL
@@ -609,8 +609,8 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
           <div style={{
             padding: '18px 20px',
             borderRadius: '10px',
-            background: isTool ? 'rgba(6, 182, 212, 0.08)' : 'var(--bg-glass-light)',
-            border: isTool ? '1px solid rgba(6, 182, 212, 0.4)' : '1px solid var(--border-color)',
+            background: isTool ? 'rgba(6, 182, 212, 0.08)' : 'var(--bg-glass-2)',
+            border: isTool ? '1px solid rgba(6, 182, 212, 0.4)' : '1px solid var(--border-subtle)',
             transition: 'all 0.2s'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -619,12 +619,12 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                   width: '36px',
                   height: '36px',
                   borderRadius: '8px',
-                  background: isTool ? 'linear-gradient(135deg, #334155 0%, #1e293b 100%)' : 'var(--bg-glass-light)',
+                  background: isTool ? 'rgba(6, 182, 212, 0.15)' : 'var(--bg-glass-1)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}>
-                  <Zap size={18} color={isTool ? 'var(--text-main)' : 'var(--text-muted)'} />
+                  <Zap size={18} color={isTool ? 'var(--accent-cyan)' : 'var(--text-muted)'} />
                 </div>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -634,24 +634,24 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                     {isTool && (
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <span style={{
-                          background: 'rgba(6, 182, 212, 0.2)',
+                          background: 'rgba(6, 182, 212, 0.15)',
                           color: 'var(--accent-cyan)',
                           fontSize: '10px',
                           fontWeight: '700',
                           padding: '2px 8px',
                           borderRadius: '12px',
-                          border: '1px solid rgba(6, 182, 212, 0.4)'
+                          border: '1px solid rgba(6, 182, 212, 0.35)'
                         }}>
                           MCP & CHAT CALLABLE
                         </span>
                         <span style={{
-                          background: 'rgba(16, 185, 129, 0.2)',
-                          color: '#34d399',
+                          background: 'rgba(5, 150, 105, 0.15)',
+                          color: '#059669',
                           fontSize: '10px',
                           fontWeight: '700',
                           padding: '2px 8px',
                           borderRadius: '12px',
-                          border: '1px solid rgba(16, 185, 129, 0.4)'
+                          border: '1px solid rgba(5, 150, 105, 0.35)'
                         }}>
                           AUTO BANK DATA
                         </span>
@@ -719,7 +719,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
 
             {/* AI Tool Specific Fields */}
             {isTool && (
-              <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '16px' }}>
+              <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '16px', borderTop: '1px solid var(--border-subtle)', paddingTop: '16px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
@@ -779,7 +779,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                   </div>
 
                   {parameters.length === 0 ? (
-                    <div style={{ padding: '14px', textAlign: 'center', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                    <div style={{ padding: '14px', textAlign: 'center', background: 'var(--bg-glass-2)', border: '1px solid var(--border-subtle)', borderRadius: '6px', fontSize: '12px', color: 'var(--text-muted)' }}>
                       No parameters defined yet. Click "Add Parameter" to configure query, path, or body parameters.
                     </div>
                   ) : (
@@ -792,10 +792,10 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                             gridTemplateColumns: '1.2fr 90px 85px 2fr 75px 1fr 32px',
                             gap: '8px',
                             alignItems: 'center',
-                            background: 'var(--bg-glass-3)',
+                            background: 'var(--bg-glass-1)',
                             padding: '8px 10px',
                             borderRadius: '6px',
-                            border: '1px solid rgba(255, 255, 255, 0.05)'
+                            border: '1px solid var(--border-subtle)'
                           }}
                         >
                           <div>
@@ -889,7 +889,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
 
                 {/* Live Test Parameter Values */}
                 {parameters.filter(p => p.name).length > 0 && (
-                  <div style={{ padding: '14px', background: 'rgba(0,0,0,0.25)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ padding: '14px', background: 'var(--bg-glass-2)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
                     <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Play size={13} color="var(--accent-cyan)" /> Test Parameter Values for Live Validation
                     </div>
@@ -897,7 +897,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                       {parameters.filter(p => p.name).map((p, idx) => (
                         <div key={idx}>
                           <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                            {p.name} {p.required && <span style={{ color: '#f87171' }}>*</span>}
+                            {p.name} {p.required && <span style={{ color: '#ef4444' }}>*</span>}
                           </label>
                           <input
                             type="text"
@@ -918,15 +918,15 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                   marginTop: '4px',
                   padding: '14px 16px',
                   borderRadius: '8px',
-                  background: cacheEnabled ? 'rgba(234, 179, 8, 0.08)' : 'rgba(0,0,0,0.2)',
-                  border: cacheEnabled ? '1px solid rgba(234, 179, 8, 0.35)' : '1px solid rgba(255,255,255,0.07)',
+                  background: cacheEnabled ? 'rgba(217, 119, 6, 0.08)' : 'var(--bg-glass-2)',
+                  border: cacheEnabled ? '1px solid rgba(217, 119, 6, 0.35)' : '1px solid var(--border-subtle)',
                   transition: 'all 0.2s'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <Clock size={16} color={cacheEnabled ? '#fbbf24' : 'var(--text-muted)'} />
+                      <Clock size={16} color={cacheEnabled ? '#d97706' : 'var(--text-muted)'} />
                       <div>
-                        <div style={{ fontSize: '13px', fontWeight: '700', color: cacheEnabled ? '#fde68a' : 'var(--text-main)' }}>
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: cacheEnabled ? '#d97706' : 'var(--text-main)' }}>
                           Cache Hasil Tool Call
                         </div>
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
@@ -945,7 +945,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                         position: 'absolute',
                         cursor: 'pointer',
                         top: 0, left: 0, right: 0, bottom: 0,
-                        backgroundColor: cacheEnabled ? '#d97706' : 'rgba(255,255,255,0.2)',
+                        backgroundColor: cacheEnabled ? '#d97706' : 'var(--border-subtle)',
                         borderRadius: '34px',
                         transition: '0.3s'
                       }}>
@@ -965,7 +965,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
 
                   {cacheEnabled && (
                     <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#fde68a', whiteSpace: 'nowrap' }}>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#b45309', whiteSpace: 'nowrap' }}>
                         Masa Berlaku Cache
                       </label>
                       <input
@@ -978,7 +978,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                         style={{ width: '90px', textAlign: 'center', fontSize: '13px' }}
                       />
                       <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>menit</span>
-                      <span style={{ fontSize: '11px', color: 'rgba(253, 230, 138, 0.7)', marginLeft: '4px' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '4px' }}>
                         ({cacheTtlMinutes >= 60 ? `${(cacheTtlMinutes / 60).toFixed(1)} jam` : `${cacheTtlMinutes} mnt`})
                       </span>
                     </div>
@@ -993,8 +993,8 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
           <div style={{
             padding: '16px',
             borderRadius: '10px',
-            background: 'var(--bg-glass-light)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
+            background: 'var(--bg-glass-2)',
+            border: '1px solid var(--border-subtle)',
             display: 'flex',
             flexDirection: 'column',
             gap: '12px'
@@ -1006,8 +1006,8 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                   <span>Definisi Field Balikan (Kamus Data / Schema Output)</span>
                   <span style={{
                     fontSize: '10px',
-                    background: 'rgba(99, 102, 241, 0.2)',
-                    color: '#818cf8',
+                    background: 'rgba(99, 102, 241, 0.15)',
+                    color: 'var(--accent-primary)',
                     padding: '2px 7px',
                     borderRadius: '10px',
                     fontWeight: '700'
@@ -1029,9 +1029,9 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                       type="button"
                       onClick={handleAutoDetectFieldDefinitions}
                       style={{
-                        background: 'rgba(16, 185, 129, 0.15)',
-                        border: '1px solid rgba(16, 185, 129, 0.4)',
-                        color: '#34d399',
+                        background: 'rgba(5, 150, 105, 0.12)',
+                        border: '1px solid rgba(5, 150, 105, 0.35)',
+                        color: '#059669',
                         padding: '5px 10px',
                         borderRadius: '6px',
                         fontSize: '11px',
@@ -1044,7 +1044,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                       }}
                       title="Ekstrak nama field dan tipe data otomatis dari respons hasil test di bawah"
                     >
-                      <Sparkles size={13} />
+                      <Sparkles size={13} color="#059669" />
                       <span>Deteksi Otomatis dari Test</span>
                     </button>
                   )}
@@ -1054,9 +1054,9 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                     type="button"
                     onClick={handleAutoFillEmptyDescriptions}
                     style={{
-                      background: 'rgba(234, 179, 8, 0.12)',
-                      border: '1px solid rgba(234, 179, 8, 0.35)',
-                      color: '#fde047',
+                      background: 'rgba(217, 119, 6, 0.12)',
+                      border: '1px solid rgba(217, 119, 6, 0.35)',
+                      color: '#d97706',
                       padding: '5px 10px',
                       borderRadius: '6px',
                       fontSize: '11px',
@@ -1069,7 +1069,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                     }}
                     title="Isi otomatis definisi bantuan awal untuk field yang deskripsinya masih kosong"
                   >
-                    <Sparkles size={13} />
+                    <Sparkles size={13} color="#d97706" />
                     <span>Auto-Fill Definisi Kosong</span>
                   </button>
                 )}
@@ -1102,9 +1102,9 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
               <div style={{
                 padding: '14px',
                 textAlign: 'center',
-                background: 'rgba(0, 0, 0, 0.2)',
+                background: 'var(--bg-glass-2)',
                 borderRadius: '8px',
-                border: '1px dashed rgba(255, 255, 255, 0.1)',
+                border: '1px dashed var(--border-subtle)',
                 fontSize: '11.5px',
                 color: 'var(--text-muted)',
                 lineHeight: '1.5'
@@ -1114,18 +1114,20 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div style={{
-                  padding: '6px 10px',
+                  padding: '8px 12px',
                   borderRadius: '6px',
-                  background: 'rgba(99, 102, 241, 0.08)',
-                  border: '1px solid rgba(99, 102, 241, 0.2)',
-                  fontSize: '11px',
-                  color: '#c7d2fe',
+                  background: 'color-mix(in srgb, var(--accent-primary) 8%, var(--bg-glass-2))',
+                  border: '1px solid color-mix(in srgb, var(--accent-primary) 25%, transparent)',
+                  fontSize: '11.5px',
+                  color: 'var(--text-secondary)',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px'
+                  gap: '8px'
                 }}>
-                  <Sparkles size={13} color="#818cf8" style={{ flexShrink: 0 }} />
-                  <span>Definisi terisi otomatis sebagai bantuan deteksi awal untuk AI. Anda dapat menyunting atau memperjelas arti field sesuai kebutuhan.</span>
+                  <Sparkles size={14} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
+                  <span style={{ lineHeight: '1.4' }}>
+                    Definisi terisi otomatis sebagai bantuan deteksi awal untuk AI. Anda dapat menyunting atau memperjelas arti field sesuai kebutuhan.
+                  </span>
                 </div>
                 <div style={{
                   display: 'grid',
@@ -1153,10 +1155,10 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                       gridTemplateColumns: '1.2fr 100px 2.2fr 1.2fr 36px',
                       gap: '8px',
                       alignItems: 'center',
-                      background: 'rgba(0, 0, 0, 0.25)',
+                      background: 'var(--bg-glass-1)',
                       padding: '8px',
-                      borderRadius: '6px',
-                      border: '1px solid rgba(255, 255, 255, 0.05)'
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-subtle)'
                     }}
                   >
                     <div>
@@ -1213,7 +1215,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                       <button
                         type="button"
                         onClick={() => handleRemoveFieldDefinition(fIdx)}
-                        style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: '4px' }}
+                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
                         title="Hapus field ini"
                       >
                         <Trash2 size={14} />
@@ -1246,28 +1248,29 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
               display: 'flex',
               flexDirection: 'column',
               gap: '6px',
-              background: testResult.success ? 'rgba(16, 185, 129, 0.1)' : 'rgba(244, 63, 94, 0.1)',
-              border: `1px solid ${testResult.success ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`,
-              color: testResult.success ? '#34d399' : '#f87171'
+              background: testResult.success ? 'rgba(5, 150, 105, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+              border: `1px solid ${testResult.success ? 'rgba(5, 150, 105, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`,
+              color: testResult.success ? '#059669' : '#dc2626'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600' }}>
-                {testResult.success ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
-                {testResult.message}
+                {testResult.success ? <CheckCircle size={16} color="#059669" /> : <AlertCircle size={16} color="#dc2626" />}
+                <span style={{ color: testResult.success ? '#059669' : '#dc2626' }}>{testResult.message}</span>
               </div>
-              {testResult.result?.data && (
+              {Boolean(testResult.result?.data || testResult.data) && (
                 <div style={{
-                  marginTop: '6px',
-                  background: 'var(--bg-glass-3)',
-                  padding: '8px 12px',
+                  marginTop: '8px',
+                  background: 'var(--bg-glass-2)',
+                  border: '1px solid var(--border-subtle)',
+                  padding: '10px 14px',
                   borderRadius: '6px',
                   fontFamily: 'JetBrains Mono, monospace',
                   fontSize: '11px',
-                  color: '#e2e8f0',
-                  maxHeight: '140px',
+                  color: 'var(--text-main)',
+                  maxHeight: '160px',
                   overflowY: 'auto',
                   whiteSpace: 'pre-wrap'
                 }}>
-                  {JSON.stringify(testResult.result.data, null, 2)}
+                  {JSON.stringify(testResult.result?.data || testResult.data, null, 2)}
                 </div>
               )}
             </div>
@@ -1292,7 +1295,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                 id="btn-save-as-duplicate-api"
                 onClick={handleSaveAsCopy}
                 disabled={submitting || testing}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#a78bfa', borderColor: 'rgba(167, 139, 250, 0.4)', background: 'rgba(167, 139, 250, 0.06)' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#7c3aed', borderColor: 'rgba(124, 58, 237, 0.35)', background: 'rgba(124, 58, 237, 0.08)' }}
                 title="Simpan konfigurasi saat ini sebagai koneksi baru (duplikat)"
               >
                 <Copy size={14} /> Simpan Sebagai Baru (Duplikat)

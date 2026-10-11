@@ -190,10 +190,10 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
     switch ((type || '').toLowerCase()) {
       case 'database': return <Database size={15} color="var(--accent-primary)" />;
       case 'api': return <Globe size={15} color="var(--accent-cyan)" />;
-      case 'file': return <FileText size={15} color="#f472b6" />;
+      case 'file': return <FileText size={15} color="#db2777" />;
       case 'website': return <Globe size={15} color="var(--accent-emerald)" />;
       case 'websearch': return <Search size={15} color="var(--accent-amber)" />;
-      case 'google_drive': return <FolderGit2 size={15} color="#a78bfa" />;
+      case 'google_drive': return <FolderGit2 size={15} color="#7c3aed" />;
       default: return <Database size={15} color="var(--text-muted)" />;
     }
   };
@@ -271,9 +271,9 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
               animation: 'fadeIn 0.2s ease'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <CheckCircle2 size={32} color="#34d399" />
+                <CheckCircle2 size={32} color="var(--accent-emerald)" />
                 <div>
-                  <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#34d399' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--accent-emerald)' }}>
                     Import Berhasil Diselesaikan!
                   </h3>
                   <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
@@ -288,17 +288,17 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                 gap: '10px',
                 marginTop: '6px'
               }}>
-                <div style={{ background: 'var(--bg-glass-3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ background: 'var(--bg-glass-2)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Dibuat Baru</div>
-                  <div style={{ fontSize: '20px', fontWeight: '800', color: '#34d399', marginTop: '4px' }}>{resultSummary.created_count}</div>
+                  <div style={{ fontSize: '20px', fontWeight: '800', color: 'var(--accent-emerald)', marginTop: '4px' }}>{resultSummary.created_count}</div>
                 </div>
-                <div style={{ background: 'var(--bg-glass-3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ background: 'var(--bg-glass-2)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Diperbarui</div>
-                  <div style={{ fontSize: '20px', fontWeight: '800', color: '#60a5fa', marginTop: '4px' }}>{resultSummary.updated_count}</div>
+                  <div style={{ fontSize: '20px', fontWeight: '800', color: 'var(--accent-primary)', marginTop: '4px' }}>{resultSummary.updated_count}</div>
                 </div>
-                <div style={{ background: 'var(--bg-glass-3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ background: 'var(--bg-glass-2)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Dilewati</div>
-                  <div style={{ fontSize: '20px', fontWeight: '800', color: '#fca5a5', marginTop: '4px' }}>{resultSummary.skipped_count}</div>
+                  <div style={{ fontSize: '20px', fontWeight: '800', color: 'var(--accent-rose)', marginTop: '4px' }}>{resultSummary.skipped_count}</div>
                 </div>
               </div>
 
@@ -353,7 +353,7 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                   onClick={() => fileInputRef.current?.click()}
                   style={{
                     border: isDragOver ? '2px dashed var(--accent-primary)' : '2px dashed var(--border-color)',
-                    background: isDragOver ? 'rgba(99, 102, 241, 0.08)' : 'rgba(0, 0, 0, 0.2)',
+                    background: isDragOver ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-glass-1)',
                     borderRadius: '12px',
                     padding: '36px 20px',
                     textAlign: 'center',
@@ -370,8 +370,8 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                     width: '52px',
                     height: '52px',
                     borderRadius: '14px',
-                    background: 'var(--bg-glass-light)',
-                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-glass-2)',
+                    border: '1px solid var(--border-subtle)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center'
@@ -399,17 +399,17 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
               {/* Error Box */}
               {parseError && (
                 <div style={{
-                  background: 'rgba(239, 68, 68, 0.12)',
+                  background: 'rgba(239, 68, 68, 0.1)',
                   border: '1px solid rgba(239, 68, 68, 0.35)',
                   borderRadius: '10px',
                   padding: '12px 16px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '10px',
-                  color: '#f87171',
+                  color: 'var(--accent-rose)',
                   fontSize: '13px'
                 }}>
-                  <AlertTriangle size={18} color="#f87171" style={{ flexShrink: 0 }} />
+                  <AlertTriangle size={18} color="var(--accent-rose)" style={{ flexShrink: 0 }} />
                   <div>{parseError}</div>
                 </div>
               )}
@@ -419,8 +419,8 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                   {/* File Metadata Bar */}
                   <div style={{
-                    background: 'rgba(0, 0, 0, 0.25)',
-                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-glass-2)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '10px',
                     padding: '12px 16px',
                     display: 'flex',
@@ -452,8 +452,8 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
 
                   {/* Collision Strategy Options */}
                   <div style={{
-                    background: 'var(--bg-glass-light)',
-                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-glass-2)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '10px',
                     padding: '14px 16px'
                   }}>
@@ -465,8 +465,8 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                         display: 'flex',
                         alignItems: 'flex-start',
                         gap: '8px',
-                        background: collisionStrategy === 'rename' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(0,0,0,0.2)',
-                        border: collisionStrategy === 'rename' ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
+                        background: collisionStrategy === 'rename' ? 'rgba(99, 102, 241, 0.12)' : 'var(--bg-glass-1)',
+                        border: collisionStrategy === 'rename' ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
                         borderRadius: '8px',
                         padding: '10px 12px',
                         cursor: 'pointer',
@@ -492,8 +492,8 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                         display: 'flex',
                         alignItems: 'flex-start',
                         gap: '8px',
-                        background: collisionStrategy === 'overwrite' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(0,0,0,0.2)',
-                        border: collisionStrategy === 'overwrite' ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
+                        background: collisionStrategy === 'overwrite' ? 'rgba(99, 102, 241, 0.12)' : 'var(--bg-glass-1)',
+                        border: collisionStrategy === 'overwrite' ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
                         borderRadius: '8px',
                         padding: '10px 12px',
                         cursor: 'pointer',
@@ -519,8 +519,8 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                         display: 'flex',
                         alignItems: 'flex-start',
                         gap: '8px',
-                        background: collisionStrategy === 'skip' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(0,0,0,0.2)',
-                        border: collisionStrategy === 'skip' ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
+                        background: collisionStrategy === 'skip' ? 'rgba(99, 102, 241, 0.12)' : 'var(--bg-glass-1)',
+                        border: collisionStrategy === 'skip' ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
                         borderRadius: '8px',
                         padding: '10px 12px',
                         cursor: 'pointer',
@@ -544,7 +544,7 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                     </div>
 
                     {/* Auto-Sync Option */}
-                    <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)' }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                         <input
                           type="checkbox"
@@ -584,9 +584,9 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                     <div style={{
                       maxHeight: '220px',
                       overflowY: 'auto',
-                      border: '1px solid var(--border-color)',
+                      border: '1px solid var(--border-subtle)',
                       borderRadius: '8px',
-                      background: 'rgba(0, 0, 0, 0.2)'
+                      background: 'var(--bg-glass-1)'
                     }}>
                       {parsedData.sources.map((src, idx) => {
                         const isSelected = selectedIndices.includes(idx);
@@ -602,8 +602,8 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                               alignItems: 'center',
                               justifyContent: 'space-between',
                               padding: '10px 14px',
-                              borderBottom: idx < parsedData.sources.length - 1 ? '1px solid rgba(255, 255, 255, 0.05)' : 'none',
-                              background: isSelected ? 'rgba(99, 102, 241, 0.05)' : 'transparent',
+                              borderBottom: idx < parsedData.sources.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                              background: isSelected ? 'rgba(99, 102, 241, 0.08)' : 'transparent',
                               cursor: 'pointer',
                               transition: 'background 0.1s ease'
                             }}
@@ -656,7 +656,8 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                                 fontSize: '11px',
                                 textTransform: 'uppercase',
                                 color: 'var(--text-muted)',
-                                background: 'var(--bg-glass-light)',
+                                background: 'var(--bg-glass-2)',
+                                border: '1px solid var(--border-subtle)',
                                 padding: '2px 6px',
                                 borderRadius: '4px'
                               }}>
@@ -665,9 +666,9 @@ export default function ImportCatalogModal({ isOpen, onClose, onSuccess, existin
                               {isConflict && (
                                 <span style={{
                                   fontSize: '10px',
-                                  color: '#fbbf24',
+                                  color: 'var(--accent-amber)',
                                   background: 'rgba(245, 158, 11, 0.12)',
-                                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                                  border: '1px solid rgba(245, 158, 11, 0.35)',
                                   padding: '2px 6px',
                                   borderRadius: '4px',
                                   fontWeight: '600'

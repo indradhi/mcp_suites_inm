@@ -905,8 +905,8 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
           <div style={{
             padding: '18px 20px',
             borderRadius: '10px',
-            background: isTool ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-glass-light)',
-            border: isTool ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid var(--border-color)',
+            background: isTool ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-glass-2)',
+            border: isTool ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid var(--border-subtle)',
             transition: 'all 0.2s'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -915,12 +915,12 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                   width: '36px',
                   height: '36px',
                   borderRadius: '8px',
-                  background: isTool ? 'linear-gradient(135deg, #334155 0%, #1e293b 100%)' : 'var(--bg-glass-light)',
+                  background: isTool ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg-glass-1)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}>
-                  <Zap size={18} color={isTool ? 'var(--text-main)' : 'var(--text-muted)'} />
+                  <Zap size={18} color={isTool ? 'var(--accent-primary)' : 'var(--text-muted)'} />
                 </div>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -930,24 +930,24 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                     {isTool && (
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <span style={{
-                          background: 'rgba(99, 102, 241, 0.2)',
+                          background: 'rgba(99, 102, 241, 0.15)',
                           color: 'var(--accent-primary)',
                           fontSize: '10px',
                           fontWeight: '700',
                           padding: '2px 8px',
                           borderRadius: '12px',
-                          border: '1px solid rgba(99, 102, 241, 0.4)'
+                          border: '1px solid rgba(99, 102, 241, 0.35)'
                         }}>
                           MCP & CHAT CALLABLE
                         </span>
                         <span style={{
-                          background: 'rgba(16, 185, 129, 0.2)',
-                          color: '#34d399',
+                          background: 'rgba(5, 150, 105, 0.15)',
+                          color: 'var(--accent-emerald)',
                           fontSize: '10px',
                           fontWeight: '700',
                           padding: '2px 8px',
                           borderRadius: '12px',
-                          border: '1px solid rgba(16, 185, 129, 0.4)'
+                          border: '1px solid rgba(5, 150, 105, 0.35)'
                         }}>
                           AUTO BANK DATA
                         </span>
@@ -971,7 +971,7 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                   position: 'absolute',
                   cursor: 'pointer',
                   top: 0, left: 0, right: 0, bottom: 0,
-                  backgroundColor: isTool ? '#6366f1' : 'rgba(255, 255, 255, 0.2)',
+                  backgroundColor: isTool ? 'var(--accent-primary)' : 'var(--border-subtle)',
                   borderRadius: '34px',
                   transition: '0.3s'
                 }}>
@@ -996,19 +996,19 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                 padding: '8px 12px',
                 borderRadius: '6px',
                 background: 'rgba(99, 102, 241, 0.12)',
-                border: '1px solid rgba(99, 102, 241, 0.25)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
                 fontSize: '12px',
-                color: '#c7d2fe',
+                color: 'var(--text-main)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px'
               }}>
-                <Zap size={14} color="#818cf8" style={{ flexShrink: 0 }} />
-                <span><strong>Auto Bank Data Aktif:</strong> Setiap record hasil query otomatis di-ingest dan diakumulasikan ke ChromaDB Vector Store sebagai Bank Data terverifikasi.</span>
+                <Zap size={14} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
+                <span><strong style={{ color: 'var(--accent-primary)' }}>Auto Bank Data Aktif:</strong> Setiap record hasil query otomatis di-ingest dan diakumulasikan ke ChromaDB Vector Store sebagai Bank Data terverifikasi.</span>
               </div>
             )}
             {!isTool && (
-              <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-glass-light)', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-glass-2)', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-subtle)', flexWrap: 'wrap', gap: '8px' }}>
                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
                   💡 <strong>Mode Standar: Batch Ingestion</strong> — Mengekstrak seluruh isi tabel sekaligus ke Vector Store. Aktifkan saklar di atas untuk Mode On-Demand berparameter.
                 </div>
@@ -1019,13 +1019,13 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                     handleInspectAndOpenParamPicker();
                   }}
                   style={{
-                    background: 'rgba(234, 179, 8, 0.12)',
-                    border: '1px solid rgba(234, 179, 8, 0.3)',
-                    color: '#fde047',
+                    background: 'rgba(217, 119, 6, 0.12)',
+                    border: '1px solid rgba(217, 119, 6, 0.35)',
+                    color: 'var(--accent-amber)',
                     padding: '4px 10px',
                     borderRadius: '6px',
                     fontSize: '11px',
-                    fontWeight: '600',
+                    fontWeight: '700',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
@@ -1089,9 +1089,9 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                         onClick={handleInspectAndOpenParamPicker}
                         disabled={inspectingForParams}
                         style={{
-                          background: 'rgba(234, 179, 8, 0.15)',
-                          border: '1px solid rgba(234, 179, 8, 0.4)',
-                          color: '#fde047',
+                          background: 'rgba(217, 119, 6, 0.12)',
+                          border: '1px solid rgba(217, 119, 6, 0.35)',
+                          color: 'var(--accent-amber)',
                           padding: '4px 10px',
                           borderRadius: '6px',
                           fontSize: '11px',
@@ -1132,7 +1132,7 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                   {!isParamsCollapsed && (
                     <>
                       {parameters.length === 0 ? (
-                        <div style={{ padding: '14px', textAlign: 'center', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                        <div style={{ padding: '14px', textAlign: 'center', background: 'var(--bg-glass-2)', border: '1px dashed var(--border-subtle)', borderRadius: '6px', fontSize: '12px', color: 'var(--text-muted)' }}>
                           No parameters defined yet. Click "Add Parameter" to configure query placeholders.
                         </div>
                       ) : (
@@ -1145,10 +1145,10 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                             gridTemplateColumns: '1.4fr 100px 2.2fr 75px 1.2fr 32px',
                             gap: '8px',
                             alignItems: 'center',
-                            background: 'var(--bg-glass-3)',
+                            background: 'var(--bg-glass-1)',
                             padding: '8px 10px',
                             borderRadius: '6px',
-                            border: '1px solid rgba(255, 255, 255, 0.05)'
+                            border: '1px solid var(--border-subtle)'
                           }}
                         >
                           <div>
@@ -1215,7 +1215,7 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                           <button
                             type="button"
                             onClick={() => handleRemoveParameter(pIdx)}
-                            style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: '4px' }}
+                            style={{ background: 'none', border: 'none', color: 'var(--accent-rose)', cursor: 'pointer', padding: '4px' }}
                             title="Remove parameter"
                           >
                             <Trash2 size={14} />
@@ -1230,7 +1230,7 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
 
                 {/* Live Test Parameter Inputs */}
                 {parameters.filter(p => p.name).length > 0 && (
-                  <div style={{ padding: '14px', background: 'rgba(0,0,0,0.25)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ padding: '14px', background: 'var(--bg-glass-2)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
                     <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Play size={13} color="var(--accent-primary)" /> Test Parameter Values for Live Validation
                     </div>
@@ -1238,7 +1238,7 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                       {parameters.filter(p => p.name).map((p, idx) => (
                         <div key={idx}>
                           <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                            {p.name} {p.required && <span style={{ color: '#f87171' }}>*</span>}
+                            {p.name} {p.required && <span style={{ color: 'var(--accent-rose)' }}>*</span>}
                           </label>
                           <input
                             type="text"
@@ -1259,15 +1259,15 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                   marginTop: '4px',
                   padding: '14px 16px',
                   borderRadius: '8px',
-                  background: cacheEnabled ? 'rgba(234, 179, 8, 0.08)' : 'rgba(0,0,0,0.2)',
-                  border: cacheEnabled ? '1px solid rgba(234, 179, 8, 0.35)' : '1px solid rgba(255,255,255,0.07)',
+                  background: cacheEnabled ? 'rgba(217, 119, 6, 0.08)' : 'var(--bg-glass-2)',
+                  border: cacheEnabled ? '1px solid rgba(217, 119, 6, 0.35)' : '1px solid var(--border-subtle)',
                   transition: 'all 0.2s'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <Clock size={16} color={cacheEnabled ? '#fbbf24' : 'var(--text-muted)'} />
+                      <Clock size={16} color={cacheEnabled ? 'var(--accent-amber)' : 'var(--text-muted)'} />
                       <div>
-                        <div style={{ fontSize: '13px', fontWeight: '700', color: cacheEnabled ? '#fde68a' : 'var(--text-main)' }}>
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: cacheEnabled ? 'var(--accent-amber)' : 'var(--text-main)' }}>
                           Cache Hasil Query Tool
                         </div>
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
@@ -1286,7 +1286,7 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                         position: 'absolute',
                         cursor: 'pointer',
                         top: 0, left: 0, right: 0, bottom: 0,
-                        backgroundColor: cacheEnabled ? '#d97706' : 'rgba(255,255,255,0.2)',
+                        backgroundColor: cacheEnabled ? 'var(--accent-amber)' : 'var(--border-subtle)',
                         borderRadius: '34px',
                         transition: '0.3s'
                       }}>
@@ -1306,7 +1306,7 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
 
                   {cacheEnabled && (
                     <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#fde68a', whiteSpace: 'nowrap' }}>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--accent-amber)', whiteSpace: 'nowrap' }}>
                         Masa Berlaku Cache
                       </label>
                       <input
@@ -1319,7 +1319,7 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                         style={{ width: '90px', textAlign: 'center', fontSize: '13px' }}
                       />
                       <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>menit</span>
-                      <span style={{ fontSize: '11px', color: 'rgba(253, 230, 138, 0.7)', marginLeft: '4px' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '4px' }}>
                         ({cacheTtlMinutes >= 60 ? `${(cacheTtlMinutes/60).toFixed(1)} jam` : `${cacheTtlMinutes} mnt`})
                       </span>
                     </div>
@@ -1343,9 +1343,9 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                   id="btn-auto-generate-where"
                   onClick={handleGenerateWhereQuery}
                   style={{
-                    background: 'rgba(16, 185, 129, 0.15)',
-                    border: '1px solid rgba(16, 185, 129, 0.4)',
-                    color: '#34d399',
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    border: '1px solid rgba(16, 185, 129, 0.35)',
+                    color: 'var(--accent-emerald)',
                     padding: '3px 10px',
                     borderRadius: '6px',
                     fontSize: '11px',
@@ -1395,7 +1395,7 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
               </div>
 
               {whereFeedback && (
-                <span style={{ color: '#34d399', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ color: 'var(--accent-emerald)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Check size={12} /> {whereFeedback}
                 </span>
               )}
@@ -1443,17 +1443,17 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
               display: 'flex',
               flexDirection: 'column',
               gap: '6px',
-              background: testResult.success ? 'rgba(16, 185, 129, 0.1)' : 'rgba(244, 63, 94, 0.1)',
-              border: `1px solid ${testResult.success ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`,
-              color: testResult.success ? '#34d399' : '#f87171'
+              background: testResult.success ? 'rgba(5, 150, 105, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+              border: `1px solid ${testResult.success ? 'rgba(5, 150, 105, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`,
+              color: testResult.success ? '#059669' : '#dc2626'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: '600' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {testResult.success ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
-                  <span>{testResult.message}</span>
+                  {testResult.success ? <CheckCircle size={16} color="#059669" /> : <AlertCircle size={16} color="#dc2626" />}
+                  <span style={{ color: testResult.success ? '#059669' : '#dc2626' }}>{testResult.message}</span>
                 </div>
                 {testResult.result?.latency_ms !== undefined && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '11px', color: '#94a3b8' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '11px', color: 'var(--text-muted)' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <Clock size={12} /> {testResult.result.latency_ms}ms
                     </span>
@@ -1467,33 +1467,34 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
               {testResult.result?.query && (
                 <div style={{
                   marginTop: '4px',
-                  background: 'var(--bg-glass-3)',
+                  background: 'var(--bg-glass-2)',
+                  border: '1px solid var(--border-subtle)',
                   padding: '6px 10px',
                   borderRadius: '4px',
                   fontFamily: 'JetBrains Mono, monospace',
                   fontSize: '11px',
-                  color: '#93c5fd',
-                  border: '1px solid rgba(147, 197, 253, 0.2)'
+                  color: 'var(--text-main)'
                 }}>
                   <span style={{ color: 'var(--text-muted)', marginRight: '6px' }}>Interpolated Query:</span>
                   {testResult.result.query}
                 </div>
               )}
 
-              {testResult.result?.data && (
+              {Boolean(testResult.result?.data || testResult.data) && (
                 <div style={{
                   marginTop: '6px',
-                  background: 'var(--bg-glass-3)',
-                  padding: '8px 12px',
+                  background: 'var(--bg-glass-2)',
+                  border: '1px solid var(--border-subtle)',
+                  padding: '10px 14px',
                   borderRadius: '6px',
                   fontFamily: 'JetBrains Mono, monospace',
                   fontSize: '11px',
-                  color: '#e2e8f0',
-                  maxHeight: '140px',
+                  color: 'var(--text-main)',
+                  maxHeight: '160px',
                   overflowY: 'auto',
                   whiteSpace: 'pre-wrap'
                 }}>
-                  {JSON.stringify(testResult.result.data, null, 2)}
+                  {JSON.stringify(testResult.result?.data || testResult.data, null, 2)}
                 </div>
               )}
             </div>
@@ -1526,8 +1527,8 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
           <div style={{
             padding: '16px',
             borderRadius: '10px',
-            background: 'var(--bg-glass-light)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
+            background: 'var(--bg-glass-2)',
+            border: '1px solid var(--border-subtle)',
             display: 'flex',
             flexDirection: 'column',
             gap: '12px'
@@ -1542,11 +1543,12 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                   <span>Definisi Kolom / Field Balikan Database (Kamus Data)</span>
                   <span style={{
                     fontSize: '10px',
-                    background: 'rgba(99, 102, 241, 0.2)',
-                    color: '#818cf8',
+                    background: 'rgba(99, 102, 241, 0.15)',
+                    color: 'var(--accent-primary)',
                     padding: '2px 7px',
                     borderRadius: '10px',
-                    fontWeight: '700'
+                    fontWeight: '700',
+                    border: '1px solid rgba(99, 102, 241, 0.3)'
                   }}>
                     {fieldDefinitions.length} Kolom
                   </span>
@@ -1564,9 +1566,9 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                   onClick={handleAutoDetectFieldDefinitions}
                   disabled={inspectingFieldDefs}
                   style={{
-                    background: 'rgba(16, 185, 129, 0.15)',
-                    border: '1px solid rgba(16, 185, 129, 0.4)',
-                    color: '#34d399',
+                    background: 'rgba(5, 150, 105, 0.12)',
+                    border: '1px solid rgba(5, 150, 105, 0.35)',
+                    color: '#059669',
                     padding: '5px 10px',
                     borderRadius: '6px',
                     fontSize: '11px',
@@ -1579,7 +1581,7 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                   }}
                   title="Ekstrak nama kolom, tipe data, dan definisi deskripsi otomatis dari database"
                 >
-                  <Sparkles size={13} className={inspectingFieldDefs ? 'animate-spin' : ''} />
+                  <Sparkles size={13} color="#059669" className={inspectingFieldDefs ? 'animate-spin' : ''} />
                   <span>{inspectingFieldDefs ? 'Mendeteksi Kolom...' : 'Auto-Generate Field Definitions'}</span>
                 </button>
 
@@ -1588,9 +1590,9 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                     type="button"
                     onClick={handleAutoFillEmptyDescriptions}
                     style={{
-                      background: 'rgba(234, 179, 8, 0.12)',
-                      border: '1px solid rgba(234, 179, 8, 0.35)',
-                      color: '#fde047',
+                      background: 'rgba(217, 119, 6, 0.12)',
+                      border: '1px solid rgba(217, 119, 6, 0.35)',
+                      color: '#d97706',
                       padding: '5px 10px',
                       borderRadius: '6px',
                       fontSize: '11px',
@@ -1603,7 +1605,7 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                     }}
                     title="Isi otomatis definisi bantuan awal untuk kolom yang deskripsinya masih kosong"
                   >
-                    <Sparkles size={13} />
+                    <Sparkles size={13} color="#d97706" />
                     <span>Auto-Fill Definisi Kosong</span>
                   </button>
                 )}
@@ -1638,9 +1640,9 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
               <div style={{
                 padding: '14px',
                 textAlign: 'center',
-                background: 'rgba(0, 0, 0, 0.2)',
+                background: 'var(--bg-glass-2)',
                 borderRadius: '8px',
-                border: '1px dashed rgba(255, 255, 255, 0.1)',
+                border: '1px dashed var(--border-subtle)',
                 fontSize: '11.5px',
                 color: 'var(--text-muted)',
                 lineHeight: '1.5'
@@ -1650,18 +1652,20 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div style={{
-                  padding: '6px 10px',
+                  padding: '8px 12px',
                   borderRadius: '6px',
-                  background: 'rgba(99, 102, 241, 0.08)',
-                  border: '1px solid rgba(99, 102, 241, 0.2)',
-                  fontSize: '11px',
-                  color: '#c7d2fe',
+                  background: 'color-mix(in srgb, var(--accent-primary) 8%, var(--bg-glass-2))',
+                  border: '1px solid color-mix(in srgb, var(--accent-primary) 25%, transparent)',
+                  fontSize: '11.5px',
+                  color: 'var(--text-secondary)',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px'
+                  gap: '8px'
                 }}>
-                  <Sparkles size={13} color="#818cf8" style={{ flexShrink: 0 }} />
-                  <span>Definisi terisi otomatis sebagai bantuan deteksi awal untuk AI. Anda dapat menyunting atau memperjelas arti kolom sesuai kebutuhan.</span>
+                  <Sparkles size={14} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
+                  <span style={{ lineHeight: '1.4' }}>
+                    Definisi terisi otomatis sebagai bantuan deteksi awal untuk AI. Anda dapat menyunting atau memperjelas arti kolom sesuai kebutuhan.
+                  </span>
                 </div>
                 <div style={{
                   display: 'grid',
@@ -1689,10 +1693,10 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                       gridTemplateColumns: '1.2fr 100px 2.2fr 1.2fr 36px',
                       gap: '8px',
                       alignItems: 'center',
-                      background: 'rgba(0, 0, 0, 0.25)',
+                      background: 'var(--bg-glass-1)',
                       padding: '8px',
-                      borderRadius: '6px',
-                      border: '1px solid rgba(255, 255, 255, 0.05)'
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-subtle)'
                     }}
                   >
                     <div>
@@ -1749,7 +1753,7 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                       <button
                         type="button"
                         onClick={() => handleRemoveFieldDefinition(fIdx)}
-                        style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: '4px' }}
+                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
                         title="Hapus kolom ini"
                       >
                         <Trash2 size={14} />
@@ -1782,7 +1786,7 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                 id="btn-save-as-duplicate-db"
                 onClick={handleSaveAsCopy}
                 disabled={submitting || testing}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#a78bfa', borderColor: 'rgba(167, 139, 250, 0.4)', background: 'rgba(167, 139, 250, 0.06)' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#7c3aed', borderColor: 'rgba(124, 58, 237, 0.35)', background: 'rgba(124, 58, 237, 0.08)' }}
                 title="Simpan konfigurasi saat ini sebagai koneksi baru (duplikat)"
               >
                 <Copy size={14} /> Simpan Sebagai Baru (Duplikat)
@@ -1825,8 +1829,8 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
           padding: '20px'
         }}>
           <div style={{
-            background: 'var(--bg-dark-3)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
+            background: 'var(--modal-bg, var(--bg-dark-3))',
+            border: '1px solid var(--border-subtle)',
             borderRadius: '12px',
             width: '100%',
             maxWidth: '680px',
@@ -1839,14 +1843,14 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
             {/* Header */}
             <div style={{
               padding: '16px 20px',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+              borderBottom: '1px solid var(--border-subtle)',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              background: 'rgba(0, 0, 0, 0.2)'
+              background: 'var(--bg-glass-2)'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Sparkles size={18} color="#fde047" />
+                <Sparkles size={18} color="var(--accent-amber)" />
                 <div>
                   <h3 style={{ fontSize: '14.5px', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>
                     Pilih Kolom Database untuk Parameter
@@ -1866,7 +1870,7 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
             </div>
 
             {/* Toolbar: Search & Presets */}
-            <div style={{ padding: '12px 20px', background: 'rgba(0,0,0,0.15)', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ padding: '12px 20px', background: 'var(--bg-glass-2)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <div style={{ position: 'relative', flex: 1 }}>
                   <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
@@ -1902,8 +1906,8 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                     type="button"
                     onClick={handleSelectAllColumns}
                     style={{
-                      background: 'var(--bg-glass-light)',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      background: 'var(--bg-glass-2)',
+                      border: '1px solid var(--border-subtle)',
                       color: 'var(--text-main)',
                       padding: '6px 10px',
                       borderRadius: '6px',
@@ -1918,8 +1922,8 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                     type="button"
                     onClick={handleDeselectAllColumns}
                     style={{
-                      background: 'var(--bg-glass-light)',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      background: 'var(--bg-glass-2)',
+                      border: '1px solid var(--border-subtle)',
                       color: 'var(--text-muted)',
                       padding: '6px 10px',
                       borderRadius: '6px',
@@ -1950,8 +1954,8 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                         gap: '12px',
                         padding: '8px 12px',
                         borderRadius: '8px',
-                        background: isSelected ? 'rgba(99, 102, 241, 0.12)' : 'rgba(0, 0, 0, 0.2)',
-                        border: isSelected ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid rgba(255, 255, 255, 0.05)',
+                        background: isSelected ? 'rgba(99, 102, 241, 0.12)' : 'var(--bg-glass-2)',
+                        border: isSelected ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid var(--border-subtle)',
                         cursor: 'pointer',
                         transition: 'all 0.15s ease'
                       }}
@@ -1961,21 +1965,22 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12.5px', fontWeight: '700', color: isSelected ? 'var(--text-main)' : '#e2e8f0' }}>
+                          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12.5px', fontWeight: '700', color: isSelected ? 'var(--accent-primary)' : 'var(--text-main)' }}>
                             {c.name}
                           </span>
                           <span style={{
                             fontSize: '10px',
                             padding: '1px 6px',
                             borderRadius: '4px',
-                            background: 'var(--bg-glass-light)',
+                            background: 'var(--bg-glass-2)',
+                            border: '1px solid var(--border-subtle)',
                             color: 'var(--text-muted)',
                             textTransform: 'lowercase'
                           }}>
                             {c.type || 'string'}
                           </span>
                           {c.sample !== null && c.sample !== undefined && (
-                            <span style={{ fontSize: '11px', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '240px' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '240px' }}>
                               contoh: {typeof c.sample === 'object' ? JSON.stringify(c.sample) : String(c.sample)}
                             </span>
                           )}
@@ -1992,8 +1997,8 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
             {/* Modal Footer */}
             <div style={{
               padding: '14px 20px',
-              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-              background: 'var(--bg-glass-3)',
+              borderTop: '1px solid var(--border-subtle)',
+              background: 'var(--bg-glass-2)',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
@@ -2009,7 +2014,7 @@ export default function AddDatabaseModal({ isOpen, onClose, onSuccess, initialDa
                   />
                   <span>Timpa parameter lama</span>
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: '#34d399', cursor: 'pointer' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: 'var(--accent-emerald)', cursor: 'pointer' }}>
                   <input
                     type="checkbox"
                     checked={autoGenWhereOnApply}

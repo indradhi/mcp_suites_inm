@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   X, GitMerge, Plus, Trash2, ArrowDown, ShieldCheck, Zap, Share2, Layers, CheckCircle2,
-  GripVertical, ChevronUp, ChevronDown
+  GripVertical, ChevronUp, ChevronDown, Download
 } from 'lucide-react';
 import api from '../../api/client';
 
@@ -229,6 +229,48 @@ export default function FlowEditorModal({
       alert('Gagal menyimpan alur perolehan informasi: ' + (err.response?.data?.detail || err.message));
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleExportJSON = () => {
+    try {
+      const formattedSteps = steps.map((s, idx) => ({
+        step_order: idx + 1,
+        title: s.description || `Langkah ${idx + 1}`,
+        description: s.description || '',
+        action_type: s.action || 'tool_call',
+        target: s.target || '',
+        priority: s.required !== false ? 'MANDATORY' : 'OPTIONAL',
+        required: s.required !== false,
+        parameters_mapping: s.parameters_mapping || {}
+      }));
+      const exportData = {
+        version: "1.0",
+        type: "orchestration_flow",
+        exported_at: new Date().toISOString(),
+        flow: {
+          name: name || 'Alur Tanpa Nama',
+          description,
+          prompt_pattern: promptPattern,
+          intent_category: intentCategory,
+          trigger_keywords: triggerKeywords.split(',').map(k => k.trim()).filter(Boolean),
+          steps: formattedSteps,
+          validity_priority_rule: validityPriorityRule,
+          is_active: true
+        }
+      };
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeName = (name || 'alur').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+      a.download = `alur_${safeName}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Gagal mengekspor alur: ' + err.message);
     }
   };
 
@@ -473,8 +515,8 @@ export default function FlowEditorModal({
 
           {/* Sequential Steps Builder */}
           <div style={{
-            background: 'rgba(0, 0, 0, 0.25)',
-            border: '1px solid var(--border-color)',
+            background: 'var(--bg-glass-2)',
+            border: '1px solid var(--border-subtle)',
             borderRadius: '10px',
             padding: '16px',
             marginTop: '6px'
@@ -752,13 +794,27 @@ export default function FlowEditorModal({
           </div>
 
           {/* Submit Buttons */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
-            <button type="button" className="btn-secondary" onClick={onClose} disabled={submitting}>
-              Batal
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', flexWrap: 'wrap', gap: '10px' }}>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={handleExportJSON}
+              disabled={submitting || !name || steps.length === 0}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}
+              title="Unduh konfigurasi alur saat ini ke berkas JSON"
+            >
+              <Download size={14} />
+              Ekspor JSON
             </button>
-            <button type="submit" className="btn-primary" disabled={submitting || steps.length === 0}>
-              {submitting ? 'Menyimpan...' : (activeFlow ? 'Simpan Perubahan Alur' : 'Simpan Alur ke Memori')}
-            </button>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button type="button" className="btn-secondary" onClick={onClose} disabled={submitting}>
+                Batal
+              </button>
+              <button type="submit" className="btn-primary" disabled={submitting || steps.length === 0}>
+                {submitting ? 'Menyimpan...' : (activeFlow ? 'Simpan Perubahan Alur' : 'Simpan Alur ke Memori')}
+              </button>
+            </div>
           </div>
         </form>
       </div>

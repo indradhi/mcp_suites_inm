@@ -1,5 +1,7 @@
 import logging
-from typing import List, Dict, Any, Optional
+import copy
+from datetime import datetime
+from typing import List, Dict, Any, Optional, Union
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -106,6 +108,179 @@ def create_orchestration_flow(
         "success": True,
         "message": f"Alur perolehan '{flow.name}' berhasil disimpan ke memori orchestrator.",
         "flow": flow.to_dict()
+    }
+
+@router.get("/flows/export")
+def export_orchestration_flows(
+    flow_id: Optional[int] = Query(None, description="Optional ID of a specific flow to export"),
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    """
+    Exports registered orchestration flows as a portable JSON structure.
+    """
+    if flow_id:
+        flow = db.query(OrchestrationFlow).filter(OrchestrationFlow.id == flow_id).first()
+        if not flow:
+            raise HTTPException(status_code=404, detail="Flow not found")
+        return {
+            "version": "1.0",
+            "type": "orchestration_flow",
+            "exported_at": datetime.utcnow().isoformat(),
+            "flow": {
+                "name": flow.name,
+                "description": flow.description,
+                "prompt_pattern": flow.prompt_pattern,
+                "intent_category": flow.intent_category,
+                "trigger_keywords": flow.trigger_keywords or [],
+                "steps": flow.steps or [],
+                "validity_priority_rule": flow.validity_priority_rule,
+                "is_active": flow.is_active
+            }
+        }
+
+    flows = db.query(OrchestrationFlow).order_by(OrchestrationFlow.id.asc()).all()
+    return {
+        "version": "1.0",
+        "type": "orchestration_flows_bundle",
+        "exported_at": datetime.utcnow().isoformat(),
+        "total": len(flows),
+        "flows": [
+            {
+                "name": f.name,
+                "description": f.description,
+                "prompt_pattern": f.prompt_pattern,
+                "intent_category": f.intent_category,
+                "trigger_keywords": f.trigger_keywords or [],
+                "steps": f.steps or [],
+                "validity_priority_rule": f.validity_priority_rule,
+                "is_active": f.is_active
+            }
+            for f in flows
+        ]
+    }
+
+@router.post("/flows/import", status_code=status.HTTP_201_CREATED)
+def import_orchestration_flows(
+    payload: Union[Dict[str, Any], List[Dict[str, Any]]],
+    overwrite: bool = Query(False, description="Whether to overwrite existing flows with same name"),
+    db: Session = Depends(get_db),
+    user = Depends(require_role(["admin", "editor"]))
+):
+    """
+    Imports orchestration flows from exported JSON payload.
+    Accepts single flow dictionary, flows bundle dict, or raw array of flow objects.
+    """
+    items_to_import = []
+    if isinstance(payload, list):
+        items_to_import = payload
+    elif isinstance(payload, dict):
+        if "flows" in payload and isinstance(payload["flows"], list):
+            items_to_import = payload["flows"]
+        elif "flow" in payload and isinstance(payload["flow"], dict):
+            items_to_import = [payload["flow"]]
+        elif "name" in payload and ("prompt_pattern" in payload or "steps" in payload):
+            items_to_import = [payload]
+        else:
+            raise HTTPException(status_code=400, detail="Format payload import tidak dikenali. Harus memuat 'flows' atau 'flow' yang valid.")
+    else:
+        raise HTTPException(status_code=400, detail="Data alur tidak valid.")
+
+    if not items_to_import:
+        raise HTTPException(status_code=400, detail="Tidak ada data alur yang ditemukan untuk diimpor.")
+
+    imported_flows = []
+    for item in items_to_import:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("name")
+        pattern = item.get("prompt_pattern")
+        if not name or not pattern:
+            continue
+
+        steps = item.get("steps") or []
+        existing = db.query(OrchestrationFlow).filter(OrchestrationFlow.name == name.strip()).first()
+        if existing and overwrite:
+            existing.description = item.get("description", existing.description)
+            existing.prompt_pattern = pattern.strip()
+            existing.intent_category = item.get("intent_category", existing.intent_category or "profiling")
+            existing.trigger_keywords = item.get("trigger_keywords", existing.trigger_keywords or [])
+            existing.steps = steps
+            existing.validity_priority_rule = item.get("validity_priority_rule", existing.validity_priority_rule or "PRIORITIZE_HIGHEST_VALIDITY")
+            existing.is_active = item.get("is_active", True)
+            imported_flows.append(existing)
+        else:
+            final_name = name.strip()
+            if existing and not overwrite:
+                counter = 1
+                while db.query(OrchestrationFlow).filter(OrchestrationFlow.name == f"{final_name} (Import {counter})").first():
+                    counter += 1
+                final_name = f"{final_name} (Import {counter})"
+
+            new_flow = OrchestrationFlow(
+                name=final_name,
+                description=item.get("description"),
+                prompt_pattern=pattern.strip(),
+                intent_category=item.get("intent_category") or "profiling",
+                trigger_keywords=item.get("trigger_keywords") or [],
+                steps=steps,
+                validity_priority_rule=item.get("validity_priority_rule") or "PRIORITIZE_HIGHEST_VALIDITY",
+                is_active=item.get("is_active", True),
+                execution_count=0
+            )
+            db.add(new_flow)
+            imported_flows.append(new_flow)
+
+    db.commit()
+    for f in imported_flows:
+        db.refresh(f)
+
+    return {
+        "success": True,
+        "imported_count": len(imported_flows),
+        "message": f"Berhasil mengimpor {len(imported_flows)} alur perolehan informasi ke sistem orchestrator.",
+        "flows": [f.to_dict() for f in imported_flows]
+    }
+
+@router.post("/flows/{flow_id}/clone", status_code=status.HTTP_201_CREATED)
+def clone_orchestration_flow(
+    flow_id: int,
+    db: Session = Depends(get_db),
+    user = Depends(require_role(["admin", "editor"]))
+):
+    """
+    Clones an existing orchestration flow with a '(Salinan)' suffix.
+    """
+    flow = db.query(OrchestrationFlow).filter(OrchestrationFlow.id == flow_id).first()
+    if not flow:
+        raise HTTPException(status_code=404, detail="Flow not found")
+
+    base_name = f"{flow.name} (Salinan)"
+    cloned_name = base_name
+    counter = 1
+    while db.query(OrchestrationFlow).filter(OrchestrationFlow.name == cloned_name).first():
+        counter += 1
+        cloned_name = f"{flow.name} (Salinan {counter})"
+
+    cloned_flow = OrchestrationFlow(
+        name=cloned_name,
+        description=flow.description,
+        prompt_pattern=flow.prompt_pattern,
+        intent_category=flow.intent_category or "profiling",
+        trigger_keywords=copy.deepcopy(flow.trigger_keywords or []),
+        steps=copy.deepcopy(flow.steps or []),
+        validity_priority_rule=flow.validity_priority_rule or "PRIORITIZE_HIGHEST_VALIDITY",
+        is_active=True,
+        execution_count=0
+    )
+    db.add(cloned_flow)
+    db.commit()
+    db.refresh(cloned_flow)
+
+    return {
+        "success": True,
+        "message": f"Alur '{flow.name}' berhasil digandakan menjadi '{cloned_flow.name}'.",
+        "flow": cloned_flow.to_dict()
     }
 
 @router.get("/flows/{flow_id}")

@@ -14,6 +14,36 @@ from services.context_rot_guard import context_rot_guard
 logger = logging.getLogger(__name__)
 
 
+class DummyFunction:
+    def __init__(self, name: str, arguments: str):
+        self.name = name
+        self.arguments = arguments
+
+
+class DummyToolCall:
+    def __init__(self, fn_name: str, fn_args: str, call_id: Optional[str] = None):
+        self.id = call_id or f"call_{uuid.uuid4().hex[:12]}"
+        self.type = "function"
+        self.function = DummyFunction(fn_name, fn_args)
+
+
+def extract_xml_tool_calls(content: str) -> List[DummyToolCall]:
+    calls: List[DummyToolCall] = []
+    if not content or "<tool_call>" not in content:
+        return calls
+    tc_blocks = re.findall(r'<tool_call>([\s\S]*?)</tool_call>', content, re.IGNORECASE)
+    for tc_block in tc_blocks:
+        fn_match = re.search(r'<function=([^>]+)>', tc_block, re.IGNORECASE)
+        if fn_match:
+            fn_name = fn_match.group(1).strip()
+            fn_args = {}
+            param_matches = re.findall(r'<parameter=([^>]+)>([\s\S]*?)</parameter>', tc_block, re.IGNORECASE)
+            for p_name, p_value in param_matches:
+                fn_args[p_name.strip()] = p_value.strip()
+            calls.append(DummyToolCall(fn_name, json.dumps(fn_args)))
+    return calls
+
+
 class ChatService:
     def get_graph_entities(self, query_text: str, limit: int = 8) -> List[Dict[str, Any]]:
         """
@@ -914,6 +944,10 @@ User Question: {message}
 
 Instructions:
 - PRIORITAS UTAMA SUMBER DATA: Data yang didapat langsung dari eksekusi Tool (query langsung ke database / live API) adalah SUMBER KEBENARAN UTAMA (Ground Truth). Jawaban Anda WAJIB memprioritaskan dan menampilkan data hasil query database langsung ini kepada pengguna di atas data dokumen atau perkiraan apapun.
+- ATURAN PENCARIAN PERUSAHAAN / BADAN USAHA (PT, CV, YAYASAN, KOPERASI, PERUSAHAAN):
+  1. Jika pengguna mencari data mengenai PT, CV, Yayasan, Perusahaan, atau badan usaha, Anda WAJIB memanggil Tool data perusahaan (`api_ahu_perusahaan_pt_nama` untuk AHU Kemenkumham, atau `db_sikap_perusahaan_pelaku_usaha` untuk data rekanan/penyedia LKPP). DILARANG KERAS mencari ke data orang / kependudukan (Dukcapil) atau `db_sikap_pemilik_usaha` kecuali secara eksplisit pengguna menanyakan pemilik/pengurus perorangan!
+  2. HILANGKAN PREFIX BENTUK USAHA: Saat memasukkan parameter nama/keyword untuk mencari perusahaan/PT/CV/Yayasan, HILANGKAN prefix seperti 'PT', 'CV', 'Yayasan', 'Perusahaan' (contoh: untuk 'PT Kencana Manunggal', gunakan keyword 'Kencana Manunggal').
+  3. WAJIB TAMPILKAN HASIL PENCARIAN LENGKAP: Anda WAJIB menyajikan seluruh rincian data hasil penelusuran (nama perusahaan, nomor SK, status, alamat, tanggal terbit, bentuk usaha) dalam format tabel Markdown atau daftar terstruktur. DILARANG KERAS hanya membalas dengan kalimat singkat seperti 'Data berhasil diproses' atau 'Pencarian selesai' tanpa memaparkan datanya!
 - If the user question is asking to profile, find, or look up a specific person, NIK, or citizen record (e.g. 'siapa ...', 'profil ...', 'cari ...'), you MUST call the corresponding search/profiling tool first to fetch their verified official record and photo directly from the database.
 - If the question can be answered or queried using one of the available tools, call the tool first.
 - Only formulate a direct answer from the context above if none of the tools are applicable.
@@ -1041,15 +1075,29 @@ Patuhi aturan:
                 kwargs["tools"] = tools
                 available_names = set(tool_dispatch_map.keys())
                 is_land_search = bool(re.search(r'\b(?:tanah|sertifikat|bpn|bidang|hak\s+milik|hgb|shm)\b', message, re.IGNORECASE))
-                is_company_search = bool(re.search(r'\b(?:pt|perusahaan|usaha|sikap|penyedia|vendor|cv)\b', message, re.IGNORECASE))
-                is_person_search = bool(re.search(r'\b(?:orang|nik|kependudukan|ktp|kk|penduduk|nama|profil|profiling|siapa)\b', message, re.IGNORECASE) or (re.search(r'\bcari\b', message, re.IGNORECASE) and not is_land_search and not is_company_search))
+                is_company_search = bool(re.search(r'\b(?:pt|perusahaan|usaha|sikap|penyedia|vendor|cv|yayasan|koperasi|badan\s+usaha|perseroan|firma|ud|pd)\b', message, re.IGNORECASE))
+                is_owner_search = bool(re.search(r'\b(?:pemilik|owner|pendiri|pengurus|pemegang\s+saham|saham|direksi|direktur|komisaris)\b', message, re.IGNORECASE))
+                is_person_search = bool(
+                    re.search(r'\b(?:orang|nik|kependudukan|ktp|kk|penduduk|warga|individu)\b', message, re.IGNORECASE)
+                    or (re.search(r'\b(?:siapa|profil|profiling)\b', message, re.IGNORECASE) and not is_company_search)
+                    or (re.search(r'\bcari\b', message, re.IGNORECASE) and not is_land_search and not is_company_search)
+                )
 
                 if is_single_tool_selected and single_selected_tool_name:
                     kwargs["tool_choice"] = {"type": "function", "function": {"name": single_selected_tool_name}}
                 elif is_land_search and "cari_tanah_bpn" in available_names:
                     kwargs["tool_choice"] = {"type": "function", "function": {"name": "cari_tanah_bpn"}}
-                elif is_company_search and "db_sikap_pemilik_usaha" in available_names:
-                    kwargs["tool_choice"] = {"type": "function", "function": {"name": "db_sikap_pemilik_usaha"}}
+                elif is_company_search:
+                    if is_owner_search and "db_sikap_pemilik_usaha" in available_names:
+                        kwargs["tool_choice"] = {"type": "function", "function": {"name": "db_sikap_pemilik_usaha"}}
+                    elif bool(re.search(r'\b(?:sikap|lpse|penyedia|vendor|pelaku\s+usaha)\b', message, re.IGNORECASE)) and "db_sikap_perusahaan_pelaku_usaha" in available_names:
+                        kwargs["tool_choice"] = {"type": "function", "function": {"name": "db_sikap_perusahaan_pelaku_usaha"}}
+                    elif "api_ahu_perusahaan_pt_nama" in available_names:
+                        kwargs["tool_choice"] = {"type": "function", "function": {"name": "api_ahu_perusahaan_pt_nama"}}
+                    elif "db_sikap_perusahaan_pelaku_usaha" in available_names:
+                        kwargs["tool_choice"] = {"type": "function", "function": {"name": "db_sikap_perusahaan_pelaku_usaha"}}
+                    else:
+                        kwargs["tool_choice"] = "auto"
                 elif is_person_search and "data_orang_dukcapil" in available_names:
                     kwargs["tool_choice"] = {"type": "function", "function": {"name": "data_orang_dukcapil"}}
                 else:
@@ -1089,36 +1137,18 @@ Patuhi aturan:
             # --- Fallback parser for raw XML <tool_call> output (Qwen/vLLM compat) ---
             if msg.content and "<tool_call>" in msg.content:
                 if not tool_calls:
-                    class DummyFunction:
-                        def __init__(self, name, arguments):
-                            self.name = name
-                            self.arguments = arguments
-                    class DummyToolCall:
-                        def __init__(self, fn_name, fn_args):
-                            self.id = f"call_{uuid.uuid4().hex[:12]}"
-                            self.type = "function"
-                            self.function = DummyFunction(fn_name, fn_args)
-                    
-                    # Extract all <tool_call> blocks
-                    tc_blocks = re.findall(r'<tool_call>([\s\S]*?)</tool_call>', msg.content, re.IGNORECASE)
-                    for tc_block in tc_blocks:
-                        fn_match = re.search(r'<function=([^>]+)>', tc_block, re.IGNORECASE)
-                        if fn_match:
-                            fn_name = fn_match.group(1).strip()
-                            fn_args = {}
-                            # Extract parameters
-                            param_matches = re.findall(r'<parameter=([^>]+)>([\s\S]*?)</parameter>', tc_block, re.IGNORECASE)
-                            for p_name, p_value in param_matches:
-                                fn_args[p_name.strip()] = p_value.strip()
-                            
-                            tool_calls.append(DummyToolCall(fn_name, json.dumps(fn_args)))
-                
+                    xml_calls = extract_xml_tool_calls(msg.content)
+                    if xml_calls:
+                        tool_calls.extend(xml_calls)
                 # Remove the raw tool_call blocks from the display text so it doesn't look ugly
                 msg.content = re.sub(r'<tool_call>[\s\S]*?(?:</tool_call>|$)', '', msg.content, flags=re.IGNORECASE).strip()
 
+            # Process LLM tool calls if requested (multi-round support)
+            MAX_TOOL_ROUNDS = 3
+            tool_round = 0
 
-            # Process LLM tool calls if requested
-            if tool_calls:
+            while tool_calls and tool_round < MAX_TOOL_ROUNDS:
+                tool_round += 1
                 from services.ingestion.api_ingester import api_ingester
                 # Append assistant's tool_calls message manually to avoid Pydantic serialization/schema errors
                 msg_dict = {
@@ -1145,13 +1175,13 @@ Patuhi aturan:
                     except Exception:
                         fn_args = {}
 
-                    # Sanitize entity/person names in tool arguments (strip academic titles, quotes, etc.)
+                    # Sanitize entity/person names in tool arguments (strip PT/CV/Yayasan prefixes, academic titles, quotes, etc.)
                     if isinstance(fn_args, dict):
-                        for k in ["nama", "name", "pemilik", "subject", "query"]:
-                            if k in fn_args and isinstance(fn_args[k], str):
-                                fn_args[k] = context_rot_guard.clean_person_name(fn_args[k])
+                        for k, v in list(fn_args.items()):
+                            if isinstance(v, str) and any(sub in k.lower() for sub in ["nama", "name", "pemilik", "subject", "query", "keyword", "penyedia", "perusahaan", "vendor"]):
+                                fn_args[k] = context_rot_guard.clean_entity_name(v)
 
-                    logger.info(f"AI requested tool call: {fn_name} with arguments: {fn_args}")
+                    logger.info(f"AI requested tool call (round {tool_round}): {fn_name} with arguments: {fn_args}")
                     if stream_callback:
                         stream_callback(f"🔍 Executing (tools/call: {fn_name})...\n")
                     matched_source = tool_dispatch_map.get(fn_name)
@@ -1369,50 +1399,52 @@ Patuhi aturan:
                     })
 
                 if stream_callback:
-                    stream_callback(f"✍️ Generating optimized code...\n\n")
+                    stream_callback(f"✍️ Generating response...\n\n")
 
                 # Follow-up completion with tool output
                 try:
+                    followup_kwargs = {
+                        "model": model,
+                        "messages": messages,
+                        "max_tokens": 4500
+                    }
+                    if effective_temperature is not None:
+                        followup_kwargs["temperature"] = effective_temperature
+                    if tools and tool_round < MAX_TOOL_ROUNDS:
+                        followup_kwargs["tools"] = tools
+                        followup_kwargs["tool_choice"] = "auto"
+                    if is_local_vllm:
+                        followup_kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
+
                     try:
-                        if is_local_vllm:
-                            followup_resp = client.chat.completions.create(
-                                model=model,
-                                messages=messages,
-                                temperature=effective_temperature,
-                                max_tokens=4500,
-                                extra_body={"chat_template_kwargs": {"enable_thinking": False}}
-                            )
-                        else:
-                            followup_resp = client.chat.completions.create(
-                                model=model,
-                                messages=messages,
-                                temperature=effective_temperature,
-                                max_tokens=4500
-                            )
-                    except Exception:
-                        try:
-                            followup_resp = client.chat.completions.create(
-                                model=model,
-                                messages=messages,
-                                temperature=effective_temperature,
-                                max_tokens=4500
-                            )
-                        except Exception as follow_p_err:
-                            if "max_tokens" in str(follow_p_err) or "temperature" in str(follow_p_err):
-                                followup_resp = client.chat.completions.create(
-                                    model=model,
-                                    messages=messages,
-                                    max_completion_tokens=4500
-                                )
-                            else:
-                                with open(r"D:\sourcecode\MCP_SERVER_IN_CEC\services\backoffice_api\error_log.txt", "a") as f:
-                                    import traceback
-                                    f.write("ERROR in followup_resp:\n" + traceback.format_exc() + "\n")
-                                    f.write("MESSAGES:\n" + str(messages) + "\n\n")
-                                raise follow_p_err
+                        followup_resp = client.chat.completions.create(**followup_kwargs)
+                    except Exception as follow_p_err:
+                        if "extra_body" in followup_kwargs:
+                            followup_kwargs.pop("extra_body", None)
+                        if "max_tokens" in str(follow_p_err) or "temperature" in str(follow_p_err):
+                            followup_kwargs.pop("temperature", None)
+                            if "max_tokens" in followup_kwargs:
+                                followup_kwargs["max_completion_tokens"] = followup_kwargs.pop("max_tokens")
+                        followup_resp = client.chat.completions.create(**followup_kwargs)
+
                     msg = followup_resp.choices[0].message
+                    tool_calls = getattr(msg, "tool_calls", None) or []
+
+                    if msg.content and "<tool_call>" in msg.content:
+                        if not tool_calls:
+                            xml_calls = extract_xml_tool_calls(msg.content)
+                            if xml_calls:
+                                tool_calls.extend(xml_calls)
+                        msg.content = re.sub(r'<tool_call>[\s\S]*?(?:</tool_call>|$)', '', msg.content, flags=re.IGNORECASE).strip()
+
+                    # If no further tool calls requested, we are done with tool loop
+                    if not tool_calls:
+                        break
+
                 except Exception as follow_err:
                     logger.error(f"Error during follow-up chat completion after tool execution: {follow_err}")
+                    tool_calls = []
+                    break
 
             thinking_process = None
             raw_answer = (msg.content or getattr(msg, "reasoning", "") or "").strip()
@@ -1480,8 +1512,22 @@ Patuhi aturan:
 
             # Remove any raw tool_call xml that the model hallucinates into the answer text
             clean_answer = re.sub(r'<tool_call>[\s\S]*?(?:</tool_call>|$)', '', clean_answer, flags=re.IGNORECASE).strip()
-            if not clean_answer and tool_calls:
-                clean_answer = "Data berhasil diproses."
+
+            # Check if answer is empty, or just a bare generic message without actual tool data
+            is_bare_or_empty = (
+                not clean_answer
+                or (
+                    len(clean_answer.strip()) < 60
+                    and any(p in clean_answer.lower() for p in ["berhasil diproses", "data berhasil", "pencarian selesai", "proses selesai", "telah selesai"])
+                )
+            )
+            if is_bare_or_empty and executed_tools_info:
+                clean_answer = self._synthesize_tool_results_answer(executed_tools_info, message)
+            elif executed_tools_info and any(t.get("success") and t.get("data") for t in executed_tools_info):
+                # Ensure structured data is presented if tool found records and clean_answer didn't present table
+                if "|" not in clean_answer and len(clean_answer.splitlines()) < 4:
+                    synthesized_table = self._synthesize_tool_results_answer(executed_tools_info, message)
+                    clean_answer = f"{clean_answer}\n\n{synthesized_table}".strip()
 
             # 5. Entity-Aware Photo Extraction & Source-Grounded Auto-Healing
             try:
@@ -1859,6 +1905,131 @@ Patuhi aturan:
                 "context_rot_guard": rot_metrics
             }
         }
+
+    def _synthesize_tool_results_answer(self, executed_tools_info: List[Dict[str, Any]], message: str) -> str:
+        """
+        Synthesizes a structured, informative Markdown answer from executed tools info.
+        Guarantees that the retrieved records or the clear zero-record report is displayed,
+        NEVER a bare generic message like 'Data berhasil diproses.'
+        """
+        cur_subject = context_rot_guard.extract_target_subject_name(message) or ""
+        if not cur_subject:
+            for t in executed_tools_info:
+                args = t.get("arguments") or {}
+                for k, v in args.items():
+                    if isinstance(v, str) and len(v) >= 2 and any(sub in k.lower() for sub in ["nama", "keyword", "penyedia", "query"]):
+                        cur_subject = context_rot_guard.clean_entity_name(v)
+                        break
+                if cur_subject:
+                    break
+        if not cur_subject:
+            cur_subject = context_rot_guard.clean_entity_name(message)
+
+        tools_with_data = [t for t in executed_tools_info if t.get("success") and t.get("data") and t.get("data") != []]
+
+        if tools_with_data:
+            lines = [
+                f"### 🏢 Hasil Penelusuran Resmi Basis Data\n",
+                f"Berdasarkan penelusuran langsung pada basis data resmi terhubung untuk entitas **'{cur_subject}'**, berikut adalah rincian data yang berhasil ditemukan:\n"
+            ]
+
+            for t in tools_with_data:
+                s_name = t.get("source_name") or t.get("tool_name")
+                raw_data = t.get("data")
+                data_list = raw_data if isinstance(raw_data, list) else [raw_data]
+
+                if data_list and isinstance(data_list[0], dict):
+                    first_item = data_list[0]
+                    # Case A: AHU Perseroan / PT
+                    if "nama_perseroan" in first_item or "nomor_sk" in first_item or "id_perseroan" in first_item:
+                        lines.append(f"#### 📋 Basis Data AHU Kemenkumham ({s_name})")
+                        lines.append(f"Ditemukan **{len(data_list)}** data perseroan/perusahaan:\n")
+                        lines.append("| No | Nama Perusahaan / Perseroan | Nomor SK Terakhir | ID Perseroan |")
+                        lines.append("|:--:|:----------------------------|:------------------|:------------:|")
+                        for idx, row in enumerate(data_list[:25], 1):
+                            nm = row.get("nama_perseroan") or row.get("nama") or "-"
+                            sk = row.get("nomor_sk") or row.get("nomorSKTerakhir") or "-"
+                            pid = row.get("id_perseroan") or row.get("id") or "-"
+                            lines.append(f"| {idx} | **{nm}** | {sk} | `{pid}` |")
+                        if len(data_list) > 25:
+                            lines.append(f"\n*(Menampilkan 25 dari total {len(data_list)} data perusahaan)*")
+                        lines.append("")
+
+                    # Case B: SIKaP Pelaku Usaha / Penyedia LPSE
+                    elif "nama_penyedia" in first_item or "kd_penyedia" in first_item or "bentuk_usaha" in first_item:
+                        lines.append(f"#### 📋 Basis Data SIKaP Pelaku Usaha ({s_name})")
+                        lines.append(f"Ditemukan **{len(data_list)}** penyedia/pelaku usaha:\n")
+                        lines.append("| No | Nama Penyedia | Bentuk Usaha | NPWP | Wilayah / Alamat | Status |")
+                        lines.append("|:--:|:--------------|:------------:|:----:|:-----------------|:------:|")
+                        for idx, row in enumerate(data_list[:25], 1):
+                            nm = row.get("nama_penyedia") or "-"
+                            bu = row.get("bentuk_usaha") or "-"
+                            npwp = row.get("npwp_penyedia") or "-"
+                            almt = f"{row.get('kabupaten') or ''} {row.get('provinsi') or ''}".strip() or row.get("alamat") or "-"
+                            st = row.get("status_pelaku_usaha") or "Aktif"
+                            lines.append(f"| {idx} | **{nm}** | {bu} | {npwp} | {almt} | {st} |")
+                        if len(data_list) > 25:
+                            lines.append(f"\n*(Menampilkan 25 dari total {len(data_list)} penyedia)*")
+                        lines.append("")
+
+                    # Case C: Tanah BPN
+                    elif "nomor_hak" in first_item or "jenis_hak" in first_item:
+                        lines.append(f"#### 🏛️ Basis Data Pertanahan BPN ({s_name})")
+                        lines.append(f"Ditemukan **{len(data_list)}** bidang tanah / kepemilikan hak:\n")
+                        lines.append("| No | Atas Nama | Nomor Hak | Jenis Hak | Wilayah | Luas (m²) |")
+                        lines.append("|:--:|:----------|:---------:|:---------:|:--------|:---------:|")
+                        for idx, row in enumerate(data_list[:25], 1):
+                            nm = row.get("nama") or "-"
+                            nh = row.get("nomor_hak") or "-"
+                            jh = row.get("jenis_hak") or "-"
+                            wil = f"{row.get('kelurahan') or ''}, {row.get('kecamatan') or ''}".strip(", ") or "-"
+                            luas = row.get("luas") or "-"
+                            lines.append(f"| {idx} | **{nm}** | {nh} | {jh} | {wil} | {luas} |")
+                        lines.append("")
+
+                    # Case D: Kependudukan Dukcapil
+                    elif "nik" in first_item or "nama_lgkp" in first_item:
+                        lines.append(f"#### 👤 Basis Data Kependudukan ({s_name})")
+                        for idx, row in enumerate(data_list[:10], 1):
+                            lines.append(f"- **Individu {idx}:** {row.get('nama_lgkp') or row.get('nama')} (NIK: `{row.get('nik') or '-'}`)")
+                            lines.append(f"  - Tempat/Tgl Lahir: {row.get('tmpt_lhr') or '-'}, {row.get('tgl_lhr') or '-'}")
+                            lines.append(f"  - Alamat: {row.get('alamat') or '-'}")
+                            lines.append(f"  - No KK: `{row.get('no_kk') or '-'}`")
+                        lines.append("")
+
+                    # Case E: Generic dictionary list
+                    else:
+                        lines.append(f"#### 📊 Data Penelusuran ({s_name})")
+                        keys = [k for k in first_item.keys() if k not in ["_id", "id", "photo", "foto"]][:5]
+                        header = "| No | " + " | ".join(keys) + " |"
+                        sep = "|:--:|" + "|".join([":---" for _ in keys]) + "|"
+                        lines.append(header)
+                        lines.append(sep)
+                        for idx, row in enumerate(data_list[:20], 1):
+                            vals = [str(row.get(k, "-")) for k in keys]
+                            lines.append(f"| {idx} | " + " | ".join(vals) + " |")
+                        lines.append("")
+
+            lines.append("> ℹ️ **Catatan:** Data di atas diambil langsung secara real-time dari basis data resmi terkait.")
+            lines.append('<suggestions>["Lihat detail SK pengesahan perusahaan", "Cari pengurus dan pemilik perusahaan", "Cari riwayat pengadaan tender"]</suggestions>')
+            return "\n".join(lines)
+
+        else:
+            source_names = ", ".join(list(dict.fromkeys([t.get("source_name") or t.get("tool_name") for t in executed_tools_info]))) or "Basis Data Terhubung"
+            return (
+                f"### 🏢 Hasil Penelusuran Basis Data Resmi\n\n"
+                f"Berdasarkan penelusuran langsung pada basis data resmi (**{source_names}**) untuk entitas **'{cur_subject}'**:\n\n"
+                f"⚠️ **Data tidak ditemukan dalam basis data yang terhubung (0 record ditemukan).**\n\n"
+                f"**Rincian Penelusuran:**\n"
+                f"- **Kata Kunci Pencarian:** `{cur_subject}` *(prefix bentuk usaha seperti PT/CV/Yayasan telah disaring otomatis)*\n"
+                f"- **Basis Data Target:** {source_names} (Data Perusahaan / Legalitas Resmi)\n"
+                f"- **Hasil:** Nihil (tidak ditemukan data yang cocok)\n\n"
+                f"**Saran & Rekomendasi:**\n"
+                f"1. Pastikan ejaan nama inti entitas sudah tepat (tanpa singkatan atau variasi huruf).\n"
+                f"2. Coba gunakan sebagian suku kata dari nama perusahaan jika nama lengkap tidak menghasilkan data.\n"
+                f"3. Jika perusahaan terdaftar di luar perseroan (misal CV atau Yayasan lokal), data pendaftaran dapat berada di sistem administrasi yang berbeda.\n\n"
+                f'<suggestions>["Coba kata kunci nama lain", "Cari di database penyedia LPSE", "Cari informasi orang/pengurus"]</suggestions>'
+            )
 
 
 chat_service = ChatService()

@@ -138,8 +138,8 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
     return parts.map((part, i) => 
       regex.test(part) ? (
         <mark key={i} style={{ 
-          background: 'rgba(245, 158, 11, 0.35)', 
-          color: '#fbbf24', 
+          background: 'rgba(245, 158, 11, 0.25)', 
+          color: 'var(--accent-amber)', 
           padding: '0 2px', 
           borderRadius: '3px',
           fontWeight: '700' 
@@ -189,7 +189,7 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
         }}
       >
         {/* Modal Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             <div style={{
               width: '44px',
@@ -236,11 +236,11 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                 {isTool && (
                   <>
                     <span>•</span>
-                    <span style={{ color: '#34d399', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ color: 'var(--accent-emerald)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                       <Zap size={12} /> Auto-Saved on Tool Execution
                     </span>
                     <span>•</span>
-                    <span style={{ color: '#818cf8', display: 'inline-flex', alignItems: 'center', gap: '4px' }} title="Entitas & relasi otomatis tersimpan ke Neo4j Knowledge Graph">
+                    <span style={{ color: 'var(--accent-primary)', display: 'inline-flex', alignItems: 'center', gap: '4px' }} title="Entitas & relasi otomatis tersimpan ke Neo4j Knowledge Graph">
                       <Share2 size={12} /> Network Graph Synced
                     </span>
                   </>
@@ -264,27 +264,25 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                 fontSize: '12px',
                 fontWeight: '600',
                 color: 'var(--text-main)',
-                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(168, 85, 247, 0.35))',
-                border: '1px solid rgba(168, 85, 247, 0.5)',
+                background: 'var(--bg-glass-2)',
+                border: '1px solid var(--border-subtle)',
                 textDecoration: 'none',
-                boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease'
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(99, 102, 241, 0.65), rgba(168, 85, 247, 0.65))';
+                e.currentTarget.style.background = 'var(--bg-glass-3)';
                 e.currentTarget.style.transform = 'translateY(-1px)';
-                e.currentTarget.style.boxShadow = '0 4px 14px rgba(168, 85, 247, 0.4)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(168, 85, 247, 0.35))';
+                e.currentTarget.style.background = 'var(--bg-glass-2)';
                 e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 2px 8px rgba(99, 102, 241, 0.25)';
               }}
             >
-              <Share2 size={13} color="#c084fc" />
+              <Share2 size={13} color="var(--accent-primary)" />
               <span>Network Graph</span>
-              <ExternalLink size={11} color="#e9d5ff" />
+              <ExternalLink size={11} color="var(--text-secondary)" />
             </a>
 
             <button
@@ -292,8 +290,8 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
               onClick={onClose}
               title="Tutup Modal"
               style={{ 
-                background: 'var(--bg-glass-light)', 
-                border: '1px solid var(--border-color)', 
+                background: 'none', 
+                border: 'none', 
                 color: 'var(--text-muted)', 
                 cursor: 'pointer', 
                 padding: '6px', 
@@ -303,8 +301,8 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                 justifyContent: 'center',
                 transition: 'all 0.2s ease'
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'var(--bg-glass-light)'; }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.background = 'var(--border-subtle)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'none'; }}
             >
               <X size={18} />
             </button>
@@ -320,9 +318,9 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            background: notification.type === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-            border: `1px solid ${notification.type === 'success' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`,
-            color: notification.type === 'success' ? '#34d399' : '#fca5a5'
+            background: notification.type === 'success' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+            border: `1px solid ${notification.type === 'success' ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`,
+            color: notification.type === 'success' ? 'var(--accent-emerald)' : 'var(--accent-rose)'
           }}>
             <AlertCircle size={16} />
             <span>{notification.message}</span>
@@ -342,8 +340,9 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                 paddingLeft: '38px',
                 paddingRight: searchTerm ? '34px' : '14px',
                 width: '100%',
-                background: 'rgba(0, 0, 0, 0.35)',
-                border: '1px solid rgba(255, 255, 255, 0.12)'
+                background: 'var(--bg-glass-1)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-main)'
               }}
             />
             <Search 
@@ -428,7 +427,7 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
           {loading && items.length === 0 && (
             <div style={{ textAlign: 'center', padding: '50px 20px', color: 'var(--text-muted)' }}>
               <RefreshCw size={32} className="spin" style={{ margin: '0 auto 12px auto', color: 'var(--accent-cyan)' }} />
-              <div style={{ fontSize: '14px', fontWeight: '600', color: '#e2e8f0' }}>Memuat data bank...</div>
+              <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-main)' }}>Memuat data bank...</div>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
                 Mengambil rekaman chunk dari ChromaDB vector store
               </div>
@@ -441,7 +440,7 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
               borderRadius: '8px',
               background: 'rgba(239, 68, 68, 0.1)',
               border: '1px solid rgba(239, 68, 68, 0.3)',
-              color: '#fca5a5',
+              color: 'var(--accent-rose)',
               fontSize: '13px'
             }}>
               <div style={{ fontWeight: '700', marginBottom: '4px' }}>Terjadi Kesalahan:</div>
@@ -454,8 +453,8 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
               textAlign: 'center', 
               padding: '60px 20px', 
               borderRadius: '12px',
-              background: 'rgba(0, 0, 0, 0.2)',
-              border: '1px dashed var(--border-color)'
+              background: 'var(--bg-glass-1)',
+              border: '1px dashed var(--border-subtle)'
             }}>
               <Database size={40} color="var(--text-muted)" style={{ margin: '0 auto 14px auto', opacity: 0.6 }} />
               <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)', marginBottom: '6px' }}>
@@ -503,8 +502,8 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                     <span style={{
                       fontSize: '11px',
                       fontWeight: '800',
-                      background: 'var(--bg-glass-light)',
-                      color: 'var(--text-sub)',
+                      background: 'var(--bg-glass-1)',
+                      color: 'var(--text-muted)',
                       padding: '2px 7px',
                       borderRadius: '4px'
                     }}>
@@ -533,9 +532,9 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                       <span style={{
                         fontSize: '11px',
                         fontWeight: '700',
-                        color: '#34d399',
+                        color: 'var(--accent-emerald)',
                         background: 'rgba(16, 185, 129, 0.12)',
-                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                        border: '1px solid rgba(16, 185, 129, 0.35)',
                         padding: '2px 7px',
                         borderRadius: '4px',
                         display: 'inline-flex',
@@ -550,9 +549,9 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                     {queryParams && Object.keys(queryParams).length > 0 && (
                       <span style={{
                         fontSize: '11px',
-                        color: '#fbbf24',
+                        color: 'var(--accent-amber)',
                         background: 'rgba(245, 158, 11, 0.12)',
-                        border: '1px solid rgba(245, 158, 11, 0.3)',
+                        border: '1px solid rgba(245, 158, 11, 0.35)',
                         padding: '2px 8px',
                         borderRadius: '4px',
                         display: 'inline-flex',
@@ -586,9 +585,9 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                       type="button"
                       onClick={() => handleCopy(item.id, item.document)}
                       style={{
-                        background: copiedId === item.id ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-glass-light)',
-                        border: `1px solid ${copiedId === item.id ? 'rgba(16, 185, 129, 0.4)' : 'var(--border-color)'}`,
-                        color: copiedId === item.id ? '#34d399' : 'var(--text-secondary)',
+                        background: copiedId === item.id ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-glass-2)',
+                        border: `1px solid ${copiedId === item.id ? 'rgba(16, 185, 129, 0.4)' : 'var(--border-subtle)'}`,
+                        color: copiedId === item.id ? 'var(--accent-emerald)' : 'var(--text-secondary)',
                         borderRadius: '6px',
                         padding: '4px 8px',
                         fontSize: '11px',
@@ -612,7 +611,7 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                       style={{
                         background: 'rgba(239, 68, 68, 0.08)',
                         border: '1px solid rgba(239, 68, 68, 0.25)',
-                        color: '#fca5a5',
+                        color: 'var(--accent-rose)',
                         borderRadius: '6px',
                         padding: '4px 8px',
                         fontSize: '11px',
@@ -705,14 +704,14 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
 
                 {/* Content Box */}
                 <div style={{
-                  background: 'rgba(0, 0, 0, 0.35)',
-                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                  background: 'var(--bg-glass-1)',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: '6px',
                   padding: '12px 14px',
                   fontFamily: 'JetBrains Mono, monospace',
                   fontSize: '12px',
                   lineHeight: '1.6',
-                  color: '#e2e8f0',
+                  color: 'var(--text-main)',
                   maxHeight: isExpanded ? 'none' : '150px',
                   overflowY: isExpanded ? 'visible' : 'hidden',
                   overflowX: 'auto',
@@ -739,13 +738,14 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
                       }}
                     >
                       <span style={{
-                        color: '#000000',
-                        background: 'var(--accent-cyan)',
+                        color: 'var(--text-main)',
+                        background: 'var(--bg-glass-3)',
+                        border: '1px solid var(--border-subtle)',
                         padding: '4px 12px',
                         borderRadius: '12px',
                         fontSize: '11px',
                         fontWeight: '700',
-                        boxShadow: '0 2px 8px rgba(6, 182, 212, 0.4)'
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
                       }}>
                         Klik untuk melihat selengkapnya ({item.char_count?.toLocaleString()} karakter)
                       </span>
@@ -762,7 +762,7 @@ export default function BankDataViewerModal({ isOpen, onClose, source }) {
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center', 
-          borderTop: '1px solid var(--border-color)', 
+          borderTop: '1px solid var(--border-subtle)', 
           paddingTop: '16px',
           flexWrap: 'wrap',
           gap: '12px'

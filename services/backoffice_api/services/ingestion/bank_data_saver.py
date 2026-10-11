@@ -824,9 +824,7 @@ def save_tool_records_to_bank_data(
                     actual_count = len(texts_to_index)
 
                 try:
-                    actual_entities = graph_builder.get_entity_count_by_source(source.id)
-                    if actual_entities == 0:
-                        actual_entities = ent_upserted
+                    actual_entities = graph_builder.get_entity_count_by_source(source.id) or 0
 
                     doc_title = f"Bank Data: {source.name} (Hasil Query On-Demand)"
                     doc = active_db.query(KnowledgeDocument).filter(
