@@ -93,6 +93,11 @@ class MediaCacheService:
         s = re.sub(r'[\s"\'`]', '', s)
         s = re.sub(r'(?:\.\.\.|\[truncated[^\]]*\]|\)+)$', '', s)
 
+        # In base64, a single dangling character (len % 4 == 1) cannot form a byte
+        # (6 bits is less than 1 byte). Trim it off before padding so b64decode never errors.
+        if len(s) % 4 == 1:
+            s = s[:-1]
+
         # Pad properly
         rem = len(s) % 4
         if rem > 0:
@@ -355,7 +360,8 @@ class MediaCacheService:
             info = self.save_base64_as_file(raw_b64, ref_nik=default_nik, ref_name=default_name, db=db)
             if info.get("url"):
                 return f"![{label or 'Foto'}]({info['url']})"
-            return m.group(0)
+            # If base64 decoding failed or is invalid, do not leave broken /9j/... URL that causes 404 in UI
+            return ""
 
         cleaned_text = md_pattern.sub(_sub_md_img, text)
 
@@ -372,7 +378,7 @@ class MediaCacheService:
             info = self.save_base64_as_file(raw_b64, ref_nik=default_nik, ref_name=default_name, db=db)
             if info.get("url"):
                 return f'<img {attrs_pre}src="{info["url"]}"{attrs_post}>'
-            return m.group(0)
+            return ""
 
         cleaned_text = html_pattern.sub(_sub_html_img, cleaned_text)
 
@@ -381,9 +387,20 @@ class MediaCacheService:
         def _sub_data_uri(m):
             raw_b64 = m.group(0).strip()
             info = self.save_base64_as_file(raw_b64, ref_nik=default_nik, ref_name=default_name, db=db)
-            return info.get("url") or raw_b64
+            return info.get("url") or ""
 
         cleaned_text = standalone_data_uri.sub(_sub_data_uri, cleaned_text)
+
+        # 4. Replace loose raw /9j/... JPEG strings dumped into plain text outside markdown
+        standalone_raw_b64 = re.compile(r'(?:^|\n|\s|\()(?P<b64>/9j/[A-Za-z0-9+/=]{80,}|iVBORw0KGgo[A-Za-z0-9+/=]{80,})(?:\)|\s|\n|$)', flags=re.MULTILINE)
+        def _sub_raw_b64(m):
+            b64_val = m.group('b64').strip()
+            info = self.save_base64_as_file(b64_val, ref_nik=default_nik, ref_name=default_name, db=db)
+            if info.get("url"):
+                return f"\n\n![Foto Profil]({info['url']})\n\n"
+            return ""
+
+        cleaned_text = standalone_raw_b64.sub(_sub_raw_b64, cleaned_text)
 
         return cleaned_text
 

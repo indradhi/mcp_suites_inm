@@ -808,7 +808,15 @@ class ChatService:
                                 fname = fd.get("name")
                                 if fname:
                                     fdesc = fd.get("description") or fd.get("type") or "Definisi field"
-                                    fsample = f" (contoh: {fd.get('sample')})" if fd.get("sample") else ""
+                                    s_val = str(fd.get("sample") or "").strip()
+                                    fname_lower = str(fname).lower()
+                                    is_img = any(k in fname_lower for k in ["foto", "photo", "image", "avatar", "picture", "gambar"]) or s_val.startswith(("/9j/", "data:image", "iVBORw"))
+                                    if is_img:
+                                        fsample = " (contoh: [data foto resmi])"
+                                    elif s_val and len(s_val) < 50 and not any(c in s_val for c in ['{', '}', '[', ']']):
+                                        fsample = f" (contoh: {s_val})"
+                                    else:
+                                        fsample = ""
                                     glossary_lines.append(f"- {fname}: {fdesc}{fsample}")
                             tool_desc += "\n".join(glossary_lines)
 
@@ -986,7 +994,7 @@ Patuhi aturan:
 2. Jangan pernah menebak, mengasumsikan, atau menambahkan rincian yang tidak ada dalam konteks.
 3. Sebutkan sumber dokumen pendukung jika relevan.
 4. PENCARIAN KARTU KELUARGA (KK): Jika pertanyaan menyangkut Kartu Keluarga (KK) atau Nomor KK, Anda WAJIB menampilkan SELURUH anggota keluarga yang terdaftar dalam KK tersebut (Kepala Keluarga, Istri/Pasangan, dan Anak/Famili Lain) secara berurutan dan lengkap (1, 2, 3, dst.). DILARANG BERHENTI setelah hanya menampilkan Kepala Keluarga jika konteks memuat anggota keluarga lainnya.
-5. FOTO PROFIL: Untuk setiap orang/anggota keluarga yang memiliki foto dalam basis data, sertakan tag Markdown: `![Foto Profil - NAMA_LENGKAP](foto_resmi)`. DILARANG KERAS menyalin atau menuliskan kode base64 mentah dalam teks jawaban.
+5. FOTO PROFIL: Untuk setiap orang/anggota keluarga yang memiliki foto dalam basis data resmi, sertakan tag Markdown: `![Foto Profil - NAMA_LENGKAP](photo_ref:NIK)` (atau gunakan photo_ref yang tertera pada data). DILARANG KERAS menyalin, mengarang, atau menuliskan kode base64 mentah (/9j/...) dalam teks jawaban! Jika foto belum ada dalam data resmi, sampaikan secara faktual bahwa foto tidak tercatat dan jangan merender tag gambar kosong.
 6. INTEGRITAS KESIMPULAN (ANTI-CONTENT-ROT): Bagian kesimpulan/ringkasan wajib murni 100% dari data yang terverifikasi. Dilarang mengarang asumsi atau spekulasi.
 7. DISAMBIGUASI NAMA (ANTI-CONFLATION): Jika terdapat banyak entitas dengan nama sama namun NIK/TTL/Alamat berbeda, pisahkan secara tegas dan jangan menyimpulkan aset mereka sebagai satu orang.
 8. ISOLASI KONTEN RIWAYAT: Jangan pernah membawa masuk data subjek percakapan sebelumnya ke dalam jawaban subjek saat ini.
@@ -1075,11 +1083,14 @@ Patuhi aturan:
             if tools:
                 kwargs["tools"] = tools
                 available_names = set(tool_dispatch_map.keys())
+                has_explicit_nik = bool(re.search(r'\b\d{16}\b', message))
+                has_photo_request = bool(re.search(r'\b(?:foto|photo|gambar|avatar)\b', message, re.IGNORECASE))
                 is_land_search = bool(re.search(r'\b(?:tanah|sertifikat|bpn|bidang|hak\s+milik|hgb|shm)\b', message, re.IGNORECASE))
                 is_company_search = bool(re.search(r'\b(?:pt|perusahaan|usaha|sikap|penyedia|vendor|cv|yayasan|koperasi|badan\s+usaha|perseroan|firma|ud|pd)\b', message, re.IGNORECASE))
                 is_owner_search = bool(re.search(r'\b(?:pemilik|owner|pendiri|pengurus|pemegang\s+saham|saham|direksi|direktur|komisaris)\b', message, re.IGNORECASE))
                 is_person_search = bool(
-                    re.search(r'\b(?:orang|nik|kependudukan|ktp|kk|penduduk|warga|individu)\b', message, re.IGNORECASE)
+                    has_explicit_nik
+                    or re.search(r'\b(?:orang|nik|kependudukan|ktp|kk|penduduk|warga|individu)\b', message, re.IGNORECASE)
                     or (re.search(r'\b(?:siapa|profil|profiling)\b', message, re.IGNORECASE) and not is_company_search)
                     or (re.search(r'\bcari\b', message, re.IGNORECASE) and not is_land_search and not is_company_search)
                 )
@@ -1099,6 +1110,14 @@ Patuhi aturan:
                         kwargs["tool_choice"] = {"type": "function", "function": {"name": "db_sikap_perusahaan_pelaku_usaha"}}
                     else:
                         kwargs["tool_choice"] = "auto"
+                elif has_explicit_nik and "api_live_dukcapil_data_penduduk_nik" in available_names:
+                    kwargs["tool_choice"] = {"type": "function", "function": {"name": "api_live_dukcapil_data_penduduk_nik"}}
+                elif has_explicit_nik and "cari_orang_berdasarkan_nik" in available_names:
+                    kwargs["tool_choice"] = {"type": "function", "function": {"name": "cari_orang_berdasarkan_nik"}}
+                elif has_photo_request and has_explicit_nik and "api_live_dukcapil_data_penduduk_nik" in available_names:
+                    kwargs["tool_choice"] = {"type": "function", "function": {"name": "api_live_dukcapil_data_penduduk_nik"}}
+                elif has_photo_request and "api_live_dukcapil_data_penduduk_nama_tanggal_lahir" in available_names:
+                    kwargs["tool_choice"] = {"type": "function", "function": {"name": "api_live_dukcapil_data_penduduk_nama_tanggal_lahir"}}
                 elif is_person_search and "data_orang_dukcapil" in available_names:
                     kwargs["tool_choice"] = {"type": "function", "function": {"name": "data_orang_dukcapil"}}
                 else:
@@ -1363,6 +1382,20 @@ Patuhi aturan:
                                 "2. DISAMBIGUASI ENTITAS (ANTI-CONFLATION): Jika nama pemilik sama tetapi memiliki NIK, Tempat/Tanggal Lahir, atau Wilayah yang berbeda, nyatakan dengan tegas dalam simpulan bahwa data tersebut merujuk pada beberapa individu yang berbeda. DILARANG MENGGABUNGKAN aset mereka seolah-olah milik satu orang yang sama!\n"
                                 "3. ISOLASI DATA SELESAI: DILARANG KERAS mengaitkan atau memasukkan kembali data/aset/nama dari subjek sesi percakapan sebelumnya ke dalam simpulan subjek saat ini."
                             )
+                            clean_field_defs = None
+                            if isinstance(field_defs, list) and len(field_defs) > 0:
+                                clean_field_defs = []
+                                for fd in field_defs:
+                                    if isinstance(fd, dict):
+                                        fd_c = dict(fd)
+                                        f_name_l = str(fd_c.get("name", "")).lower()
+                                        f_s = str(fd_c.get("sample", ""))
+                                        if any(k in f_name_l for k in ["foto", "photo", "image", "avatar", "picture", "gambar"]) or f_s.startswith(("/9j/", "data:image", "iVBORw")):
+                                            fd_c["sample"] = "[data foto resmi]"
+                                        elif f_s and (len(f_s) > 50 or any(c in f_s for c in ['{', '}', '[', ']'])):
+                                            fd_c["sample"] = "[contoh data]"
+                                        clean_field_defs.append(fd_c)
+
                             tool_output_payload = {
                                 "status": "success",
                                 "source_name": matched_source.name,
@@ -1374,7 +1407,7 @@ Patuhi aturan:
                                 "total_records_found": rec_count,
                                 "completeness_instruction": completeness_instruction if completeness_instruction else None,
                                 "conclusion_instruction": conclusion_instruction,
-                                "field_definitions": field_defs if (isinstance(field_defs, list) and len(field_defs) > 0) else None,
+                                "field_definitions": clean_field_defs if (clean_field_defs and len(clean_field_defs) > 0) else None,
                                 "records_summary": records_summary_note,
                                 "records": records_for_prompt
                             }
@@ -1791,6 +1824,17 @@ Patuhi aturan:
                         ).get("url")
                         healed_src = cached_url if cached_url else _normalize_data_uri(matched_ep.photo)
                         return f"![{clean_label}]({healed_src})"
+
+                    # Fallback: If URL itself contains base64 image data, convert to cached file
+                    if url.startswith("data:image/") or url.startswith("/9j/") or url.startswith("iVBORw"):
+                        s_info = media_cache_service.save_base64_as_file(url, db=db)
+                        if s_info.get("url"):
+                            return f"![{label or 'Foto Profil'}]({s_info['url']})"
+                        return ""
+
+                    # If URL was an unresolvable photo_ref, do not display broken image placeholder
+                    if "photo_ref:" in url:
+                        return ""
 
                     return match.group(0)
 
