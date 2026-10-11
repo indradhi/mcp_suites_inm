@@ -1322,16 +1322,37 @@ Patuhi aturan:
                             v_tier = (matched_source.config or {}).get("validity_tier", "authoritative")
                             v_score = (matched_source.config or {}).get("validity_score", 95)
                             rec_count = len(payload_data) if isinstance(payload_data, list) else 1
-                            records_for_prompt = payload_data
+                            
+                            def _sanitize_record_photos_for_prompt(data):
+                                if isinstance(data, dict):
+                                    clean = {}
+                                    rec_nik = str(data.get("NIK") or data.get("nik") or data.get("id") or "").strip()
+                                    rec_nama = str(data.get("NAMA_LGKP") or data.get("nama") or "").strip()
+                                    for k, v in data.items():
+                                        k_lower = str(k).lower()
+                                        if any(img_k == k_lower for img_k in ["foto", "photo", "image", "avatar", "picture"]) and isinstance(v, str) and len(v) > 80:
+                                            clean[k] = f"[FOTO_TERSEDIA_RESMI: Tampilkan dengan Markdown: ![Foto Profil - {rec_nama or 'Terverifikasi'}](photo_ref:{rec_nik or 'subjek'})]"
+                                        elif isinstance(v, (dict, list)):
+                                            clean[k] = _sanitize_record_photos_for_prompt(v)
+                                        else:
+                                            clean[k] = v
+                                    return clean
+                                elif isinstance(data, list):
+                                    return [_sanitize_record_photos_for_prompt(x) for x in data]
+                                return data
+
+                            sanitized_payload = _sanitize_record_photos_for_prompt(payload_data)
+                            records_for_prompt = sanitized_payload
                             records_summary_note = None
-                            if isinstance(payload_data, list) and rec_count > 15:
-                                records_for_prompt, records_summary_note, count_saved = context_rot_guard.compact_tool_records(payload_data, max_records=15)
+                            if isinstance(sanitized_payload, list) and rec_count > 15:
+                                records_for_prompt, records_summary_note, count_saved = context_rot_guard.compact_tool_records(sanitized_payload, max_records=15)
                                 rot_metrics["tool_records_compacted"] = rot_metrics.get("tool_records_compacted", 0) + count_saved
 
                             completeness_instruction = (
                                 f"PERHATIAN SANGAT PENTING: Ditemukan {rec_count} record/individu unik dalam database resmi ini. "
                                 f"Anda WAJIB MENAMPILKAN record/individu tersebut secara lengkap kepada pengguna "
                                 f"(gunakan tabel perbandingan Markdown atau daftar bernomor yang memuat NIK, Nama, TTL, Alamat, dan No KK untuk SETIAP orang). "
+                                f"Untuk foto resmi, gunakan tag Markdown ![Foto Profil - Nama](photo_ref:NIK) sesuai petunjuk field FOTO. DILARANG MENULISKAN STRING BASE64 MENTAH! "
                                 f"DILARANG MENGARANG data! Pengguna memerlukan seluruh data hasil pencarian."
                                 if isinstance(payload_data, list) and rec_count > 1 else ""
                             )
@@ -1706,13 +1727,44 @@ Patuhi aturan:
                     url = match.group(2).strip()
 
                     matched_ep = None
-                    # A. Check if label explicitly specifies entity name or NIK
-                    for ep in unique_entities:
-                        if _matches_subject(ep, label):
-                            matched_ep = ep
-                            break
+                    # A. Check if URL specifies a photo_ref (e.g. photo_ref:3603281301640007)
+                    m_ref = re.search(r'photo_ref:([0-9a-zA-Z_-]+)', url)
+                    if m_ref:
+                        ref_id = m_ref.group(1).strip()
+                        for ep in unique_entities:
+                            if ep.nik and ep.nik == ref_id:
+                                matched_ep = ep
+                                break
+                            if ep.name and ref_id.lower() in ep.name.lower():
+                                matched_ep = ep
+                                break
 
-                    # B. If label is generic (e.g. "Foto", "Foto Profil"), check if exactly one entity matches answer or query
+                    # B. Check if label or url explicitly specifies entity name or NIK
+                    if not matched_ep:
+                        for ep in unique_entities:
+                            if _matches_subject(ep, label) or (ep.nik and ep.nik in url):
+                                matched_ep = ep
+                                break
+
+                    # C. Multi-entity proximity match: Find which entity is mentioned closest before this image tag in the answer
+                    if not matched_ep:
+                        preceding_text = clean_answer[:match.start()]
+                        best_ep = None
+                        best_pos = -1
+                        for ep in unique_entities:
+                            if not ep.is_truncated:
+                                p_idx = -1
+                                if ep.nik and ep.nik in preceding_text:
+                                    p_idx = preceding_text.rfind(ep.nik)
+                                elif ep.name and ep.name.lower() in preceding_text.lower():
+                                    p_idx = preceding_text.lower().rfind(ep.name.lower())
+                                if p_idx > best_pos:
+                                    best_pos = p_idx
+                                    best_ep = ep
+                        if best_ep:
+                            matched_ep = best_ep
+
+                    # D. Single-entity fallback
                     if not matched_ep:
                         matching_subjs = [ep for ep in unique_entities if not ep.is_truncated and (_matches_subject(ep, clean_answer) or _matches_subject(ep, message))]
                         if len(matching_subjs) == 1:
@@ -1720,7 +1772,7 @@ Patuhi aturan:
 
                     if matched_ep and not matched_ep.is_truncated:
                         healed_uri = _normalize_data_uri(matched_ep.photo)
-                        clean_label = f"Foto Profil - {matched_ep.name}" if matched_ep.name else "Foto Profil Terverifikasi"
+                        clean_label = f"Foto Profil - {matched_ep.name}" if matched_ep.name else (label or "Foto Profil Terverifikasi")
                         return f"![{clean_label}]({healed_uri})"
 
                     return match.group(0)

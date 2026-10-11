@@ -102,6 +102,21 @@ class ContextRotGuard:
                 if len(final_name) >= 3:
                     return final_name.upper()
 
+        # 4. Inquisitive or conversational pattern: mengapa/kenapa foto/data/profil/ktp [nama] dengan nik ...
+        m_conv = re.search(
+            r'(?:foto|gambar|data|profil|informasi|mengenai|tentang|terkait|milik|warga)\s+([a-zA-Z\s.,]{3,50}?)(?:\s+(?:dengan\s+nik|nik|tidak|belum|\?|$))',
+            query,
+            re.IGNORECASE
+        )
+        if m_conv:
+            raw = m_conv.group(1).split("?")[0].split("\n")[0].split(" di ")[0].split(" dengan ")[0]
+            cleaned = cls.clean_person_name(raw)
+            words = [w for w in cleaned.lower().split() if w not in NON_NAME_WORDS and len(w) >= 2]
+            if len(words) >= 1:
+                final_name = " ".join(words).strip()
+                if len(final_name) >= 3:
+                    return final_name.upper()
+
         return None
 
     def sanitize_and_compact_history(
@@ -407,6 +422,11 @@ class ContextRotGuard:
         # 2. Distinct Entity ID Check (e.g. searching a completely different NIK, Passport, or Certificate)
         current_ids = set(re.findall(r'\b\d{10,20}\b', current_query))
         if current_ids:
+            prior_user_text = " ".join(m.get("content", "") for m in history if m.get("role") == "user")
+            prior_user_ids = set(re.findall(r'\b\d{10,20}\b', prior_user_text))
+            if prior_user_ids and not (current_ids & prior_user_ids):
+                return True, f"entity_id_shift ({list(prior_user_ids)[0]} -> {list(current_ids)[0]})"
+
             all_prior_text = " ".join(m.get("content", "") for m in history)
             prior_ids = set(re.findall(r'\b\d{10,20}\b', all_prior_text))
             if prior_ids and not (current_ids & prior_ids):
