@@ -887,32 +887,6 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                   )}
                 </div>
 
-                {/* Live Test Parameter Values */}
-                {parameters.filter(p => p.name).length > 0 && (
-                  <div style={{ padding: '14px', background: 'var(--bg-glass-2)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                    <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Play size={13} color="var(--accent-cyan)" /> Test Parameter Values for Live Validation
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
-                      {parameters.filter(p => p.name).map((p, idx) => (
-                        <div key={idx}>
-                          <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                            {p.name} {p.required && <span style={{ color: '#ef4444' }}>*</span>}
-                          </label>
-                          <input
-                            type="text"
-                            className="input-field font-mono"
-                            style={{ padding: '6px 8px', fontSize: '12px' }}
-                            placeholder={p.default || `Value for ${p.name}`}
-                            value={testArgs[p.name] !== undefined ? testArgs[p.name] : (p.default || '')}
-                            onChange={(e) => handleTestArgChange(p.name, e.target.value)}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 {/* Cache Settings */}
                 <div style={{
                   marginTop: '4px',
@@ -985,9 +959,85 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                   )}
                 </div>
 
+                {/* Live Test Parameter Values */}
+                {parameters.filter(p => p.name).length > 0 && (
+                  <div style={{ padding: '14px', background: 'var(--bg-glass-2)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                    <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Play size={13} color="var(--accent-cyan)" /> Test Parameter Values for Live Validation
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
+                      {parameters.filter(p => p.name).map((p, idx) => (
+                        <div key={idx}>
+                          <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                            {p.name} {p.required && <span style={{ color: '#ef4444' }}>*</span>}
+                          </label>
+                          <input
+                            type="text"
+                            className="input-field font-mono"
+                            style={{ padding: '6px 8px', fontSize: '12px' }}
+                            placeholder={p.default || `Value for ${p.name}`}
+                            value={testArgs[p.name] !== undefined ? testArgs[p.name] : (p.default || '')}
+                            onChange={(e) => handleTestArgChange(p.name, e.target.value)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
               </div>
             )}
           </div>
+
+          {/* Test API Tool / Endpoint Call Button */}
+          <div>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={handleTest}
+              disabled={testing}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              {testing ? 'Executing...' : (isTool ? '⚡ Test API Tool Call' : '⚡ Test Endpoint & Sample Data')}
+            </button>
+          </div>
+
+          {/* Test Connection / Tool Output */}
+          {testResult && (
+            <div style={{
+              padding: '12px 16px',
+              borderRadius: '8px',
+              fontSize: '12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+              background: testResult.success ? 'rgba(5, 150, 105, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+              border: `1px solid ${testResult.success ? 'rgba(5, 150, 105, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`,
+              color: testResult.success ? '#059669' : '#dc2626'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600' }}>
+                {testResult.success ? <CheckCircle size={16} color="#059669" /> : <AlertCircle size={16} color="#dc2626" />}
+                <span style={{ color: testResult.success ? '#059669' : '#dc2626' }}>{testResult.message}</span>
+              </div>
+              {Boolean(testResult.result?.data || testResult.data) && (
+                <div style={{
+                  marginTop: '8px',
+                  background: 'var(--bg-glass-2)',
+                  border: '1px solid var(--border-subtle)',
+                  padding: '10px 14px',
+                  borderRadius: '6px',
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: '11px',
+                  color: 'var(--text-main)',
+                  maxHeight: '160px',
+                  overflowY: 'auto',
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {JSON.stringify(testResult.result?.data || testResult.data, null, 2)}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Field Definitions (Kamus Data / Output Schema) */}
           <div style={{
@@ -1042,7 +1092,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                         cursor: 'pointer',
                         transition: 'all 0.15s ease'
                       }}
-                      title="Ekstrak nama field dan tipe data otomatis dari respons hasil test di bawah"
+                      title="Ekstrak nama field dan tipe data otomatis dari respons hasil test di atas"
                     >
                       <Sparkles size={13} color="#059669" />
                       <span>Deteksi Otomatis dari Test</span>
@@ -1227,54 +1277,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
             )}
           </div>
 
-          <div>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={handleTest}
-              disabled={testing}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-            >
-              {testing ? 'Executing...' : (isTool ? '⚡ Test API Tool Call' : '⚡ Test Endpoint & Sample Data')}
-            </button>
-          </div>
 
-          {/* Test Connection / Tool Output */}
-          {testResult && (
-            <div style={{
-              padding: '12px 16px',
-              borderRadius: '8px',
-              fontSize: '12px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px',
-              background: testResult.success ? 'rgba(5, 150, 105, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-              border: `1px solid ${testResult.success ? 'rgba(5, 150, 105, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`,
-              color: testResult.success ? '#059669' : '#dc2626'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600' }}>
-                {testResult.success ? <CheckCircle size={16} color="#059669" /> : <AlertCircle size={16} color="#dc2626" />}
-                <span style={{ color: testResult.success ? '#059669' : '#dc2626' }}>{testResult.message}</span>
-              </div>
-              {Boolean(testResult.result?.data || testResult.data) && (
-                <div style={{
-                  marginTop: '8px',
-                  background: 'var(--bg-glass-2)',
-                  border: '1px solid var(--border-subtle)',
-                  padding: '10px 14px',
-                  borderRadius: '6px',
-                  fontFamily: 'JetBrains Mono, monospace',
-                  fontSize: '11px',
-                  color: 'var(--text-main)',
-                  maxHeight: '160px',
-                  overflowY: 'auto',
-                  whiteSpace: 'pre-wrap'
-                }}>
-                  {JSON.stringify(testResult.result?.data || testResult.data, null, 2)}
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Validity Tier Hierarchy Selector */}
           <ValidityTierSelector
