@@ -132,6 +132,12 @@ async def test_source_connection(payload: TestConnectionRequest, user = Depends(
                 return {"success": success, "message": f"Successfully connected to {db_type.upper()} database"}
 
         elif stype == "api":
+            test_type = config.get("test_type")
+            if test_type == "token":
+                auth_conf = config.get("auth", {})
+                res = await api_ingester.test_fetch_token(auth_conf)
+                return res
+
             endpoint = config.get("endpoint")
             has_endpoint = bool(endpoint and str(endpoint).strip())
             if config.get("is_tool") or has_endpoint:

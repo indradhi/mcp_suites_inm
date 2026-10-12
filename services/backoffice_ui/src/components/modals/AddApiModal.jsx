@@ -17,22 +17,43 @@ import {
   BookOpen,
   Sparkles,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Terminal,
+  Clipboard
 } from 'lucide-react';
 import api from '../../api/client';
 import { inferFieldDescription, inferFieldDataType } from '../../utils/fieldDefinitionHelper';
+import { parseCurl } from '../../utils/curlParser';
 import ValidityTierSelector from '../common/ValidityTierSelector';
 
 export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = null }) {
   const [name, setName] = useState('');
   const [endpoint, setEndpoint] = useState('');
   const [method, setMethod] = useState('GET');
-  const [authMode, setAuthMode] = useState('static'); // static, oauth2, none
+  const [authMode, setAuthMode] = useState('static'); // static, endpoint_token, none
   const [bearerToken, setBearerToken] = useState('');
   const [tokenUrl, setTokenUrl] = useState('');
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
+  const [tokenMethod, setTokenMethod] = useState('POST');
+  const [tokenPayloadType, setTokenPayloadType] = useState('oauth2'); // oauth2, password, custom_json, form
+  const [tokenUsername, setTokenUsername] = useState('');
+  const [tokenPassword, setTokenPassword] = useState('');
+  const [tokenCustomJson, setTokenCustomJson] = useState('{\n  "grant_type": "client_credentials"\n}');
+  const [tokenPath, setTokenPath] = useState('');
+  const [tokenHeaderName, setTokenHeaderName] = useState('Authorization');
+  const [tokenPrefix, setTokenPrefix] = useState('Bearer ');
+  const [testingToken, setTestingToken] = useState(false);
+  const [tokenTestResult, setTokenTestResult] = useState(null);
   const [verifySsl, setVerifySsl] = useState(false);
+
+  // cURL Import States
+  const [isCurlImportOpen, setIsCurlImportOpen] = useState(false);
+  const [curlInput, setCurlInput] = useState('');
+  const [curlError, setCurlError] = useState('');
+  const [curlSuccessMsg, setCurlSuccessMsg] = useState('');
+  const [autoExtractParams, setAutoExtractParams] = useState(true);
+  const [autoEnableToolMode, setAutoEnableToolMode] = useState(true);
 
   // AI Tool Mode States
   const [isTool, setIsTool] = useState(false);
@@ -65,11 +86,24 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       setEndpoint(conf.endpoint || '');
       setMethod(conf.method || 'GET');
       const auth = conf.auth || {};
-      setAuthMode(auth.mode || 'none');
+      const rawMode = auth.mode || 'none';
+      const isDynamic = rawMode === 'oauth2' || rawMode === 'endpoint_token' || rawMode === 'token_endpoint';
+      setAuthMode(isDynamic ? 'endpoint_token' : rawMode);
       setBearerToken(auth.token || '');
       setTokenUrl(auth.token_url || '');
+      setTokenMethod(auth.token_method || 'POST');
+      const inferredPayloadType = auth.payload_type || (auth.payload?.username ? 'password' : (auth.payload?.client_id ? 'oauth2' : (auth.custom_payload_json ? 'custom_json' : 'oauth2')));
+      setTokenPayloadType(inferredPayloadType);
       setClientId(auth.payload?.client_id || '');
       setClientSecret(auth.payload?.client_secret || '');
+      setTokenUsername(auth.payload?.username || '');
+      setTokenPassword(auth.payload?.password || '');
+      setTokenCustomJson(auth.custom_payload_json || (auth.payload ? (typeof auth.payload === 'string' ? auth.payload : JSON.stringify(auth.payload, null, 2)) : '{\n  "grant_type": "client_credentials"\n}'));
+      setTokenPath(auth.token_path || '');
+      setTokenHeaderName(auth.header_name || 'Authorization');
+      setTokenPrefix(auth.token_prefix !== undefined ? auth.token_prefix : 'Bearer ');
+      setTokenTestResult(null);
+      setTestingToken(false);
       setVerifySsl(conf.verify_ssl !== undefined ? Boolean(conf.verify_ssl) : false);
 
       const isToolMode = Boolean(conf.is_tool || (conf.parameters && conf.parameters.length > 0));
@@ -97,6 +131,10 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       setTestResult(null);
       setTesting(false);
       setIsFieldsCollapsed(true);
+      setIsCurlImportOpen(Boolean(initialData.openCurlImport));
+      setCurlInput('');
+      setCurlError('');
+      setCurlSuccessMsg('');
     } else if (isOpen && !initialData) {
       setName('');
       setEndpoint('');
@@ -104,8 +142,18 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       setAuthMode('static');
       setBearerToken('');
       setTokenUrl('');
+      setTokenMethod('POST');
+      setTokenPayloadType('oauth2');
       setClientId('');
       setClientSecret('');
+      setTokenUsername('');
+      setTokenPassword('');
+      setTokenCustomJson('{\n  "grant_type": "client_credentials"\n}');
+      setTokenPath('');
+      setTokenHeaderName('Authorization');
+      setTokenPrefix('Bearer ');
+      setTokenTestResult(null);
+      setTestingToken(false);
       setVerifySsl(false);
       setIsTool(false);
       setToolName('');
@@ -120,6 +168,10 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       setTestArgs({});
       setTestResult(null);
       setIsFieldsCollapsed(true);
+      setIsCurlImportOpen(false);
+      setCurlInput('');
+      setCurlError('');
+      setCurlSuccessMsg('');
     }
   }, [isOpen, initialData]);
 
@@ -169,6 +221,89 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
 
   const handleTestArgChange = (paramName, val) => {
     setTestArgs(prev => ({ ...prev, [paramName]: val }));
+  };
+
+  // cURL Import Handlers
+  const handleApplyCurl = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    setCurlError('');
+    setCurlSuccessMsg('');
+
+    if (!curlInput || !curlInput.trim()) {
+      setCurlError('Silakan tempel (paste) perintah cURL terlebih dahulu.');
+      return;
+    }
+
+    const parsed = parseCurl(curlInput);
+    if (!parsed.success) {
+      setCurlError(parsed.error || 'Gagal mem-parsing perintah cURL.');
+      return;
+    }
+
+    // 1. Endpoint & Method
+    setEndpoint(parsed.endpoint);
+    setMethod(parsed.method);
+
+    // 2. Auth Mode & Token
+    if (parsed.authMode === 'static' && parsed.bearerToken) {
+      setAuthMode('static');
+      setBearerToken(parsed.bearerToken);
+    } else if (parsed.authMode === 'none' && !bearerToken) {
+      setAuthMode('none');
+    }
+
+    // 3. SSL Verification
+    setVerifySsl(parsed.verifySsl);
+
+    // 4. Source Name & Tool Identifier
+    if (!name || name.trim() === '') {
+      setName(parsed.suggestedName);
+    }
+    if (!toolName || toolName.trim() === '') {
+      setToolName(parsed.suggestedToolName);
+    }
+
+    // 5. Parameters & Tool Mode
+    if (autoExtractParams && parsed.parameters && parsed.parameters.length > 0) {
+      setParameters(parsed.parameters);
+      if (autoEnableToolMode) {
+        setIsTool(true);
+      }
+      if (parsed.testArgs) {
+        setTestArgs(parsed.testArgs);
+      }
+    }
+
+    setCurlSuccessMsg(`Berhasil mengimpor: ${parsed.summary}`);
+    setIsCurlImportOpen(false);
+  };
+
+  const handlePasteFromClipboard = async () => {
+    try {
+      if (navigator?.clipboard?.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && text.trim()) {
+          setCurlInput(text);
+          setCurlError('');
+        } else {
+          setCurlError('Clipboard kosong.');
+        }
+      } else {
+        setCurlError('Akses clipboard otomatis tidak didukung browser ini. Silakan paste manual (Ctrl+V).');
+      }
+    } catch {
+      setCurlError('Izin clipboard ditolak. Silakan tempel secara manual dengan tombol Ctrl+V / Command+V.');
+    }
+  };
+
+  const handleLoadSampleCurl = () => {
+    const sample = `curl -X POST "https://api.internal.kpk.go.id/v1/lhkpn/search?status=aktif" \\
+  -H "Authorization: Bearer sample_bearer_token_xyz" \\
+  -H "Content-Type: application/json" \\
+  -k \\
+  -d '{"nama": "Budi", "tahun": 2024, "jabatan": "Direktur", "catatan": ""}'`;
+    setCurlInput(sample);
+    setCurlError('');
   };
 
   // Field Definitions Handlers
@@ -294,15 +429,76 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
     })));
   };
 
+  const buildAuthConfig = () => {
+    if (authMode === 'static') {
+      return { mode: 'static', token: bearerToken };
+    }
+    if (authMode === 'endpoint_token' || authMode === 'oauth2') {
+      let payload = {};
+      if (tokenPayloadType === 'oauth2') {
+        payload = { client_id: clientId, client_secret: clientSecret, grant_type: 'client_credentials' };
+      } else if (tokenPayloadType === 'password') {
+        payload = { username: tokenUsername, password: tokenPassword };
+      } else if (tokenPayloadType === 'custom_json') {
+        try {
+          payload = tokenCustomJson ? JSON.parse(tokenCustomJson) : {};
+        } catch {
+          payload = {};
+        }
+      } else if (tokenPayloadType === 'form') {
+        payload = tokenCustomJson;
+      }
+
+      return {
+        mode: 'endpoint_token',
+        token_url: tokenUrl,
+        token_method: tokenMethod,
+        payload_type: tokenPayloadType,
+        payload: payload,
+        custom_payload_json: tokenCustomJson,
+        token_path: tokenPath.trim() || undefined,
+        header_name: tokenHeaderName.trim() || 'Authorization',
+        token_prefix: tokenPrefix !== undefined ? tokenPrefix : 'Bearer ',
+        headers: tokenPayloadType === 'form' ? { 'Content-Type': 'application/x-www-form-urlencoded' } : { 'Content-Type': 'application/json' },
+        verify_ssl: verifySsl
+      };
+    }
+    return { mode: 'none' };
+  };
+
+  const handleTestFetchToken = async () => {
+    if (!tokenUrl || !tokenUrl.trim()) {
+      setTokenTestResult({ success: false, message: 'Token Endpoint URL wajib diisi terlebih dahulu.' });
+      return;
+    }
+    setTestingToken(true);
+    setTokenTestResult(null);
+    try {
+      const authConfig = buildAuthConfig();
+      const res = await api.post('/knowledge/test-connection', {
+        source_type: 'api',
+        config: {
+          test_type: 'token',
+          auth: authConfig,
+          verify_ssl: verifySsl
+        }
+      });
+      setTokenTestResult(res.data);
+    } catch (err) {
+      setTokenTestResult({
+        success: false,
+        message: err.response?.data?.detail || err.message || 'Gagal mengambil token dari endpoint.'
+      });
+    } finally {
+      setTestingToken(false);
+    }
+  };
+
   const handleTest = async () => {
     setTesting(true);
     setTestResult(null);
     try {
-      const authConfig = authMode === 'static'
-        ? { mode: 'static', token: bearerToken }
-        : authMode === 'oauth2'
-          ? { mode: 'oauth2', token_url: tokenUrl, payload: { client_id: clientId, client_secret: clientSecret } }
-          : {};
+      const authConfig = buildAuthConfig();
 
       const effectiveTestArgs = { ...testArgs };
       if (isTool) {
@@ -343,11 +539,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
     e.preventDefault();
     setSubmitting(true);
     try {
-      const authConfig = authMode === 'static'
-        ? { mode: 'static', token: bearerToken }
-        : authMode === 'oauth2'
-          ? { mode: 'oauth2', token_url: tokenUrl, payload: { client_id: clientId, client_secret: clientSecret } }
-          : {};
+      const authConfig = buildAuthConfig();
 
       const validParameters = isTool ? parameters.filter(p => p.name && p.name.trim() !== '') : [];
       const validFieldDefs = fieldDefinitions.filter(f => f.name && f.name.trim() !== '');
@@ -392,11 +584,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
   const handleSaveAsCopy = async () => {
     setSubmitting(true);
     try {
-      const authConfig = authMode === 'static'
-        ? { mode: 'static', token: bearerToken }
-        : authMode === 'oauth2'
-          ? { mode: 'oauth2', token_url: tokenUrl, payload: { client_id: clientId, client_secret: clientSecret } }
-          : {};
+      const authConfig = buildAuthConfig();
 
       const validParameters = isTool ? parameters.filter(p => p.name && p.name.trim() !== '') : [];
       const validFieldDefs = fieldDefinitions.filter(f => f.name && f.name.trim() !== '');
@@ -460,19 +648,276 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            title="Tutup Modal"
-            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', borderRadius: '6px' }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.background = 'var(--border-subtle)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'none'; }}
-          >
-            <X size={20} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              type="button"
+              id="btn-toggle-curl-import"
+              onClick={() => {
+                setIsCurlImportOpen(prev => !prev);
+                setCurlError('');
+              }}
+              title="Import endpoint, header, dan parameter dari perintah cURL"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                background: isCurlImportOpen ? 'rgba(6, 182, 212, 0.22)' : 'rgba(6, 182, 212, 0.1)',
+                border: '1px solid rgba(6, 182, 212, 0.35)',
+                color: 'var(--accent-cyan)',
+                transition: 'all 0.2s'
+              }}
+            >
+              <Terminal size={14} />
+              <span>{isCurlImportOpen ? 'Tutup cURL Import' : 'Paste from cURL'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              title="Tutup Modal"
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', borderRadius: '6px' }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.background = 'var(--border-subtle)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'none'; }}
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Success Notification Banner for cURL import */}
+          {curlSuccessMsg && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'rgba(16, 185, 129, 0.15)',
+              border: '1px solid rgba(16, 185, 129, 0.35)',
+              color: 'var(--accent-emerald)',
+              padding: '10px 14px',
+              borderRadius: '8px',
+              fontSize: '12px',
+              gap: '8px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <CheckCircle size={16} color="var(--accent-emerald)" />
+                <span>{curlSuccessMsg}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCurlSuccessMsg('')}
+                style={{ background: 'none', border: 'none', color: 'var(--accent-emerald)', cursor: 'pointer', fontSize: '16px', lineHeight: 1 }}
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          {/* cURL Import Panel */}
+          {isCurlImportOpen && (
+            <div style={{
+              background: 'var(--bg-glass-2)',
+              border: '1px solid rgba(6, 182, 212, 0.35)',
+              borderRadius: '10px',
+              padding: '16px 18px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Terminal size={16} color="var(--accent-cyan)" />
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-main)' }}>
+                    Paste from cURL / Import cURL
+                  </span>
+                  <span style={{
+                    fontSize: '10px',
+                    fontWeight: '700',
+                    background: 'rgba(6, 182, 212, 0.15)',
+                    color: 'var(--accent-cyan)',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    border: '1px solid rgba(6, 182, 212, 0.3)'
+                  }}>
+                    POSTMAN / DEVTOOLS / SWAGGER
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={handlePasteFromClipboard}
+                    style={{
+                      background: 'var(--bg-glass-1)',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-secondary)',
+                      borderRadius: '5px',
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                    title="Tempel teks cURL dari clipboard browser"
+                  >
+                    <Clipboard size={12} /> Tempel Clipboard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleLoadSampleCurl}
+                    style={{
+                      background: 'var(--bg-glass-1)',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-secondary)',
+                      borderRadius: '5px',
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                    title="Muat contoh perintah cURL berparameter"
+                  >
+                    <Sparkles size={12} color="var(--accent-cyan)" /> Contoh cURL
+                  </button>
+                  {curlInput && (
+                    <button
+                      type="button"
+                      onClick={() => { setCurlInput(''); setCurlError(''); }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        padding: '4px'
+                      }}
+                    >
+                      Bersihkan
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: '1.4' }}>
+                Tempel perintah cURL lengkap. Sistem akan otomatis mendeteksi URL Endpoint, HTTP Method, Bearer Token autentikasi, serta mengekstrak parameter query dan body JSON ke dalam skema tool.
+              </p>
+
+              <div>
+                <textarea
+                  className="input-field font-mono"
+                  style={{
+                    width: '100%',
+                    minHeight: '105px',
+                    fontSize: '11.5px',
+                    lineHeight: '1.5',
+                    padding: '10px 12px',
+                    borderRadius: '6px',
+                    background: 'var(--bg-glass-1)',
+                    border: '1px solid var(--border-subtle)',
+                    color: 'var(--text-main)',
+                    resize: 'vertical'
+                  }}
+                  placeholder={`curl -X POST "https://api.example.com/v1/search?query=kpk" \\\n  -H "Authorization: Bearer eyJhbGci..." \\\n  -H "Content-Type: application/json" \\\n  -d '{"status": "aktif", "tahun": 2024}'`}
+                  value={curlInput}
+                  onChange={(e) => {
+                    setCurlInput(e.target.value);
+                    if (curlError) setCurlError('');
+                  }}
+                />
+              </div>
+
+              {curlError && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: 'var(--accent-rose)',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px'
+                }}>
+                  <AlertCircle size={14} />
+                  <span>{curlError}</span>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                <div style={{ display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={autoExtractParams}
+                      onChange={(e) => setAutoExtractParams(e.target.checked)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    Ekstrak parameter query & body menjadi Tool Parameters
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={autoEnableToolMode}
+                      onChange={(e) => setAutoEnableToolMode(e.target.checked)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    Aktifkan Mode AI Tool jika ada parameter
+                  </label>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCurlImportOpen(false);
+                      setCurlError('');
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-muted)',
+                      borderRadius: '6px',
+                      padding: '6px 12px',
+                      fontSize: '12px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    id="btn-apply-curl"
+                    onClick={handleApplyCurl}
+                    style={{
+                      background: 'var(--accent-cyan)',
+                      color: '#000',
+                      fontWeight: '700',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '6px 14px',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 2px 8px rgba(6, 182, 212, 0.3)'
+                    }}
+                  >
+                    <Zap size={13} />
+                    <span>Terapkan & Parse cURL</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Basic Info */}
           <div>
             <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
@@ -501,11 +946,13 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                 <option value="GET">GET</option>
                 <option value="POST">POST</option>
                 <option value="PUT">PUT</option>
+                <option value="DELETE">DELETE</option>
+                <option value="PATCH">PATCH</option>
               </select>
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                Endpoint URL <span style={{ color: 'var(--text-muted)', fontWeight: '400' }}>(supports <code style={{ color: 'var(--accent-cyan)' }}>&#123;param&#125;</code> for path variables)</span>
+                Endpoint URL <span style={{ color: 'var(--text-muted)', fontWeight: '400' }}>(supports <code style={{ color: 'var(--accent-cyan)' }}>&#123;param&#125;</code> atau <button type="button" onClick={() => setIsCurlImportOpen(true)} style={{ background: 'none', border: 'none', color: 'var(--accent-cyan)', textDecoration: 'underline', cursor: 'pointer', padding: 0, fontSize: '11px', display: 'inline' }}>Paste cURL</button>)</span>
               </label>
               <input
                 type="text"
@@ -537,88 +984,349 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
             <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px' }}>
               Authentication Mode
             </label>
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               {[
-                { id: 'static', label: 'Static Bearer Token' },
-                { id: 'oauth2', label: 'OAuth2 / Dynamic Bearer' },
+                { id: 'static', label: 'Static Bearer / API Key' },
+                { id: 'endpoint_token', label: '🔑 Ambil Token dari Endpoint (OAuth2 / Dynamic)' },
                 { id: 'none', label: 'No Auth / Public' }
-              ].map((m) => (
-                <button
-                  type="button"
-                  key={m.id}
-                  onClick={() => setAuthMode(m.id)}
-                  style={{
-                    flex: 1,
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    background: authMode === m.id ? 'rgba(6, 182, 212, 0.2)' : 'var(--bg-glass-light)',
-                    border: authMode === m.id ? '1px solid var(--accent-cyan)' : '1px solid var(--border-color)',
-                    color: authMode === m.id ? 'var(--text-main)' : 'var(--text-secondary)',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  {m.label}
-                </button>
-              ))}
+              ].map((m) => {
+                const isSelected = authMode === m.id || (m.id === 'endpoint_token' && authMode === 'oauth2');
+                return (
+                  <button
+                    type="button"
+                    key={m.id}
+                    onClick={() => {
+                      setAuthMode(m.id);
+                      setTokenTestResult(null);
+                    }}
+                    style={{
+                      flex: 1,
+                      minWidth: '160px',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      background: isSelected ? 'rgba(6, 182, 212, 0.2)' : 'var(--bg-glass-light)',
+                      border: isSelected ? '1px solid var(--accent-cyan)' : '1px solid var(--border-color)',
+                      color: isSelected ? 'var(--text-main)' : 'var(--text-secondary)',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {m.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           {authMode === 'static' && (
             <div>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                Bearer Token
+                Bearer Token / API Key
               </label>
               <input
                 type="password"
                 className="input-field font-mono"
-                placeholder="eyJhbGciOi..."
+                placeholder="eyJhbGciOi... atau secret_api_key_xyz"
                 value={bearerToken}
                 onChange={(e) => setBearerToken(e.target.value)}
               />
             </div>
           )}
 
-          {authMode === 'oauth2' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px', background: 'var(--bg-glass-2)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+          {(authMode === 'endpoint_token' || authMode === 'oauth2') && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px',
+              padding: '16px 18px',
+              background: 'var(--bg-glass-2)',
+              borderRadius: '10px',
+              border: '1px solid rgba(6, 182, 212, 0.35)',
+              boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Key size={16} color="var(--accent-cyan)" />
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-main)' }}>
+                    Ambil Token dari Endpoint (Pre-Request Token)
+                  </span>
+                  <span style={{
+                    fontSize: '10px',
+                    fontWeight: '700',
+                    background: 'rgba(6, 182, 212, 0.15)',
+                    color: 'var(--accent-cyan)',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    border: '1px solid rgba(6, 182, 212, 0.3)'
+                  }}>
+                    DYNAMIC AUTH
+                  </span>
+                </div>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                  Token diperoleh otomatis sebelum memanggil endpoint utama
+                </span>
+              </div>
+
               <div>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                  Token Endpoint URL
+                  Token Endpoint URL <span style={{ color: 'var(--accent-rose)' }}>*</span>
                 </label>
                 <input
                   type="url"
                   className="input-field font-mono"
-                  placeholder="https://auth.example.com/oauth/token"
+                  placeholder="https://auth.example.com/oauth/token atau https://api.internal.gov.id/api/login"
                   value={tokenUrl}
                   onChange={(e) => setTokenUrl(e.target.value)}
                   required
                 />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                    Client ID
+                    Metode HTTP
                   </label>
-                  <input
-                    type="text"
+                  <select
                     className="input-field"
-                    value={clientId}
-                    onChange={(e) => setClientId(e.target.value)}
-                  />
+                    value={tokenMethod}
+                    onChange={(e) => setTokenMethod(e.target.value)}
+                  >
+                    <option value="POST">POST</option>
+                    <option value="GET">GET</option>
+                  </select>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                    Client Secret
+                    Format / Kredensial Payload
                   </label>
-                  <input
-                    type="password"
+                  <select
                     className="input-field"
-                    value={clientSecret}
-                    onChange={(e) => setClientSecret(e.target.value)}
+                    value={tokenPayloadType}
+                    onChange={(e) => setTokenPayloadType(e.target.value)}
+                  >
+                    <option value="oauth2">OAuth2 Client Credentials (client_id & client_secret)</option>
+                    <option value="password">Username & Password Login (JSON)</option>
+                    <option value="custom_json">Custom JSON Body (Kustom)</option>
+                    <option value="form">Form URL-Encoded (x-www-form-urlencoded)</option>
+                  </select>
+                </div>
+              </div>
+
+              {tokenPayloadType === 'oauth2' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                      Client ID
+                    </label>
+                    <input
+                      type="text"
+                      className="input-field font-mono"
+                      placeholder="e.g. app-client-id-123"
+                      value={clientId}
+                      onChange={(e) => setClientId(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                      Client Secret
+                    </label>
+                    <input
+                      type="password"
+                      className="input-field font-mono"
+                      placeholder="••••••••••••"
+                      value={clientSecret}
+                      onChange={(e) => setClientSecret(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {tokenPayloadType === 'password' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                      Username / Email
+                    </label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="admin / user@domain.com"
+                      value={tokenUsername}
+                      onChange={(e) => setTokenUsername(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      className="input-field"
+                      placeholder="••••••••••••"
+                      value={tokenPassword}
+                      onChange={(e) => setTokenPassword(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {tokenPayloadType === 'custom_json' && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>
+                      JSON Request Body Payload
+                    </label>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      Format JSON valid
+                    </span>
+                  </div>
+                  <textarea
+                    className="input-field font-mono"
+                    rows={4}
+                    style={{ fontSize: '12px', lineHeight: '1.4', resize: 'vertical' }}
+                    placeholder={`{\n  "app_key": "my_app_key",\n  "app_secret": "my_secret"\n}`}
+                    value={tokenCustomJson}
+                    onChange={(e) => setTokenCustomJson(e.target.value)}
                   />
                 </div>
+              )}
+
+              {tokenPayloadType === 'form' && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>
+                      Form Body (x-www-form-urlencoded)
+                    </label>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      Format: key=val&key2=val2
+                    </span>
+                  </div>
+                  <textarea
+                    className="input-field font-mono"
+                    rows={3}
+                    style={{ fontSize: '12px', lineHeight: '1.4', resize: 'vertical' }}
+                    placeholder="grant_type=client_credentials&client_id=xxx&client_secret=yyy"
+                    value={tokenCustomJson}
+                    onChange={(e) => setTokenCustomJson(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {/* Advanced Token Header & Path Placement */}
+              <div style={{
+                background: 'var(--bg-glass-1)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: '8px',
+                padding: '12px'
+              }}>
+                <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Konfigurasi Header & Ekstraksi Token
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1.2fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      Nama Header Utama
+                    </label>
+                    <input
+                      type="text"
+                      className="input-field font-mono"
+                      style={{ fontSize: '12px', padding: '6px 8px' }}
+                      value={tokenHeaderName}
+                      onChange={(e) => setTokenHeaderName(e.target.value)}
+                      placeholder="Authorization"
+                      title="Header yang akan disematkan pada panggilan API utama (default: Authorization)"
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      Prefix Token
+                    </label>
+                    <select
+                      className="input-field"
+                      style={{ fontSize: '12px', padding: '6px 4px' }}
+                      value={tokenPrefix}
+                      onChange={(e) => setTokenPrefix(e.target.value)}
+                    >
+                      <option value="Bearer ">Bearer </option>
+                      <option value="">None (Raw Token)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      Path Field Token di Response
+                    </label>
+                    <input
+                      type="text"
+                      className="input-field font-mono"
+                      style={{ fontSize: '12px', padding: '6px 8px' }}
+                      value={tokenPath}
+                      onChange={(e) => setTokenPath(e.target.value)}
+                      placeholder="Auto (access_token, token)"
+                      title="Dot-notation path field token pada JSON response, misal data.token atau result.jwt. Biarkan kosong untuk deteksi otomatis."
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Test Token Fetch Button & Results */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    id="btn-test-fetch-token"
+                    onClick={handleTestFetchToken}
+                    disabled={testingToken || !tokenUrl}
+                    style={{
+                      background: 'rgba(6, 182, 212, 0.15)',
+                      border: '1px solid rgba(6, 182, 212, 0.4)',
+                      color: 'var(--accent-cyan)',
+                      borderRadius: '6px',
+                      padding: '7px 14px',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      cursor: testingToken || !tokenUrl ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      opacity: !tokenUrl ? 0.6 : 1,
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    <Key size={14} />
+                    <span>{testingToken ? 'Mengambil Token dari Endpoint...' : 'Uji Ambil Token dari Endpoint'}</span>
+                  </button>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    Verifikasi kredensial sebelum menyimpan
+                  </span>
+                </div>
+
+                {tokenTestResult && (
+                  <div style={{
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    background: tokenTestResult.success ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                    border: `1px solid ${tokenTestResult.success ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`,
+                    color: tokenTestResult.success ? 'var(--accent-emerald)' : 'var(--accent-rose)',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '8px',
+                    lineHeight: '1.4'
+                  }}>
+                    {tokenTestResult.success ? <CheckCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} /> : <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: '600' }}>{tokenTestResult.message}</div>
+                      {tokenTestResult.token_preview && (
+                        <div style={{ marginTop: '4px', fontSize: '11px', opacity: 0.9 }}>
+                          Preview Token: <code className="font-mono" style={{ background: 'rgba(0,0,0,0.2)', padding: '2px 5px', borderRadius: '4px' }}>{tokenTestResult.token_preview}</code>
+                          {' '}({tokenTestResult.token_length} karakter)
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

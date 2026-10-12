@@ -20,47 +20,220 @@ class APIIngester:
             return bool(config["ssl_verify"])
         return False
 
+    @staticmethod
+    def extract_token_from_response(data: Any, token_path: Optional[str] = None) -> Optional[str]:
+        """
+        Robust extraction of token from API response:
+        1. Custom dot-notation path (e.g. 'data.token' or 'result.accessToken')
+        2. Common standard keys (access_token, token, id_token, jwt, etc.)
+        3. Common container objects (data, result, response, auth, payload)
+        4. Key search heuristics
+        """
+        if not data:
+            return None
+
+        if isinstance(data, str):
+            clean_str = data.strip().strip('"').strip("'")
+            return clean_str if clean_str else None
+
+        if not isinstance(data, dict):
+            return None
+
+        # 1. Explicit dot-notation path
+        if token_path and str(token_path).strip():
+            parts = [p.strip() for p in str(token_path).strip().split(".") if p.strip()]
+            curr = data
+            for part in parts:
+                if isinstance(curr, dict) and part in curr:
+                    curr = curr[part]
+                else:
+                    curr = None
+                    break
+            if curr is not None and not isinstance(curr, (dict, list)):
+                return str(curr).strip()
+
+        # 2. Standard direct keys
+        direct_candidates = [
+            "access_token", "token", "id_token", "jwt", "accessToken", "bearer_token",
+            "api_token", "authToken", "auth_token", "key", "token_value"
+        ]
+        for k in direct_candidates:
+            if k in data and data[k] and not isinstance(data[k], (dict, list)):
+                return str(data[k]).strip()
+
+        # 3. Check inside common container dicts
+        container_keys = ["data", "result", "response", "auth", "payload", "body", "item", "credentials"]
+        for c_key in container_keys:
+            sub = data.get(c_key)
+            if isinstance(sub, dict):
+                for k in direct_candidates:
+                    if k in sub and sub[k] and not isinstance(sub[k], (dict, list)):
+                        return str(sub[k]).strip()
+
+        # 4. Search any key that contains 'token' or 'jwt'
+        for k, v in data.items():
+            if ("token" in k.lower() or "jwt" in k.lower()) and v and not isinstance(v, (dict, list)):
+                return str(v).strip()
+
+        for k, v in data.items():
+            if isinstance(v, dict):
+                for sub_k, sub_v in v.items():
+                    if ("token" in sub_k.lower() or "jwt" in sub_k.lower()) and sub_v and not isinstance(sub_v, (dict, list)):
+                        return str(sub_v).strip()
+
+        return None
+
     async def get_bearer_token(self, auth_config: Dict[str, Any]) -> Optional[str]:
         """
         Supports dynamic token acquisition:
         - static: returns token directly
-        - oauth2 / token_url: sends credentials to obtain dynamic token
+        - endpoint_token / oauth2 / token_url: sends credentials to obtain dynamic token from endpoint
         """
+        if not auth_config:
+            return None
+
         mode = auth_config.get("mode", "static")
         if mode == "static":
             return auth_config.get("token")
 
-        elif mode in ["oauth2", "token_endpoint"]:
+        if mode in ["oauth2", "token_endpoint", "endpoint_token", "dynamic_token", "pre_request"] or auth_config.get("token_url"):
             token_url = auth_config.get("token_url")
-            payload = auth_config.get("payload", {})
-            headers = auth_config.get("headers", {})
+            if not token_url or not str(token_url).strip():
+                raise ValueError("token_url wajib diisi untuk pengambilan token dinamis dari endpoint.")
 
-            if not token_url:
-                raise ValueError("token_url is required for dynamic token acquisition")
+            token_method = auth_config.get("token_method", "POST").upper()
+            payload = auth_config.get("payload", {})
+            payload_type = auth_config.get("payload_type", "json")
+            headers = auth_config.get("headers", {}).copy() if auth_config.get("headers") else {}
+            token_path = auth_config.get("token_path")
+
+            if payload_type == "form" and "Content-Type" not in headers:
+                headers["Content-Type"] = "application/x-www-form-urlencoded"
+            elif "Content-Type" not in headers and payload_type != "form":
+                headers["Content-Type"] = "application/json"
 
             verify_ssl = self._get_verify_ssl(auth_config)
-            try:
-                async with httpx.AsyncClient(timeout=15.0, verify=verify_ssl) as client:
-                    resp = await client.post(token_url, json=payload, headers=headers)
+
+            async def _do_req(v_ssl: bool):
+                async with httpx.AsyncClient(timeout=15.0, verify=v_ssl) as client:
+                    if token_method == "GET":
+                        resp = await client.get(token_url, params=payload if isinstance(payload, dict) else None, headers=headers)
+                    else:
+                        if payload_type == "form":
+                            resp = await client.post(token_url, data=payload, headers=headers)
+                        else:
+                            resp = await client.post(token_url, json=payload, headers=headers)
                     resp.raise_for_status()
-                    data = resp.json()
+                    try:
+                        return resp.json()
+                    except Exception:
+                        return resp.text
+
+            try:
+                data = await _do_req(verify_ssl)
             except Exception as ssl_e:
                 if any(err_kw in str(ssl_e).lower() for err_kw in ["certificate verify failed", "unable to get local issuer certificate", "certificate_verify_failed"]):
                     logger.warning(f"SSL verification failed for token_url {token_url}. Retrying with verify=False.")
-                    async with httpx.AsyncClient(timeout=15.0, verify=False) as client:
-                        resp = await client.post(token_url, json=payload, headers=headers)
-                        resp.raise_for_status()
-                        data = resp.json()
+                    data = await _do_req(False)
                 else:
                     raise ssl_e
 
-            # Search common token fields
-            token = data.get("access_token") or data.get("token") or data.get("id_token")
+            token = self.extract_token_from_response(data, token_path)
             if not token:
-                raise ValueError(f"Token field not found in response: {list(data.keys())}")
+                keys_info = list(data.keys()) if isinstance(data, dict) else str(data)[:100]
+                raise ValueError(f"Field token tidak ditemukan dalam respons endpoint: {keys_info}")
             return token
 
         return None
+
+    def get_bearer_token_sync(self, auth_config: Dict[str, Any]) -> Optional[str]:
+        """
+        Synchronously retrieves token from endpoint or static configuration.
+        """
+        if not auth_config:
+            return None
+
+        mode = auth_config.get("mode", "static")
+        if mode == "static":
+            return auth_config.get("token")
+
+        if mode in ["oauth2", "token_endpoint", "endpoint_token", "dynamic_token", "pre_request"] or auth_config.get("token_url"):
+            token_url = auth_config.get("token_url")
+            if not token_url or not str(token_url).strip():
+                raise ValueError("token_url wajib diisi untuk pengambilan token dinamis dari endpoint.")
+
+            token_method = auth_config.get("token_method", "POST").upper()
+            payload = auth_config.get("payload", {})
+            payload_type = auth_config.get("payload_type", "json")
+            headers = auth_config.get("headers", {}).copy() if auth_config.get("headers") else {}
+            token_path = auth_config.get("token_path")
+
+            if payload_type == "form" and "Content-Type" not in headers:
+                headers["Content-Type"] = "application/x-www-form-urlencoded"
+            elif "Content-Type" not in headers and payload_type != "form":
+                headers["Content-Type"] = "application/json"
+
+            verify_ssl = self._get_verify_ssl(auth_config)
+
+            def _do_req_sync(v_ssl: bool):
+                with httpx.Client(timeout=15.0, verify=v_ssl) as client:
+                    if token_method == "GET":
+                        resp = client.get(token_url, params=payload if isinstance(payload, dict) else None, headers=headers)
+                    else:
+                        if payload_type == "form":
+                            resp = client.post(token_url, data=payload, headers=headers)
+                        else:
+                            resp = client.post(token_url, json=payload, headers=headers)
+                    resp.raise_for_status()
+                    try:
+                        return resp.json()
+                    except Exception:
+                        return resp.text
+
+            try:
+                data = _do_req_sync(verify_ssl)
+            except Exception as ssl_e:
+                if any(err_kw in str(ssl_e).lower() for err_kw in ["certificate verify failed", "unable to get local issuer certificate", "certificate_verify_failed"]):
+                    logger.warning(f"SSL verification failed for token_url {token_url}. Retrying with verify=False.")
+                    data = _do_req_sync(False)
+                else:
+                    raise ssl_e
+
+            token = self.extract_token_from_response(data, token_path)
+            if not token:
+                keys_info = list(data.keys()) if isinstance(data, dict) else str(data)[:100]
+                raise ValueError(f"Field token tidak ditemukan dalam respons endpoint: {keys_info}")
+            return token
+
+        return None
+
+    async def test_fetch_token(self, auth_config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Tests retrieving token from the specified endpoint and returns debug details.
+        """
+        token_url = auth_config.get("token_url")
+        if not token_url or not str(token_url).strip():
+            return {"success": False, "message": "Token Endpoint URL wajib diisi."}
+
+        try:
+            token = await self.get_bearer_token(auth_config)
+            if not token:
+                return {"success": False, "message": "Token tidak ditemukan dalam respons endpoint."}
+
+            preview = f"{token[:16]}...{token[-8:]}" if len(token) > 28 else token
+            return {
+                "success": True,
+                "message": f"Token berhasil diambil dari endpoint!",
+                "token_preview": preview,
+                "token_length": len(token),
+                "header_name": auth_config.get("header_name", "Authorization") or "Authorization",
+                "token_prefix": auth_config.get("token_prefix", "Bearer ")
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Gagal mengambil token dari endpoint: {str(e)}"
+            }
 
     async def fetch_and_extract(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         endpoint = config.get("endpoint")
@@ -73,7 +246,11 @@ class APIIngester:
         if auth_config:
             token = await self.get_bearer_token(auth_config)
             if token:
-                headers["Authorization"] = f"Bearer {token}"
+                header_name = auth_config.get("header_name", "Authorization") or "Authorization"
+                token_prefix = auth_config.get("token_prefix")
+                if token_prefix is None:
+                    token_prefix = "Bearer "
+                headers[header_name] = f"{token_prefix}{token}".strip() if token_prefix else str(token)
 
         import urllib.parse
         if endpoint and "?" in endpoint:
@@ -227,7 +404,11 @@ class APIIngester:
         if auth_config:
             token = await self.get_bearer_token(auth_config)
             if token:
-                headers["Authorization"] = f"Bearer {token}"
+                header_name = auth_config.get("header_name", "Authorization") or "Authorization"
+                token_prefix = auth_config.get("token_prefix")
+                if token_prefix is None:
+                    token_prefix = "Bearer "
+                headers[header_name] = f"{token_prefix}{token}".strip() if token_prefix else str(token)
 
         req_json = None
         if method in ["POST", "PUT", "PATCH"]:
@@ -404,29 +585,13 @@ class APIIngester:
 
         auth_config = config.get("auth", {})
         if auth_config:
-            mode = auth_config.get("mode", "static")
-            if mode == "static":
-                token = auth_config.get("token")
-                if token:
-                    headers["Authorization"] = f"Bearer {token}"
-            elif mode in ["oauth2", "token_endpoint"]:
-                token_url = auth_config.get("token_url")
-                if token_url:
-                    v_ssl = self._get_verify_ssl(auth_config)
-                    try:
-                        with httpx.Client(timeout=15.0, verify=v_ssl) as client:
-                            resp = client.post(token_url, json=auth_config.get("payload", {}), headers=auth_config.get("headers", {}))
-                    except Exception as ssl_e:
-                        if any(err_kw in str(ssl_e).lower() for err_kw in ["certificate verify failed", "unable to get local issuer certificate", "certificate_verify_failed"]):
-                            with httpx.Client(timeout=15.0, verify=False) as client:
-                                resp = client.post(token_url, json=auth_config.get("payload", {}), headers=auth_config.get("headers", {}))
-                        else:
-                            raise ssl_e
-                    if resp.is_success:
-                        data = resp.json()
-                        token = data.get("access_token") or data.get("token") or data.get("id_token")
-                        if token:
-                            headers["Authorization"] = f"Bearer {token}"
+            token = self.get_bearer_token_sync(auth_config)
+            if token:
+                header_name = auth_config.get("header_name", "Authorization") or "Authorization"
+                token_prefix = auth_config.get("token_prefix")
+                if token_prefix is None:
+                    token_prefix = "Bearer "
+                headers[header_name] = f"{token_prefix}{token}".strip() if token_prefix else str(token)
 
         req_json = None
         if method in ["POST", "PUT", "PATCH"]:

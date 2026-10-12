@@ -19,7 +19,8 @@ import {
   Download,
   Upload,
   BookOpen,
-  Cpu
+  Cpu,
+  Terminal
 } from 'lucide-react';
 import api from '../api/client';
 import { formatDateTimeWIB } from '../utils/dateUtils';
@@ -320,6 +321,23 @@ export default function KnowledgeSources() {
           </button>
           <button className="btn-secondary" onClick={() => { setEditingSource(null); setActiveModal('api'); }}>
             <Globe size={15} /> API
+          </button>
+          <button 
+            type="button"
+            id="btn-import-curl"
+            className="btn-secondary" 
+            onClick={() => { setEditingSource({ openCurlImport: true }); setActiveModal('api'); }}
+            title="Import endpoint API dan parameter langsung dari perintah cURL"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              borderColor: 'rgba(6, 182, 212, 0.4)',
+              color: 'var(--accent-cyan)',
+              background: 'rgba(6, 182, 212, 0.08)'
+            }}
+          >
+            <Terminal size={15} /> Import cURL
           </button>
           <button 
             type="button"
