@@ -15,7 +15,9 @@ import {
   Clock,
   Copy,
   BookOpen,
-  Sparkles
+  Sparkles,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import api from '../../api/client';
 import { inferFieldDescription, inferFieldDataType } from '../../utils/fieldDefinitionHelper';
@@ -45,6 +47,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
 
   // Field Definitions (Kamus Data Balikan)
   const [fieldDefinitions, setFieldDefinitions] = useState([]);
+  const [isFieldsCollapsed, setIsFieldsCollapsed] = useState(true);
 
   // Validity Hierarchy States
   const [validityTier, setValidityTier] = useState('authoritative');
@@ -93,6 +96,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       setTestArgs(initialTestArgs);
       setTestResult(null);
       setTesting(false);
+      setIsFieldsCollapsed(true);
     } else if (isOpen && !initialData) {
       setName('');
       setEndpoint('');
@@ -115,6 +119,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       setValidityNotes('');
       setTestArgs({});
       setTestResult(null);
+      setIsFieldsCollapsed(true);
     }
   }, [isOpen, initialData]);
 
@@ -137,7 +142,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
     if (checked && parameters.length === 0) {
       // Add one default query param as a helpful starter
       setParameters([
-        { name: 'query', in: 'query', type: 'string', description: 'Search or filter parameter', required: true, default: '' }
+        { name: 'query', in: 'query', type: 'string', description: 'Search or filter parameter', required: true, default: '', include_empty: false }
       ]);
       setTestArgs({ query: '' });
     }
@@ -146,7 +151,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
   const handleAddParameter = () => {
     setParameters(prev => [
       ...prev,
-      { name: '', in: 'query', type: 'string', description: '', required: false, default: '' }
+      { name: '', in: 'query', type: 'string', description: '', required: false, default: '', include_empty: false }
     ]);
   };
 
@@ -168,6 +173,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
 
   // Field Definitions Handlers
   const handleAddFieldDefinition = () => {
+    setIsFieldsCollapsed(false);
     setFieldDefinitions(prev => [
       ...prev,
       { name: '', type: 'string', description: '', sample: '' }
@@ -275,6 +281,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       });
     });
 
+    setIsFieldsCollapsed(false);
     setFieldDefinitions(detected);
   };
 
@@ -297,6 +304,17 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
           ? { mode: 'oauth2', token_url: tokenUrl, payload: { client_id: clientId, client_secret: clientSecret } }
           : {};
 
+      const effectiveTestArgs = { ...testArgs };
+      if (isTool) {
+        parameters.forEach(p => {
+          if (p.name && (p.include_empty || p.allow_empty)) {
+            if (effectiveTestArgs[p.name] === undefined) {
+              effectiveTestArgs[p.name] = p.default !== undefined ? p.default : '';
+            }
+          }
+        });
+      }
+
       const configPayload = {
         endpoint,
         method,
@@ -306,7 +324,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
         tool_name: toolName.trim() || undefined,
         tool_description: toolDescription.trim() || undefined,
         parameters: isTool ? parameters.filter(p => p.name && p.name.trim() !== '') : [],
-        test_arguments: isTool ? testArgs : {}
+        test_arguments: isTool ? effectiveTestArgs : {}
       };
 
       const res = await api.post('/knowledge/test-connection', {
@@ -784,12 +802,33 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1.2fr 85px 80px 1.8fr 58px 75px 1fr 28px',
+                        gap: '8px',
+                        padding: '0 10px',
+                        fontSize: '10px',
+                        fontWeight: '700',
+                        color: 'var(--text-muted)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}>
+                        <div>Nama Parameter</div>
+                        <div>Lokasi (In)</div>
+                        <div>Tipe</div>
+                        <div>Deskripsi LLM</div>
+                        <div style={{ textAlign: 'center' }} title="Parameter wajib diisi">Wajib</div>
+                        <div style={{ textAlign: 'center' }} title="Sertakan parameter ke request API meskipun nilainya kosong">Kirim Kosong</div>
+                        <div>Default</div>
+                        <div></div>
+                      </div>
+
                       {parameters.map((param, pIdx) => (
                         <div
                           key={pIdx}
                           style={{
                             display: 'grid',
-                            gridTemplateColumns: '1.2fr 90px 85px 2fr 75px 1fr 32px',
+                            gridTemplateColumns: '1.2fr 85px 80px 1.8fr 58px 75px 1fr 28px',
                             gap: '8px',
                             alignItems: 'center',
                             background: 'var(--bg-glass-1)',
@@ -857,8 +896,21 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                               onChange={(e) => handleUpdateParameter(pIdx, 'required', e.target.checked)}
                               style={{ cursor: 'pointer' }}
                             />
-                            <label htmlFor={`req-${pIdx}`} style={{ fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                            <label htmlFor={`req-${pIdx}`} style={{ fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }} title="Tandai sebagai parameter wajib">
                               Req
+                            </label>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                            <input
+                              type="checkbox"
+                              id={`empty-${pIdx}`}
+                              checked={Boolean(param.include_empty)}
+                              onChange={(e) => handleUpdateParameter(pIdx, 'include_empty', e.target.checked)}
+                              style={{ cursor: 'pointer' }}
+                            />
+                            <label htmlFor={`empty-${pIdx}`} style={{ fontSize: '11px', color: param.include_empty ? 'var(--accent-cyan)' : 'var(--text-secondary)', fontWeight: param.include_empty ? '600' : 'normal', cursor: 'pointer' }} title="Kirim parameter ke endpoint API meskipun bernilai string kosong">
+                              Kosong
                             </label>
                           </div>
 
@@ -876,7 +928,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                           <button
                             type="button"
                             onClick={() => handleRemoveParameter(pIdx)}
-                            style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: '4px' }}
+                            style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: '4px', display: 'flex', justifyContent: 'center' }}
                             title="Remove parameter"
                           >
                             <Trash2 size={14} />
@@ -962,20 +1014,32 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                 {/* Live Test Parameter Values */}
                 {parameters.filter(p => p.name).length > 0 && (
                   <div style={{ padding: '14px', background: 'var(--bg-glass-2)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                    <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Play size={13} color="var(--accent-cyan)" /> Test Parameter Values for Live Validation
+                    <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Play size={13} color="var(--accent-cyan)" /> Test Parameter Values for Live Validation
+                      </div>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        Parameter bertanda <em>(allow empty)</em> akan tetap disertakan jika dikosongkan
+                      </span>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
                       {parameters.filter(p => p.name).map((p, idx) => (
                         <div key={idx}>
-                          <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                            {p.name} {p.required && <span style={{ color: '#ef4444' }}>*</span>}
+                          <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                            <span>
+                              {p.name} {p.required && <span style={{ color: '#ef4444' }}>*</span>}
+                            </span>
+                            {p.include_empty && (
+                              <span style={{ fontSize: '10px', color: 'var(--accent-cyan)', background: 'rgba(6, 182, 212, 0.1)', padding: '1px 5px', borderRadius: '4px' }} title="Parameter ini tetap dikirim ke API meskipun nilainya kosong">
+                                allow empty
+                              </span>
+                            )}
                           </label>
                           <input
                             type="text"
                             className="input-field font-mono"
                             style={{ padding: '6px 8px', fontSize: '12px' }}
-                            placeholder={p.default || `Value for ${p.name}`}
+                            placeholder={p.default || (p.include_empty ? 'Kirim nilai kosong ("")' : `Value for ${p.name}`)}
                             value={testArgs[p.name] !== undefined ? testArgs[p.name] : (p.default || '')}
                             onChange={(e) => handleTestArgChange(p.name, e.target.value)}
                           />
@@ -1047,10 +1111,14 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
             border: '1px solid var(--border-subtle)',
             display: 'flex',
             flexDirection: 'column',
-            gap: '12px'
+            gap: isFieldsCollapsed ? '0' : '12px'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
-              <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+              <div
+                onClick={() => setIsFieldsCollapsed(!isFieldsCollapsed)}
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+                title={isFieldsCollapsed ? 'Klik untuk membuka Kamus Data' : 'Klik untuk menutup Kamus Data'}
+              >
                 <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <BookOpen size={16} color="var(--accent-primary)" />
                   <span>Definisi Field Balikan (Kamus Data / Schema Output)</span>
@@ -1064,6 +1132,11 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                   }}>
                     {fieldDefinitions.length} Field
                   </span>
+                  {isFieldsCollapsed ? (
+                    <ChevronRight size={16} color="var(--text-muted)" />
+                  ) : (
+                    <ChevronDown size={16} color="var(--text-muted)" />
+                  )}
                 </div>
                 <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', maxWidth: '560px' }}>
                   Bantu AI memahami secara tepat arti, singkatan, tipe, dan kode angka setiap kolom yang dikembalikan oleh API ini agar interpretasi jawaban akurat dan bebas halusinasi.
@@ -1077,7 +1150,10 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                 ) && (
                     <button
                       type="button"
-                      onClick={handleAutoDetectFieldDefinitions}
+                      onClick={() => {
+                        setIsFieldsCollapsed(false);
+                        handleAutoDetectFieldDefinitions();
+                      }}
                       style={{
                         background: 'rgba(5, 150, 105, 0.12)',
                         border: '1px solid rgba(5, 150, 105, 0.35)',
@@ -1099,7 +1175,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                     </button>
                   )}
 
-                {fieldDefinitions.length > 0 && (
+                {!isFieldsCollapsed && fieldDefinitions.length > 0 && (
                   <button
                     type="button"
                     onClick={handleAutoFillEmptyDescriptions}
@@ -1145,135 +1221,161 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                   <Plus size={13} />
                   <span>Tambah Field</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsFieldsCollapsed(!isFieldsCollapsed)}
+                  style={{
+                    background: 'none',
+                    border: '1px solid var(--border-subtle)',
+                    color: 'var(--text-muted)',
+                    padding: '5px 8px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    cursor: 'pointer'
+                  }}
+                  title={isFieldsCollapsed ? 'Buka kamus data' : 'Tutup kamus data'}
+                >
+                  {isFieldsCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                  <span>{isFieldsCollapsed ? 'Buka' : 'Tutup'}</span>
+                </button>
               </div>
             </div>
 
-            {fieldDefinitions.length === 0 ? (
-              <div style={{
-                padding: '14px',
-                textAlign: 'center',
-                background: 'var(--bg-glass-2)',
-                borderRadius: '8px',
-                border: '1px dashed var(--border-subtle)',
-                fontSize: '11.5px',
-                color: 'var(--text-muted)',
-                lineHeight: '1.5'
-              }}>
-                Belum ada definisi field. Klik <strong>"Tambah Field"</strong> manual atau jalankan test lalu klik <strong>"⚡ Deteksi Otomatis dari Test"</strong> untuk mendeteksi field sekaligus mengisi definisi otomatis untuk AI.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  background: 'color-mix(in srgb, var(--accent-primary) 8%, var(--bg-glass-2))',
-                  border: '1px solid color-mix(in srgb, var(--accent-primary) 25%, transparent)',
-                  fontSize: '11.5px',
-                  color: 'var(--text-secondary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}>
-                  <Sparkles size={14} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
-                  <span style={{ lineHeight: '1.4' }}>
-                    Definisi terisi otomatis sebagai bantuan deteksi awal untuk AI. Anda dapat menyunting atau memperjelas arti field sesuai kebutuhan.
-                  </span>
-                </div>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1.2fr 100px 2.2fr 1.2fr 36px',
-                  gap: '8px',
-                  padding: '0 8px',
-                  fontSize: '10.5px',
-                  fontWeight: '700',
-                  color: 'var(--text-muted)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em'
-                }}>
-                  <div>Nama Kolom / Key</div>
-                  <div>Tipe Data</div>
-                  <div>Definisi / Arti untuk AI</div>
-                  <div>Contoh / Nilai Kode</div>
-                  <div style={{ textAlign: 'center' }}>Hapus</div>
-                </div>
-
-                {fieldDefinitions.map((fd, fIdx) => (
-                  <div
-                    key={fIdx}
-                    style={{
+            {!isFieldsCollapsed && (
+              <>
+                {fieldDefinitions.length === 0 ? (
+                  <div style={{
+                    padding: '14px',
+                    textAlign: 'center',
+                    background: 'var(--bg-glass-2)',
+                    borderRadius: '8px',
+                    border: '1px dashed var(--border-subtle)',
+                    fontSize: '11.5px',
+                    color: 'var(--text-muted)',
+                    lineHeight: '1.5'
+                  }}>
+                    Belum ada definisi field. Klik <strong>"Tambah Field"</strong> manual atau jalankan test lalu klik <strong>"⚡ Deteksi Otomatis dari Test"</strong> untuk mendeteksi field sekaligus mengisi definisi otomatis untuk AI.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      background: 'color-mix(in srgb, var(--accent-primary) 8%, var(--bg-glass-2))',
+                      border: '1px solid color-mix(in srgb, var(--accent-primary) 25%, transparent)',
+                      fontSize: '11.5px',
+                      color: 'var(--text-secondary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}>
+                      <Sparkles size={14} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
+                      <span style={{ lineHeight: '1.4' }}>
+                        Definisi terisi otomatis sebagai bantuan deteksi awal untuk AI. Anda dapat menyunting atau memperjelas arti field sesuai kebutuhan.
+                      </span>
+                    </div>
+                    <div style={{
                       display: 'grid',
                       gridTemplateColumns: '1.2fr 100px 2.2fr 1.2fr 36px',
                       gap: '8px',
-                      alignItems: 'center',
-                      background: 'var(--bg-glass-1)',
-                      padding: '8px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-subtle)'
-                    }}
-                  >
-                    <div>
-                      <input
-                        type="text"
-                        className="input-field font-mono"
-                        style={{ padding: '6px 8px', fontSize: '11.5px' }}
-                        placeholder="e.g. nik"
-                        value={fd.name || ''}
-                        onChange={(e) => handleUpdateFieldDefinition(fIdx, 'name', e.target.value)}
-                      />
+                      padding: '0 8px',
+                      fontSize: '10.5px',
+                      fontWeight: '700',
+                      color: 'var(--text-muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em'
+                    }}>
+                      <div>Nama Kolom / Key</div>
+                      <div>Tipe Data</div>
+                      <div>Definisi / Arti untuk AI</div>
+                      <div>Contoh / Nilai Kode</div>
+                      <div style={{ textAlign: 'center' }}>Hapus</div>
                     </div>
 
-                    <div>
-                      <select
-                        className="input-field"
-                        style={{ padding: '6px 6px', fontSize: '11px' }}
-                        value={fd.type || 'string'}
-                        onChange={(e) => handleUpdateFieldDefinition(fIdx, 'type', e.target.value)}
+                    {fieldDefinitions.map((fd, fIdx) => (
+                      <div
+                        key={fIdx}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1.2fr 100px 2.2fr 1.2fr 36px',
+                          gap: '8px',
+                          alignItems: 'center',
+                          background: 'var(--bg-glass-1)',
+                          padding: '8px',
+                          borderRadius: '8px',
+                          border: '1px solid var(--border-subtle)'
+                        }}
                       >
-                        <option value="string">string</option>
-                        <option value="integer">integer</option>
-                        <option value="number">number</option>
-                        <option value="boolean">boolean</option>
-                        <option value="date">date</option>
-                        <option value="object">object</option>
-                        <option value="array">array</option>
-                      </select>
-                    </div>
+                        <div>
+                          <input
+                            type="text"
+                            className="input-field font-mono"
+                            style={{ padding: '6px 8px', fontSize: '11.5px' }}
+                            placeholder="e.g. nik"
+                            value={fd.name || ''}
+                            onChange={(e) => handleUpdateFieldDefinition(fIdx, 'name', e.target.value)}
+                          />
+                        </div>
 
-                    <div>
-                      <input
-                        type="text"
-                        className="input-field"
-                        style={{ padding: '6px 8px', fontSize: '11.5px' }}
-                        placeholder="e.g. Nomor Induk Kependudukan 16 digit resmi"
-                        value={fd.description || ''}
-                        onChange={(e) => handleUpdateFieldDefinition(fIdx, 'description', e.target.value)}
-                      />
-                    </div>
+                        <div>
+                          <select
+                            className="input-field"
+                            style={{ padding: '6px 6px', fontSize: '11px' }}
+                            value={fd.type || 'string'}
+                            onChange={(e) => handleUpdateFieldDefinition(fIdx, 'type', e.target.value)}
+                          >
+                            <option value="string">string</option>
+                            <option value="integer">integer</option>
+                            <option value="number">number</option>
+                            <option value="boolean">boolean</option>
+                            <option value="date">date</option>
+                            <option value="object">object</option>
+                            <option value="array">array</option>
+                          </select>
+                        </div>
 
-                    <div>
-                      <input
-                        type="text"
-                        className="input-field font-mono"
-                        style={{ padding: '6px 8px', fontSize: '11px' }}
-                        placeholder="e.g. 317507... / 1=PNS"
-                        value={fd.sample || ''}
-                        onChange={(e) => handleUpdateFieldDefinition(fIdx, 'sample', e.target.value)}
-                      />
-                    </div>
+                        <div>
+                          <input
+                            type="text"
+                            className="input-field"
+                            style={{ padding: '6px 8px', fontSize: '11.5px' }}
+                            placeholder="e.g. Nomor Induk Kependudukan 16 digit resmi"
+                            value={fd.description || ''}
+                            onChange={(e) => handleUpdateFieldDefinition(fIdx, 'description', e.target.value)}
+                          />
+                        </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'center' }}>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveFieldDefinition(fIdx)}
-                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
-                        title="Hapus field ini"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
+                        <div>
+                          <input
+                            type="text"
+                            className="input-field font-mono"
+                            style={{ padding: '6px 8px', fontSize: '11px' }}
+                            placeholder="e.g. 317507... / 1=PNS"
+                            value={fd.sample || ''}
+                            onChange={(e) => handleUpdateFieldDefinition(fIdx, 'sample', e.target.value)}
+                          />
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFieldDefinition(fIdx)}
+                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
+                            title="Hapus field ini"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </div>
 

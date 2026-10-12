@@ -172,28 +172,38 @@ class APIIngester:
 
         # Process passed arguments
         for arg_name, arg_val in (arguments or {}).items():
-            # Skip empty or null parameters
-            if arg_val is None or (isinstance(arg_val, str) and str(arg_val).strip() == ""):
+            spec = param_specs.get(arg_name, {})
+            include_empty = bool(spec.get("include_empty") or spec.get("allow_empty"))
+
+            # Skip empty or null parameters unless include_empty is enabled
+            if (arg_val is None or (isinstance(arg_val, str) and str(arg_val).strip() == "")) and not include_empty:
                 continue
 
-            spec = param_specs.get(arg_name, {})
+            val_to_use = "" if (arg_val is None or (isinstance(arg_val, str) and str(arg_val).strip() == "")) and include_empty else arg_val
+
             loc = spec.get("in", "query").lower()
             
             if loc == "path" or f"{{{arg_name}}}" in endpoint:
-                endpoint = endpoint.replace(f"{{{arg_name}}}", str(arg_val))
+                endpoint = endpoint.replace(f"{{{arg_name}}}", str(val_to_use))
             elif loc == "header":
-                headers[arg_name] = str(arg_val)
+                headers[arg_name] = str(val_to_use)
             elif loc == "body":
-                body_params[arg_name] = arg_val
+                body_params[arg_name] = val_to_use
             else:
-                query_params[arg_name] = arg_val
+                query_params[arg_name] = val_to_use
 
-        # Fill defaults for missing parameters
+        # Fill defaults or empty-included parameters for missing parameters
         for p in parameters_def:
             p_name = p.get("name")
-            if p_name and p_name not in (arguments or {}) and "default" in p and p["default"] is not None and str(p["default"]).strip() != "":
+            if not p_name or p_name in (arguments or {}):
+                continue
+
+            include_empty = bool(p.get("include_empty") or p.get("allow_empty"))
+            has_default = "default" in p and p["default"] is not None and str(p["default"]).strip() != ""
+
+            if has_default or include_empty:
                 loc = p.get("in", "query").lower()
-                def_val = p["default"]
+                def_val = p.get("default") if p.get("default") is not None and str(p.get("default")).strip() != "" else ""
                 if loc == "path" and f"{{{p_name}}}" in endpoint:
                     endpoint = endpoint.replace(f"{{{p_name}}}", str(def_val))
                 elif loc == "header" and p_name not in headers:
@@ -205,8 +215,12 @@ class APIIngester:
 
         # Check required params
         for p in parameters_def:
-            if p.get("required") and p.get("name") not in (arguments or {}) and (p.get("default") is None or str(p.get("default", "")).strip() == ""):
-                raise ValueError(f"Missing required parameter '{p.get('name')}'")
+            p_name = p.get("name")
+            if not p_name:
+                continue
+            include_empty = bool(p.get("include_empty") or p.get("allow_empty"))
+            if p.get("required") and not include_empty and p_name not in (arguments or {}) and (p.get("default") is None or str(p.get("default", "")).strip() == ""):
+                raise ValueError(f"Missing required parameter '{p_name}'")
 
         # Handle Auth
         auth_config = config.get("auth", {})
@@ -342,26 +356,35 @@ class APIIngester:
         param_specs = {p.get("name"): p for p in parameters_def if p.get("name")}
 
         for arg_name, arg_val in (arguments or {}).items():
-            # Skip empty or null parameters
-            if arg_val is None or (isinstance(arg_val, str) and str(arg_val).strip() == ""):
+            spec = param_specs.get(arg_name, {})
+            include_empty = bool(spec.get("include_empty") or spec.get("allow_empty"))
+
+            # Skip empty or null parameters unless include_empty is enabled
+            if (arg_val is None or (isinstance(arg_val, str) and str(arg_val).strip() == "")) and not include_empty:
                 continue
 
-            spec = param_specs.get(arg_name, {})
+            val_to_use = "" if (arg_val is None or (isinstance(arg_val, str) and str(arg_val).strip() == "")) and include_empty else arg_val
             loc = spec.get("in", "query").lower()
             if loc == "path" or f"{{{arg_name}}}" in endpoint:
-                endpoint = endpoint.replace(f"{{{arg_name}}}", str(arg_val))
+                endpoint = endpoint.replace(f"{{{arg_name}}}", str(val_to_use))
             elif loc == "header":
-                headers[arg_name] = str(arg_val)
+                headers[arg_name] = str(val_to_use)
             elif loc == "body":
-                body_params[arg_name] = arg_val
+                body_params[arg_name] = val_to_use
             else:
-                query_params[arg_name] = arg_val
+                query_params[arg_name] = val_to_use
 
         for p in parameters_def:
             p_name = p.get("name")
-            if p_name and p_name not in (arguments or {}) and "default" in p and p["default"] is not None and str(p["default"]).strip() != "":
+            if not p_name or p_name in (arguments or {}):
+                continue
+
+            include_empty = bool(p.get("include_empty") or p.get("allow_empty"))
+            has_default = "default" in p and p["default"] is not None and str(p["default"]).strip() != ""
+
+            if has_default or include_empty:
                 loc = p.get("in", "query").lower()
-                def_val = p["default"]
+                def_val = p.get("default") if p.get("default") is not None and str(p.get("default")).strip() != "" else ""
                 if loc == "path" and f"{{{p_name}}}" in endpoint:
                     endpoint = endpoint.replace(f"{{{p_name}}}", str(def_val))
                 elif loc == "header" and p_name not in headers:
@@ -372,8 +395,12 @@ class APIIngester:
                     query_params[p_name] = def_val
 
         for p in parameters_def:
-            if p.get("required") and p.get("name") not in (arguments or {}) and (p.get("default") is None or str(p.get("default", "")).strip() == ""):
-                raise ValueError(f"Missing required parameter '{p.get('name')}'")
+            p_name = p.get("name")
+            if not p_name:
+                continue
+            include_empty = bool(p.get("include_empty") or p.get("allow_empty"))
+            if p.get("required") and not include_empty and p_name not in (arguments or {}) and (p.get("default") is None or str(p.get("default", "")).strip() == ""):
+                raise ValueError(f"Missing required parameter '{p_name}'")
 
         auth_config = config.get("auth", {})
         if auth_config:

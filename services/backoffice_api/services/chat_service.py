@@ -790,9 +790,13 @@ class ChatService:
                             else:
                                 p_type = "string"
 
+                            p_desc = p.get("description") or f"Parameter {p_name}"
+                            if p.get("include_empty") or p.get("allow_empty"):
+                                p_desc += " (Boleh bernilai string kosong \"\" jika tidak ada filter/nilai)"
+
                             properties[p_name] = {
                                 "type": p_type,
-                                "description": p.get("description") or f"Parameter {p_name}"
+                                "description": p_desc
                             }
                             if p.get("required"):
                                 required_params.append(p_name)
