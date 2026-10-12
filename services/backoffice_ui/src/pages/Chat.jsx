@@ -2047,150 +2047,190 @@ export default function Chat() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)', gap: '16px' }}>
-      {/* Top Header & Settings Bar (Collapsed vs Expanded) */}
-      {!isHeaderOptionsOpen ? (
+      {/* Top Header & Settings Bar (Unified, Clean & Responsive) */}
+      <div 
+        className="glass-panel" 
+        style={{ 
+          position: 'relative',
+          zIndex: 40,
+          padding: '8px 14px', 
+          borderRadius: '12px',
+          flexShrink: 0,
+          transition: 'all 0.25s ease'
+        }}
+      >
+        {/* Main Header Bar (Always neat, non-wrapping & responsive) */}
         <div 
-          className="glass-panel" 
           style={{ 
-            position: 'relative',
-            zIndex: 40,
-            padding: '8px 16px', 
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'space-between', 
             gap: '12px',
-            minHeight: '44px',
-            borderRadius: '12px',
-            flexShrink: 0
+            minHeight: '36px'
           }}
         >
-          {/* Left: Compact Logo & Title + Quick Status Badges */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <div style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '8px',
-              background: 'linear-gradient(135deg, #2b394e 0%, #172233 100%)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
-            }}>
-              <Bot size={16} color="#ffffff" />
-            </div>
-            <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-main)' }}>
-              AI Knowledge Chat
-            </span>
-
-            {/* Quick Status Chips */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {/* Sources pill */}
-              <span 
-                onClick={toggleHeaderOptions}
-                title="Klik untuk mengubah sumber pengetahuan"
-                className="badge badge-outline gap-1.5 cursor-pointer font-semibold py-3 px-2.5 text-xs bg-base-200 border-base-300 text-base-content hover:bg-base-300 transition-all"
-              >
-                <Database size={12} />
-                {selectedSources.length === 0 ? 'All Sources' : `${selectedSources.length} Sources`}
+          {/* Left: Brand Identity & Status Badges */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1, overflow: 'hidden' }}>
+            {/* Logo & Title */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+              <div style={{
+                width: '30px',
+                height: '30px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)'
+              }}>
+                <Bot size={17} color="var(--accent-cyan)" />
+              </div>
+              <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-main)', whiteSpace: 'nowrap' }}>
+                AI Knowledge Chat
               </span>
+            </div>
+
+            {/* Subtle Divider */}
+            <div style={{ width: '1px', height: '18px', background: 'var(--border-subtle)', flexShrink: 0, margin: '0 2px' }} />
+
+            {/* Status Pills (Strictly single-row with smooth hidden scrollbar) */}
+            <div 
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '6px', 
+                flexWrap: 'nowrap', 
+                overflowX: 'auto',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+                minWidth: 0,
+                padding: '2px 0'
+              }}
+              className="no-scrollbar"
+            >
+              {/* Sources pill */}
+              <button 
+                type="button"
+                onClick={toggleHeaderOptions}
+                title="Klik untuk memilih sumber pengetahuan (Knowledge Sources)"
+                className="badge badge-outline gap-1.5 cursor-pointer font-medium py-2.5 px-2.5 text-xs bg-base-200/60 border-base-content/15 text-base-content hover:bg-base-200 hover:border-primary/50 transition-all flex-shrink-0"
+              >
+                <Database size={12} className="text-cyan-400" />
+                <span>{selectedSources.length === 0 ? 'All Sources' : `${selectedSources.length} Sources`}</span>
+              </button>
 
               {/* Anti-Halu pill */}
-              <span 
+              <button 
+                type="button"
                 onClick={() => {
                   const next = !strictMode;
                   setStrictMode(next);
                   setTemperature(next ? 0.0 : 0.3);
                 }}
-                title="Klik untuk toggle mode Anti-Halusinasi"
-                className={`badge badge-outline gap-1.5 cursor-pointer font-semibold py-3 px-2.5 text-xs transition-all ${strictMode ? 'badge-success bg-success/10 text-success' : 'badge-warning bg-warning/10 text-warning'}`}
+                title={strictMode ? "Mode Anti-Halusinasi AKTIF (Suhu 0.0) — Klik untuk ubah ke Fleksibel" : `Mode Fleksibel (Suhu ${temperature}) — Klik untuk aktifkan Anti-Halu`}
+                className={`badge badge-outline gap-1.5 cursor-pointer font-medium py-2.5 px-2.5 text-xs transition-all flex-shrink-0 ${
+                  strictMode 
+                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20' 
+                    : 'border-amber-500/40 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
+                }`}
               >
                 <ShieldCheck size={12} />
-                {strictMode ? 'Anti-Halu (0.0)' : `Suhu ${temperature}`}
-              </span>
+                <span>{strictMode ? 'Anti-Halu (0.0)' : `Suhu ${temperature}`}</span>
+              </button>
 
               {/* Active Model pill */}
-              <span 
+              <button 
+                type="button"
                 onClick={toggleHeaderOptions}
-                title="Klik untuk memilih model / provider AI"
-                className="badge badge-outline badge-primary bg-primary/10 text-primary gap-1.5 cursor-pointer font-semibold py-3 px-2.5 text-xs truncate max-w-[160px] transition-all"
+                title={`Model AI: ${selectedModelName || 'Default'} — Klik untuk ganti model`}
+                className="badge badge-outline border-indigo-500/40 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 gap-1.5 cursor-pointer font-medium py-2.5 px-2.5 text-xs transition-all flex-shrink-0"
               >
                 <Cpu size={12} />
-                {selectedModelName ? selectedModelName : 'Model: Default'}
-              </span>
+                <span className="truncate max-w-[120px]">
+                  {selectedModelName ? selectedModelName : 'Model: Default'}
+                </span>
+              </button>
 
               {/* Active Tools pill */}
               {activeTools.length > 0 && (
-                <span 
+                <button 
+                  type="button"
                   onClick={() => setIsRightSidebarOpen(true)}
                   title="Lihat daftar dynamic tools di sidebar kanan"
-                  className="badge badge-outline badge-info bg-info/10 text-info gap-1.5 cursor-pointer font-semibold py-3 px-2.5 text-xs transition-all"
+                  className="badge badge-outline border-cyan-500/40 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 gap-1.5 cursor-pointer font-medium py-2.5 px-2.5 text-xs transition-all flex-shrink-0"
                 >
                   <Zap size={12} />
-                  {activeTools.length} Tools
-                </span>
+                  <span>{activeTools.length} Tools</span>
+                </button>
               )}
 
-              {/* Active Personality pill */}
+              {/* Active Personality pill - disciplined width, clean truncation, no wrap */}
               <a 
                 href="/personality"
-                title="Klik untuk melihat dan mengubah kepribadian sistem MCP"
-                className="badge badge-outline badge-error bg-error/10 text-error gap-1.5 cursor-pointer font-semibold py-3 px-2.5 text-xs truncate max-w-[180px] no-underline transition-all"
+                title={`Kepribadian Sistem: ${activePersonality?.name || 'Default KPK'} (Klik untuk kelola)`}
+                className="badge badge-outline border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 gap-1.5 cursor-pointer font-medium py-2.5 px-2.5 text-xs no-underline transition-all flex-shrink-0"
               >
-                <Sparkles size={12} />
-                {activePersonality?.name ? activePersonality.name.replace(/\s*\(Default\)/i, '') : 'Persona: KPK'}
+                <Sparkles size={12} className="shrink-0 text-rose-400" />
+                <span className="truncate max-w-[130px]">
+                  {activePersonality?.name ? activePersonality.name.replace(/\s*\(Default\)/i, '') : 'Persona: KPK'}
+                </span>
               </a>
             </div>
           </div>
 
-          {/* Right: Quick actions & Expand Button */}
-          <div className="flex items-center gap-2">
-            {/* Chat History Button */}
+          {/* Right: Action Buttons Group */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+            {/* Topik Baru */}
+            <button
+              type="button"
+              onClick={handleNewTopic}
+              title="Mulai Topik Baru (Segarkan Working Memory & Hindari Context Rot)"
+              className="btn btn-xs border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500 gap-1.5 font-medium"
+            >
+              <RotateCcw size={12} />
+              <span>Topik Baru</span>
+            </button>
+
+            {/* Chat History */}
             <button
               type="button"
               onClick={() => setIsHistoryDrawerOpen(true)}
-              title="Buka Riwayat Percakapan (OpenAI Standard Sessions)"
-              className="btn btn-xs btn-outline btn-primary"
+              title="Buka Riwayat Percakapan (Sessions)"
+              className="btn btn-xs border border-indigo-500/40 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 hover:border-indigo-500 gap-1 font-medium"
             >
-              <History size={13} />
+              <History size={12} />
               <span>History</span>
               {sessions.length > 0 && (
-                <span className="badge badge-xs badge-primary ml-0.5">
+                <span className="badge badge-xs bg-indigo-500/30 text-indigo-200 border-none px-1">
                   {sessions.length}
                 </span>
               )}
             </button>
 
-            {/* Explore Tools Button */}
+            {/* Reset */}
+            <button
+              type="button"
+              onClick={handleClear}
+              title="Reset / Hapus Percakapan di Layar"
+              className="btn btn-xs btn-ghost text-base-content/60 hover:text-rose-400 hover:bg-rose-500/10 gap-1 px-2"
+            >
+              <Trash2 size={12} />
+              <span className="hidden sm:inline">Reset</span>
+            </button>
+
+            {/* Divider */}
+            <div style={{ width: '1px', height: '16px', background: 'var(--border-subtle)', margin: '0 2px' }} />
+
+            {/* Explore Tools */}
             <button
               type="button"
               onClick={() => setIsExploreToolsModalOpen(true)}
               title="Katalog Lengkap Tools & Parameter Schema"
-              className="btn btn-xs btn-outline btn-info"
+              className="btn btn-xs border border-cyan-500/40 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 hover:border-cyan-500 gap-1 font-medium"
             >
-              <Zap size={13} />
-              <span>Explore Tools</span>
-            </button>
-
-            {/* New Topic / Fresh Context Button */}
-            <button
-              type="button"
-              onClick={handleNewTopic}
-              title="Mulai Topik Baru (Segarkan Working Memory & Hindari Context Rot tanpa menghapus pesan di layar)"
-              className="btn btn-xs btn-outline btn-success"
-            >
-              <RotateCcw size={13} />
-              <span>Topik Baru</span>
-            </button>
-
-            {/* Reset button */}
-            <button
-              onClick={handleClear}
-              title="Reset Conversation"
-              className="btn btn-xs btn-outline btn-ghost text-base-content/70 hover:text-error hover:border-error"
-            >
-              <Trash2 size={12} />
-              <span>Reset</span>
+              <Zap size={12} />
+              <span>Explore</span>
             </button>
 
             {/* Toggle Right Sidebar */}
@@ -2198,91 +2238,56 @@ export default function Chat() {
               type="button"
               onClick={() => setIsRightSidebarOpen(prev => !prev)}
               title={isRightSidebarOpen ? "Sembunyikan Sidebar Tools & Saran" : "Buka Sidebar Tools & Saran"}
-              className={`btn btn-xs ${isRightSidebarOpen ? 'btn-primary' : 'btn-outline btn-primary'}`}
+              className={`btn btn-xs gap-1 font-medium transition-all ${
+                isRightSidebarOpen 
+                  ? 'btn-primary text-primary-content shadow-sm' 
+                  : 'border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20'
+              }`}
             >
               <Sparkles size={12} />
               <span>Tools</span>
               {isRightSidebarOpen ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
             </button>
 
-            {/* Expand Full Options Button */}
+            {/* Expand Full Options */}
             <button
               type="button"
               onClick={toggleHeaderOptions}
-              title="Buka Opsi Chat & Filter Lengkap"
-              className="btn btn-xs btn-outline btn-primary"
+              title={isHeaderOptionsOpen ? "Tutup Opsi Chat & Filter" : "Buka Opsi Chat & Filter Lengkap"}
+              className={`btn btn-xs gap-1 font-medium transition-all ${
+                isHeaderOptionsOpen
+                  ? 'btn-primary text-primary-content shadow-sm'
+                  : 'btn-outline border-base-content/20 text-base-content/80 hover:text-primary hover:border-primary'
+              }`}
             >
-              <SlidersHorizontal size={13} />
-              <span>Opsi Chat</span>
-              <ChevronDown size={13} />
+              <SlidersHorizontal size={12} />
+              <span>Opsi</span>
+              <ChevronDown 
+                size={12} 
+                style={{ 
+                  transform: isHeaderOptionsOpen ? 'rotate(180deg)' : 'none', 
+                  transition: 'transform 0.2s' 
+                }} 
+              />
             </button>
           </div>
         </div>
-      ) : (
-        <div 
-          className="glass-panel" 
-          style={{ 
-            position: 'relative',
-            zIndex: 50,
-            padding: '16px 24px', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'space-between', 
-            flexWrap: 'wrap', 
-            gap: '16px',
-            flexShrink: 0
-          }}
-        >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{
-            width: '42px',
-            height: '42px',
-            borderRadius: '12px',
-            background: 'linear-gradient(135deg, #2b394e 0%, #172233 100%)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)'
-          }}>
-            <Bot size={24} color="#ffffff" />
-          </div>
-          <div>
-            <h2 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-main)', letterSpacing: '-0.01em' }}>
-              AI Knowledge Chat
-            </h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                Query ChromaDB vectors & Neo4j graph entities with LLM RAG
-              </span>
-              <a 
-                href="/personality"
-                title="Klik untuk melihat dan mengubah kepribadian sistem MCP"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '2px 8px',
-                  borderRadius: '6px',
-                  background: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  color: '#f87171',
-                  fontSize: '11px',
-                  fontWeight: '600',
-                  textDecoration: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                <Sparkles size={11} />
-                {activePersonality?.name ? activePersonality.name.replace(/\s*\(Default\)/i, '') : 'Persona: KPK'}
-              </a>
-            </div>
-          </div>
-        </div>
 
-        {/* Filter Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          {/* Multi-Select Knowledge Source Filter */}
+        {/* Expandable Options & Filter Tray (Smooth, Beautiful & Categorized) */}
+        {isHeaderOptionsOpen && (
+          <div 
+            style={{ 
+              borderTop: '1px solid var(--border-subtle)', 
+              paddingTop: '12px', 
+              marginTop: '10px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px'
+            }}
+          >
+            {/* Top row of filter controls */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              {/* Multi-Select Knowledge Source Filter */}
           <div ref={sourceDropdownRef} style={{ position: 'relative', zIndex: 60 }}>
             <button
               type="button"
@@ -2630,7 +2635,7 @@ export default function Chat() {
             )}
           </div>
 
-          {/* Model LLM Selector (Cloud & Local) — filterable custom dropdown */}
+              {/* Model LLM Selector (Cloud & Local) — filterable custom dropdown */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', position: 'relative' }}>
             <Cpu size={14} color="var(--accent-primary)" />
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Model LLM:</span>
@@ -2802,336 +2807,189 @@ export default function Chat() {
             )}
           </div>
 
-          {/* Top-K Selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Top Chunks:</span>
-            <select
-              value={topK}
-              onChange={(e) => setTopK(Number(e.target.value))}
-              style={{
-                background: 'var(--bg-glass-2)',
-                border: '1px solid var(--border-subtle)',
-                color: 'var(--text-main)',
-                padding: '8px 10px',
-                borderRadius: '8px',
-                fontSize: '13px',
-                outline: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              <option value={3}>3 chunks</option>
-              <option value={5}>5 chunks</option>
-              <option value={10}>10 chunks</option>
-            </select>
-          </div>
+              {/* Top Chunks Selector */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Top Chunks:</span>
+                <select
+                  value={topK}
+                  onChange={(e) => setTopK(Number(e.target.value))}
+                  style={{
+                    background: 'var(--bg-glass-2)',
+                    border: '1px solid var(--border-subtle)',
+                    color: 'var(--text-main)',
+                    padding: '6px 10px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value={3}>3 chunks</option>
+                  <option value={5}>5 chunks</option>
+                  <option value={10}>10 chunks</option>
+                  <option value={20}>20 chunks</option>
+                </select>
+              </div>
 
-          {/* Include Graph Toggle */}
-          <button
-            onClick={() => setIncludeGraph(!includeGraph)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 12px',
-              borderRadius: '8px',
-              fontSize: '13px',
-              border: `1px solid ${includeGraph ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-              background: includeGraph ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg-glass-2)',
-              color: includeGraph ? 'var(--accent-primary)' : 'var(--text-muted)',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}
-          >
-            <Share2 size={14} />
-            Graph Context: {includeGraph ? 'ON' : 'OFF'}
-          </button>
+              {/* Include Graph Toggle */}
+              <button
+                type="button"
+                onClick={() => setIncludeGraph(!includeGraph)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 10px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: '500',
+                  border: `1px solid ${includeGraph ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                  background: includeGraph ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg-glass-2)',
+                  color: includeGraph ? 'var(--accent-primary)' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <Share2 size={13} />
+                <span>Graph Context: {includeGraph ? 'ON' : 'OFF'}</span>
+              </button>
 
-          {/* Anti-Hallucination / Strict Grounding Mode Toggle */}
-          <button
-            onClick={() => {
-              const next = !strictMode;
-              setStrictMode(next);
-              setTemperature(next ? 0.0 : 0.3);
-            }}
-            title={strictMode 
-              ? "Mode Anti-Halusinasi AKTIF (Suhu 0.0): AI dilarang keras mengarang data dan wajib mengikuti dokumen/basis data resmi." 
-              : "Mode Fleksibel (Suhu 0.3): AI dapat menjawab lebih luwes namun berisiko halusinasi."}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 12px',
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: '600',
-              border: `1px solid ${strictMode ? 'rgba(16, 185, 129, 0.45)' : 'rgba(245, 158, 11, 0.4)'}`,
-              background: strictMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.12)',
-              color: strictMode ? '#059669' : '#d97706',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              boxShadow: strictMode ? '0 0 12px rgba(16, 185, 129, 0.15)' : 'none'
-            }}
-          >
-            <ShieldCheck size={15} color={strictMode ? '#059669' : '#d97706'} />
-            <span>{strictMode ? 'Anti-Halu: ON' : 'Anti-Halu: OFF'}</span>
-          </button>
+              {/* Anti-Hallucination Toggle */}
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !strictMode;
+                  setStrictMode(next);
+                  setTemperature(next ? 0.0 : 0.3);
+                }}
+                title={strictMode 
+                  ? "Mode Anti-Halusinasi AKTIF (Suhu 0.0): Jawaban presisi berdasarkan data resmi." 
+                  : "Mode Fleksibel (Suhu 0.3): Jawaban lebih luwes."}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 10px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  border: `1px solid ${strictMode ? 'rgba(16, 185, 129, 0.45)' : 'rgba(245, 158, 11, 0.4)'}`,
+                  background: strictMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.12)',
+                  color: strictMode ? '#059669' : '#d97706',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <ShieldCheck size={14} color={strictMode ? '#059669' : '#d97706'} />
+                <span>{strictMode ? 'Anti-Halu: ON' : 'Anti-Halu: OFF'}</span>
+              </button>
 
-          {/* Factual Temperature Selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Suhu:</span>
-            <select
-              value={temperature}
-              onChange={(e) => {
-                const val = parseFloat(e.target.value);
-                setTemperature(val);
-                setStrictMode(val === 0.0);
-              }}
-              title="Suhu AI: Semakin rendah (0.0), semakin ketat dan tidak mengarang data. Suhu tinggi (0.5+) lebih kreatif/variatif."
-              style={{
-                background: 'var(--bg-glass-2)',
-                border: '1px solid var(--border-subtle)',
-                color: temperature === 0.0 ? '#059669' : 'var(--text-main)',
-                padding: '8px 8px',
-                borderRadius: '8px',
-                fontSize: '12px',
-                fontWeight: '500',
-                outline: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              <option value={0.0}>0.0 (Presisi / Anti-Halu)</option>
-              <option value={0.1}>0.1 (Sangat Ketat)</option>
-              <option value={0.3}>0.3 (Seimbang)</option>
-              <option value={0.7}>0.7 (Kreatif)</option>
-            </select>
-          </div>
+              {/* Suhu / Temperature Selector */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Suhu:</span>
+                <select
+                  value={temperature}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setTemperature(val);
+                    setStrictMode(val === 0.0);
+                  }}
+                  style={{
+                    background: 'var(--bg-glass-2)',
+                    border: '1px solid var(--border-subtle)',
+                    color: temperature === 0.0 ? '#059669' : 'var(--text-main)',
+                    padding: '6px 8px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value={0.0}>0.0 (Presisi / Anti-Halu)</option>
+                  <option value={0.1}>0.1 (Sangat Ketat)</option>
+                  <option value={0.3}>0.3 (Seimbang)</option>
+                  <option value={0.7}>0.7 (Kreatif)</option>
+                </select>
+              </div>
 
-          {/* Reasoning Effort Selector (OpenAI Standard o1/o3/DeepSeek) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '12px', color: '#d97706', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <BrainCircuit size={13} color="#d97706" />
-              Reasoning:
-            </span>
-            <select
-              value={reasoningEffort}
-              onChange={(e) => handleReasoningEffortChange(e.target.value)}
-              title="OpenAI Reasoning Effort parameter ('low', 'medium', 'high', 'auto')"
-              style={{
-                background: 'var(--bg-glass-2)',
-                border: '1px solid rgba(245, 158, 11, 0.4)',
-                color: '#d97706',
-                padding: '8px 8px',
-                borderRadius: '8px',
-                fontSize: '12px',
-                fontWeight: '600',
-                outline: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              <option value="auto">Auto (Default)</option>
-              <option value="low">Low (Cepat / Hemat)</option>
-              <option value="medium">Medium (Standar)</option>
-              <option value="high">High (Mendalam / Riset)</option>
-            </select>
-          </div>
+              {/* Reasoning Effort Selector */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', color: '#d97706', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <BrainCircuit size={13} color="#d97706" />
+                  Reasoning:
+                </span>
+                <select
+                  value={reasoningEffort}
+                  onChange={(e) => handleReasoningEffortChange(e.target.value)}
+                  style={{
+                    background: 'var(--bg-glass-2)',
+                    border: '1px solid rgba(245, 158, 11, 0.4)',
+                    color: '#d97706',
+                    padding: '6px 8px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="auto">Auto (Default)</option>
+                  <option value="low">Low (Cepat / Hemat)</option>
+                  <option value="medium">Medium (Standar)</option>
+                  <option value="high">High (Mendalam / Riset)</option>
+                </select>
+              </div>
 
-          {/* Explore Tools Catalog Button */}
-          <button
-            type="button"
-            onClick={() => setIsExploreToolsModalOpen(true)}
-            title="Buka katalog interaktif tools dan schema parameter"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 12px',
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: '600',
-              border: '1px solid rgba(6, 182, 212, 0.4)',
-              background: 'rgba(6, 182, 212, 0.12)',
-              color: 'var(--accent-cyan)',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}
-          >
-            <Zap size={14} />
-            <span>Explore Tools</span>
-            {activeTools.length > 0 && (
-              <span style={{
-                background: 'rgba(6, 182, 212, 0.25)',
-                color: 'var(--text-main)',
-                fontSize: '11px',
-                padding: '1px 6px',
-                borderRadius: '10px'
-              }}>
-                {activeTools.length}
-              </span>
-            )}
-          </button>
+              {/* Persona Quick Link */}
+              <a
+                href="/personality"
+                title="Atur persona dan kepribadian LLM di halaman Kepribadian MCP"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 10px',
+                  borderRadius: '8px',
+                  background: 'rgba(244, 63, 94, 0.1)',
+                  border: '1px solid rgba(244, 63, 94, 0.3)',
+                  color: '#fb7185',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  textDecoration: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                <Sparkles size={13} />
+                <span>Persona: {activePersonality?.name ? activePersonality.name.replace(/\s*\(Default\)/i, '') : 'KPK'}</span>
+              </a>
 
-          {/* Chat History Button */}
-          <button
-            type="button"
-            onClick={() => setIsHistoryDrawerOpen(true)}
-            title="Buka Riwayat Percakapan (OpenAI Standard Sessions)"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 12px',
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: '600',
-              border: '1px solid rgba(99, 102, 241, 0.4)',
-              background: 'rgba(99, 102, 241, 0.12)',
-              color: 'var(--accent-primary)',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}
-          >
-            <History size={14} />
-            <span>History</span>
-            {sessions.length > 0 && (
-              <span style={{
-                background: 'rgba(99, 102, 241, 0.3)',
-                color: 'var(--text-main)',
-                fontSize: '11px',
-                padding: '1px 6px',
-                borderRadius: '10px'
-              }}>
-                {sessions.length}
-              </span>
-            )}
-          </button>
+              {/* Tutup Opsi Button */}
+              <button
+                type="button"
+                onClick={toggleHeaderOptions}
+                title="Sembunyikan Opsi Chat"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '6px 10px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  border: '1px solid var(--border-subtle)',
+                  background: 'var(--bg-glass-light)',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  marginLeft: 'auto'
+                }}
+              >
+                <ChevronUp size={13} />
+                <span>Tutup Opsi</span>
+              </button>
+            </div>
 
-          {/* New Topic / Fresh Context Button */}
-          <button
-            type="button"
-            onClick={handleNewTopic}
-            title="Mulai Topik Baru (Segarkan Working Memory & Hindari Context Rot tanpa menghapus pesan di layar)"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 12px',
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: '600',
-              border: '1px solid rgba(16, 185, 129, 0.4)',
-              background: 'rgba(16, 185, 129, 0.12)',
-              color: '#059669',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(16, 185, 129, 0.25)';
-              e.currentTarget.style.color = 'var(--text-main)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(16, 185, 129, 0.12)';
-              e.currentTarget.style.color = '#059669';
-            }}
-          >
-            <RotateCcw size={14} />
-            <span>Topik Baru</span>
-          </button>
-
-          {/* Clear Button */}
-          <button
-            onClick={handleClear}
-            title="Reset Conversation"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 12px',
-              borderRadius: '8px',
-              fontSize: '13px',
-              border: '1px solid var(--border-subtle)',
-              background: 'transparent',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-              transition: 'color 0.2s'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.color = '#fda4af'}
-            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
-          >
-            <Trash2 size={14} />
-            Reset
-          </button>
-
-          {/* Toggle Right Sidebar Button */}
-          <button
-            type="button"
-            onClick={() => setIsRightSidebarOpen(prev => !prev)}
-            title={isRightSidebarOpen ? "Sembunyikan Sidebar Tools & Saran" : "Buka Sidebar Tools & Saran"}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 12px',
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: isRightSidebarOpen ? '600' : '400',
-              border: `1px solid ${isRightSidebarOpen ? 'rgba(99, 102, 241, 0.4)' : 'var(--border-subtle)'}`,
-              background: isRightSidebarOpen ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg-glass-2)',
-              color: isRightSidebarOpen ? 'var(--accent-primary)' : 'var(--text-secondary)',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}
-          >
-            <Sparkles size={14} color={isRightSidebarOpen ? 'var(--accent-primary)' : 'var(--text-muted)'} />
-            <span>Tools & Saran</span>
-            {activeTools.length > 0 && (
-              <span style={{
-                background: 'rgba(6, 182, 212, 0.2)',
-                color: 'var(--accent-cyan)',
-                fontSize: '11px',
-                padding: '1px 6px',
-                borderRadius: '10px',
-                fontWeight: '700'
-              }}>
-                {activeTools.length}
-              </span>
-            )}
-            {isRightSidebarOpen ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-          </button>
-
-          {/* Collapse Header Options Button */}
-          <button
-            type="button"
-            onClick={toggleHeaderOptions}
-            title="Sembunyikan Opsi Chat (Perbesar Layar Respon)"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 12px',
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: '500',
-              border: '1px solid var(--border-color)',
-              background: 'var(--bg-glass-light)',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = 'var(--accent-primary)';
-              e.currentTarget.style.color = 'var(--text-main)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = 'var(--border-color)';
-              e.currentTarget.style.color = 'var(--text-secondary)';
-            }}
-          >
-            <ChevronUp size={15} />
-            <span>Sembunyikan</span>
-          </button>
-        </div>
-
-        {/* Active Filter Chips Strip */}
+            {/* Active Filter Chips Strip */}
+            {/* Active Filter Chips Strip */}
         {selectedSources.length > 0 && (
           <div
             style={{
@@ -3200,9 +3058,9 @@ export default function Chat() {
             </button>
           </div>
         )}
+          </div>
+        )}
       </div>
-      )}
-
       {/* Content Area with Main Chat & Collapsible Right Sidebar */}
       <div style={{
         display: 'flex',
