@@ -195,14 +195,15 @@ Text to analyze:
 \"\"\"
 """
         try:
-            is_o_series = any(model.lower().startswith(p) for p in ["o1", "o3", "openai/o1", "openai/o3"])
+            # Budget max tokens safely to prevent exceeding local models with 6K/8K context limits
+            extract_max_tokens = 2048 if any(k in model.lower() for k in ["gemma", "phi", "6144"]) else 4096
             if is_o_series:
                 kwargs = {
                     "model": model,
                     "messages": [
                         {"role": "user", "content": f"You are a precise data extraction assistant that outputs strictly valid JSON only.\n\n{prompt}"}
                     ],
-                    "max_completion_tokens": 8192
+                    "max_completion_tokens": extract_max_tokens
                 }
             else:
                 kwargs = {
@@ -212,7 +213,7 @@ Text to analyze:
                         {"role": "user", "content": prompt}
                     ],
                     "temperature": 0.1,
-                    "max_tokens": 8192
+                    "max_tokens": extract_max_tokens
                 }
 
             # Disable thinking/reasoning mode on vLLM/Qwen to prevent token exhaustion by thinking traces

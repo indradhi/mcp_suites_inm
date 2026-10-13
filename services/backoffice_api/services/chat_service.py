@@ -341,10 +341,58 @@ class ChatService:
         if include_graph:
             graph_entities = self.get_graph_entities(message, limit=8)
 
-        # 3. Context Preparation
+        # Resolve LLM Backend & Model early for Dynamic Context Budgeting
+        api_base, api_key, model = llm_service.get_task_backend("general_qa", db)
+        backend_name = "Assigned / Default Backend"
+
+        if backend_id and db:
+            from models.llm_backend import LLMBackend
+            custom_be = db.query(LLMBackend).filter(LLMBackend.id == backend_id).first()
+            if custom_be:
+                api_base = custom_be.api_base
+                api_key = custom_be.api_key or "EMPTY"
+                backend_name = custom_be.name
+                if not model_name:
+                    model = custom_be.available_models[0] if (custom_be.available_models and len(custom_be.available_models) > 0) else model
+        elif db:
+            from models.llm_backend import ModelAssignment
+            assign = db.query(ModelAssignment).filter(ModelAssignment.task == "general_qa").first()
+            if assign and assign.backend:
+                backend_name = assign.backend.name
+
+        if model_name:
+            model = model_name
+
+        is_cloud = any(domain in (api_base or "").lower() for domain in [
+            "openrouter.ai", "api.openai.com", "api.deepseek.com",
+            "groq.com", "googleapis.com", "anthropic.com",
+            "mistral.ai", "together.xyz", "cohere.com"
+        ])
+        is_local_vllm = not is_cloud and ("172.16." in (api_base or "") or "vllm" in (api_base or "").lower() or "qwen" in (model or "").lower() or "gemma" in (model or "").lower())
+
+        # Detect models with smaller context windows (Gemma 6k/8k, Phi, etc.)
+        model_lower = (model or "").lower()
+        is_limited_context = bool(
+            "gemma" in model_lower
+            or "phi" in model_lower
+            or "6144" in model_lower
+            or "8192" in model_lower
+            or (is_local_vllm and not any(k in model_lower for k in ["32k", "64k", "128k", "qwen"]))
+        )
+
+        # 3. Context Preparation (with Dynamic Context Budgeting)
         context_parts = []
-        MAX_TOTAL_CONTEXT_CHARS = 48000
-        MAX_CHUNK_CHARS = 16000
+        if is_limited_context:
+            MAX_TOTAL_CONTEXT_CHARS = 12000
+            MAX_CHUNK_CHARS = 3000
+            MAX_DOC_CHARS = 8000
+            default_max_output_tokens = 1500
+        else:
+            MAX_TOTAL_CONTEXT_CHARS = 48000
+            MAX_CHUNK_CHARS = 16000
+            MAX_DOC_CHARS = 38000
+            default_max_output_tokens = 4500
+
         accumulated_chars = 0
 
         # Formatted sources for response with clean snippets
@@ -368,7 +416,6 @@ class ChatService:
                 doc_header_lines.append(f"Total Baris Data: {doc_meta['total_rows']}")
             doc_header_lines.append("Isi Konten Dokumen:")
 
-            MAX_DOC_CHARS = 38000
             if len(doc_text) > MAX_DOC_CHARS:
                 doc_body = doc_text[:MAX_DOC_CHARS] + f"\n\n... [Catatan: Dokumen sangat panjang, dipotong pada {MAX_DOC_CHARS} karakter pertama]"
             else:
@@ -629,27 +676,7 @@ class ChatService:
 
         context_str = "\n".join(context_parts) if context_parts else "No specific documents found in knowledge base."
 
-        # 4. Resolve LLM Backend & Model
-        api_base, api_key, model = llm_service.get_task_backend("general_qa", db)
-        backend_name = "Assigned / Default Backend"
-
-        if backend_id and db:
-            from models.llm_backend import LLMBackend
-            custom_be = db.query(LLMBackend).filter(LLMBackend.id == backend_id).first()
-            if custom_be:
-                api_base = custom_be.api_base
-                api_key = custom_be.api_key or "EMPTY"
-                backend_name = custom_be.name
-                if not model_name:
-                    model = custom_be.available_models[0] if (custom_be.available_models and len(custom_be.available_models) > 0) else model
-        elif db:
-            from models.llm_backend import ModelAssignment
-            assign = db.query(ModelAssignment).filter(ModelAssignment.task == "general_qa").first()
-            if assign and assign.backend:
-                backend_name = assign.backend.name
-
-        if model_name:
-            model = model_name
+        # 4. (LLM Backend & Model already resolved above for Dynamic Context Budgeting)
 
         # 5. Discover Active API Tools (if db session available)
         tools = []
@@ -806,9 +833,10 @@ class ChatService:
 
                         # Append field definitions dictionary so LLM understands return schema before execution
                         field_defs = cfg.get("field_definitions", [])
-                        if field_defs and isinstance(field_defs, list) and len(field_defs) > 0:
+                        if field_defs and isinstance(field_defs, list) and len(field_defs) > 0 and (not is_limited_context or is_single_tool_selected):
                             glossary_lines = ["\n\nKamus Definisi Field Balikan (Field Definitions):"]
-                            for fd in field_defs:
+                            max_fields = 6 if is_limited_context else len(field_defs)
+                            for fd in field_defs[:max_fields]:
                                 fname = fd.get("name")
                                 if fname:
                                     fdesc = fd.get("description") or fd.get("type") or "Definisi field"
@@ -1050,16 +1078,21 @@ Patuhi aturan:
                 "model": model,
                 "messages": messages,
             }
+            # Dynamic output tokens calculation (prevent over-allocating on 6K/8K context models)
+            effective_max_tokens = max_tokens or default_max_output_tokens
+            if is_limited_context and effective_max_tokens > 1800:
+                effective_max_tokens = 1500
+
             # Reasoning models (o1/o3): use max_completion_tokens, omit temperature
             if is_reasoning_model:
-                _max_c = max_completion_tokens or max_tokens or 4500
+                _max_c = max_completion_tokens or effective_max_tokens
                 kwargs["max_completion_tokens"] = _max_c
                 if reasoning_effort:
                     kwargs["reasoning_effort"] = reasoning_effort
             else:
                 if effective_temperature is not None:
                     kwargs["temperature"] = effective_temperature
-                kwargs["max_tokens"] = max_tokens or 4500
+                kwargs["max_tokens"] = effective_max_tokens
                 if top_p is not None:
                     kwargs["top_p"] = top_p
                 if presence_penalty is not None:
@@ -1146,6 +1179,31 @@ Patuhi aturan:
                         kwargs.pop("tools", None)
                         kwargs.pop("tool_choice", None)
                         response = client.chat.completions.create(**kwargs)
+                    elif "maximum context length" in err_s or "reduce the length of the input prompt" in err_s or "context length is" in err_s:
+                        logger.warning(f"Context length limit exceeded on {model}: {tool_err}. Trimming context and retrying...")
+                        if "max_tokens" in kwargs:
+                            kwargs["max_tokens"] = 1200
+                        if "max_completion_tokens" in kwargs:
+                            kwargs["max_completion_tokens"] = 1200
+                        trimmed_messages = []
+                        for m in kwargs.get("messages", []):
+                            m_copy = dict(m)
+                            content = str(m_copy.get("content", ""))
+                            if m_copy.get("role") == "user" and len(content) > 10000:
+                                m_copy["content"] = content[:10000] + "\n\n...[Konteks dipangkas otomatis karena limitasi context length model AI]..."
+                            elif m_copy.get("role") == "tool" and len(content) > 4000:
+                                m_copy["content"] = content[:4000] + "\n...[Data tool dipangkas]..."
+                            trimmed_messages.append(m_copy)
+                        kwargs["messages"] = trimmed_messages
+                        try:
+                            response = client.chat.completions.create(**kwargs)
+                        except Exception as retry2_err:
+                            if "tools" in kwargs:
+                                kwargs.pop("tools", None)
+                                kwargs.pop("tool_choice", None)
+                                response = client.chat.completions.create(**kwargs)
+                            else:
+                                raise retry2_err
                     elif "max_tokens" in err_s or "temperature" in err_s:
                         logger.info(f"Adjusting parameters for model compatibility: {tool_err}")
                         kwargs.pop("temperature", None)
@@ -1449,12 +1507,13 @@ Patuhi aturan:
                             "error": f"Tool '{fn_name}' is not recognized"
                         })
 
-                    # Add tool response to messages
+                    # Add tool response to messages with dynamic length cap
+                    max_tool_out_chars = 6000 if is_limited_context else 35000
                     messages.append({
                         "role": "tool",
                         "tool_call_id": tc.id,
                         "name": fn_name,
-                        "content": str(tool_output_str)[:60000]
+                        "content": str(tool_output_str)[:max_tool_out_chars]
                     })
 
                 if stream_callback:
@@ -1465,7 +1524,7 @@ Patuhi aturan:
                     followup_kwargs = {
                         "model": model,
                         "messages": messages,
-                        "max_tokens": 4500
+                        "max_tokens": effective_max_tokens
                     }
                     if effective_temperature is not None:
                         followup_kwargs["temperature"] = effective_temperature
@@ -1484,6 +1543,14 @@ Patuhi aturan:
                             followup_kwargs.pop("temperature", None)
                             if "max_tokens" in followup_kwargs:
                                 followup_kwargs["max_completion_tokens"] = followup_kwargs.pop("max_tokens")
+                        if "maximum context length" in str(follow_p_err).lower() or "reduce the length of the input prompt" in str(follow_p_err).lower():
+                            if "max_tokens" in followup_kwargs:
+                                followup_kwargs["max_tokens"] = 1200
+                            if "max_completion_tokens" in followup_kwargs:
+                                followup_kwargs["max_completion_tokens"] = 1200
+                            for m in followup_kwargs.get("messages", []):
+                                if m.get("role") == "tool" and len(str(m.get("content", ""))) > 4000:
+                                    m["content"] = str(m["content"])[:4000] + "\n[Data dipangkas]"
                         followup_resp = client.chat.completions.create(**followup_kwargs)
 
                     msg = followup_resp.choices[0].message
@@ -1967,6 +2034,22 @@ Patuhi aturan:
                 clean_answer = (
                     f"⚠️ **Batas Kuota / Rate Limit (429):** Akun OpenRouter telah mencapai batas permintaan harian atau kehabisan kredit saldo.\n\n"
                     f"💡 **Solusi:** Periksa saldo kredit akun Anda di [openrouter.ai/credits](https://openrouter.ai/credits) atau gunakan model gratis/vLLM lokal."
+                )
+            elif "maximum context length" in err_lower or "context length is" in err_lower or "reduce the length of the input prompt" in err_lower:
+                clean_answer = (
+                    f"⚠️ **Kapasitas Konteks Model Terlampaui (400 Bad Request):**\n\n"
+                    f"Model `{model}` pada backend `{backend_name}` memiliki batas context window yang terbatas (misalnya **6.144 token** pada server vLLM lokal).\n"
+                    f"Permintaan melebihi batas karena kombinasi panjang dokumen RAG / tools dan reservasi output token (`max_tokens`).\n\n"
+                    f"💡 **Solusi Rekomendasi:**\n"
+                    f"1. **Perbesar `--max-model-len` di server vLLM (Sangat Direkomendasikan):**\n"
+                    f"   Restart vLLM dengan parameter context lebih besar (misal 16.384 token) dan tambahkan `--kv-cache-dtype fp8` untuk menghemat VRAM:\n"
+                    f"   ```bash\n"
+                    f"   vllm serve {model} --max-model-len 16384 --kv-cache-dtype fp8 --gpu-memory-utilization 0.95\n"
+                    f"   ```\n"
+                    f"2. **Gunakan Model Alternatif Berkonteks Besar:**\n"
+                    f"   Pilih model dengan context window 32K–128K token seperti **`Qwen/Qwen3.6-35B-A3B-FP8`**, **`deepseek/deepseek-chat`**, atau **`openai/gpt-4o-mini`** pada menu pengaturan model.\n"
+                    f"3. **Kurangi Centang Sumber Dokumen (Knowledge Sources):**\n"
+                    f"   Pilih hanya dokumen yang relevan agar teks konteks RAG tidak terlalu panjang."
                 )
             else:
                 clean_answer = f"⚠️ Terjadi kendala saat menghubungi backend AI ({backend_name} / {model}): {err_str}"
