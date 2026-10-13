@@ -662,6 +662,7 @@ async def chat_stream_endpoint(
 )
 async def openai_chat_completions(
     payload: OpenAIChatCompletionRequest,
+    request: Request,
     db: Session = Depends(get_db),
     user=Depends(get_user_flexible)
 ):
@@ -815,6 +816,8 @@ async def openai_chat_completions(
                     
                 elif msg_type == "result":
                     answer = data.get("answer", "")
+                    base_url = media_cache_service.get_default_base_url(request)
+                    answer = media_cache_service.expand_media_urls_to_absolute(answer, base_url)
                     mod_used = data.get("model_used", model_used)
                     finish_reason = data.get("finish_reason", "stop")
                     usage = data.get("usage") or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
@@ -867,6 +870,8 @@ async def openai_chat_completions(
     chat_id = result.get("id") or chat_id
     model_used = result.get("model_used", model_used)
     answer = result.get("answer", "")
+    base_url = media_cache_service.get_default_base_url(request)
+    answer = media_cache_service.expand_media_urls_to_absolute(answer, base_url)
     finish_reason = result.get("finish_reason", "stop")
     usage = result.get("usage") or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
@@ -1169,4 +1174,61 @@ def get_openai_media_file(filename: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Media not found or expired")
     file_path, mime_type = res
     return FileResponse(file_path, media_type=mime_type, filename=filename)
+
+
+class MediaConvertRequest(BaseModel):
+    data: Any
+    ref_nik: Optional[str] = None
+    ref_name: Optional[str] = None
+    source_name: Optional[str] = None
+    base_url: Optional[str] = None
+    prefer_full_url: bool = True
+
+
+@router.post("/media/convert", summary="Convert Base64 Images to Cached Media Files")
+@openai_router.post("/media/convert", summary="Convert Base64 Images to Cached Media Files")
+def convert_media(
+    payload: MediaConvertRequest,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Converts base64 image strings or nested objects containing base64 images into
+    directly accessible cached image files and URLs.
+    Eliminates raw base64 data transmission and replaces it with direct image URLs.
+    """
+    base_url = payload.base_url or media_cache_service.get_default_base_url(request)
+    if isinstance(payload.data, str) and (payload.data.startswith("data:image/") or len(payload.data) > 40):
+        info = media_cache_service.save_base64_as_file(
+            payload.data,
+            ref_nik=payload.ref_nik,
+            ref_name=payload.ref_name,
+            source_name=payload.source_name,
+            base_url=base_url,
+            db=db
+        )
+        chosen_url = info.get("full_url") if payload.prefer_full_url else info.get("url")
+        label = f"Foto - {payload.ref_name}" if payload.ref_name else "Foto"
+        return {
+            "status": "success",
+            "url": chosen_url,
+            "markdown": f"![{label}]({chosen_url})" if chosen_url else "",
+            "media": info
+        }
+    else:
+        converted_data, converted_media = media_cache_service.convert_data_images(
+            payload.data,
+            base_url=base_url,
+            ref_nik=payload.ref_nik,
+            ref_name=payload.ref_name,
+            source_name=payload.source_name,
+            prefer_full_url=payload.prefer_full_url,
+            db=db
+        )
+        return {
+            "status": "success",
+            "data": converted_data,
+            "media": converted_media
+        }
+
 

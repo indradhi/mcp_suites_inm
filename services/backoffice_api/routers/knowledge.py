@@ -7,7 +7,7 @@ import json
 import copy
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, Query
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -93,7 +93,11 @@ def list_sources(db: Session = Depends(get_db), user = Depends(get_current_user)
     return results
 
 @router.post("/test-connection")
-async def test_source_connection(payload: TestConnectionRequest, user = Depends(get_current_user)):
+async def test_source_connection(
+    payload: TestConnectionRequest,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
     stype = payload.source_type.lower()
     config = payload.config
 
@@ -116,6 +120,19 @@ async def test_source_connection(payload: TestConnectionRequest, user = Depends(
                         test_config["limit"] = 5
 
                 res = await database_ingester.execute_tool_call(test_config, test_args)
+                if isinstance(res, dict) and res.get("data"):
+                    try:
+                        from services.media_cache_service import media_cache_service
+                        converted_data, _ = media_cache_service.convert_data_images(
+                            res["data"],
+                            source_name=config.get("name") or "test_connection",
+                            prefer_full_url=True,
+                            db=db
+                        )
+                        res["data"] = converted_data
+                    except Exception as conv_err:
+                        logging.getLogger(__name__).warning(f"Error converting test connection images: {conv_err}")
+
                 if res.get("success"):
                     row_cnt = res.get("row_count", 0)
                     col_cnt = len(res.get("columns", []))
@@ -143,6 +160,19 @@ async def test_source_connection(payload: TestConnectionRequest, user = Depends(
             if config.get("is_tool") or has_endpoint:
                 test_args = config.get("test_arguments", {})
                 res = await api_ingester.execute_tool_call(config, test_args)
+                if isinstance(res, dict) and res.get("data"):
+                    try:
+                        from services.media_cache_service import media_cache_service
+                        converted_data, _ = media_cache_service.convert_data_images(
+                            res["data"],
+                            source_name=config.get("name") or "test_connection",
+                            prefer_full_url=True,
+                            db=db
+                        )
+                        res["data"] = converted_data
+                    except Exception as conv_err:
+                        logging.getLogger(__name__).warning(f"Error converting test connection images: {conv_err}")
+
                 if res.get("success"):
                     msg = "Endpoint API berhasil diakses dan dieksekusi (sampel data diperoleh)"
                 else:
@@ -363,6 +393,7 @@ class ExecuteToolRequest(BaseModel):
 async def execute_api_tool(
     source_id: int,
     payload: ExecuteToolRequest,
+    request: Request,
     db: Session = Depends(get_db)
 ):
     source = db.query(KnowledgeSource).filter(KnowledgeSource.id == source_id).first()
@@ -394,6 +425,38 @@ async def execute_api_tool(
                 save_tool_records_to_bank_data(source, payload.arguments, records, db)
         except Exception as cache_err:
             logging.getLogger(__name__).warning(f"Notice saving tool bank data: {cache_err}")
+
+        # Convert any base64 images into direct cached media URLs so clients receive clean image links instead of raw base64
+        if isinstance(result, dict) and result.get("data"):
+            try:
+                from services.media_cache_service import media_cache_service
+                converted_data, _ = media_cache_service.convert_data_images(
+                    result["data"],
+                    source_name=source.name,
+                    prefer_full_url=True,
+                    db=db
+                )
+                result["data"] = converted_data
+            except Exception as conv_err:
+                logging.getLogger(__name__).warning(f"Error converting tool images: {conv_err}")
+
+                # Convert any Base64 images into lightweight cached media files so callers don't receive raw base64
+        try:
+            from services.media_cache_service import media_cache_service
+            base_url = media_cache_service.get_default_base_url(request)
+            raw_data = result.get("data")
+            if raw_data:
+                sanitized_data, converted_media = media_cache_service.convert_data_images(
+                    raw_data,
+                    base_url=base_url,
+                    source_name=source.name,
+                    db=db
+                )
+                result["data"] = sanitized_data
+                if converted_media:
+                    result["media_files"] = [m.get("url") for m in converted_media]
+        except Exception as media_err:
+            logging.getLogger(__name__).warning(f"Notice converting tool images: {media_err}")
 
         # Attach data priority metadata and field definitions for caller (MCP client or LLM)
         if isinstance(result, dict) and result.get("success"):

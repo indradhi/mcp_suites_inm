@@ -3,6 +3,7 @@ import re
 import json
 import base64
 import copy
+import hashlib
 import logging
 import asyncio
 import time as _time
@@ -14,7 +15,7 @@ import contextvars
 api_key_allowed_tools = contextvars.ContextVar("api_key_allowed_tools", default=None)
 api_key_allowed_kbs = contextvars.ContextVar("api_key_allowed_kbs", default=None)
 from fastapi import FastAPI, Request, HTTPException, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from sse_starlette.sse import EventSourceResponse
@@ -49,8 +50,11 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
         if not MCP_AUTH_ENABLED:
             return await call_next(request)
 
-        # Skip auth for exempt paths
-        if request.url.path in AUTH_EXEMPT_PATHS:
+        # Skip auth for exempt paths and media serving routes
+        if (
+            request.url.path in AUTH_EXEMPT_PATHS
+            or request.url.path.startswith(("/media/", "/api/chat/media/"))
+        ):
             return await call_next(request)
 
         # Extract Bearer token
@@ -888,7 +892,7 @@ async def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         )
 
 # ── Helper for MCP Image Content Conversion (image, foto, photo, gambar, picture) ──
-IMAGE_KEY_WORDS = {'image', 'foto', 'photo', 'gambar', 'picture', 'avatar', 'img'}
+IMAGE_KEY_WORDS = {'image', 'foto', 'photo', 'gambar', 'picture', 'avatar', 'img', 'ktp', 'thumbnail'}
 
 def detect_mime_type(b64: str) -> str:
     if b64.startswith('data:image/'):
@@ -928,81 +932,290 @@ def is_b64_image_val(val: Any) -> bool:
         bool(re.match(r'^[A-Za-z0-9+/=]{100,}$', val_s))
     )
 
-def extract_mcp_images(obj: Any, max_images: int = 10) -> Tuple[Any, List[Dict[str, str]]]:
-    """
-    Scans tool output data for any image, foto, photo, gambar, or picture base64 data.
-    Converts and extracts them into standard Model Context Protocol (MCP) image content blocks:
-      {"type": "image", "data": "<base64_payload>", "mimeType": "image/jpeg" | "image/png" ...}
-    Supports multiline wrapped base64, dictionary keys, and pipe/colon delimiters in text.
-    Also replaces long base64 strings in the text JSON with concise placeholder notes
-    so LLM token budget is preserved while images are properly rendered in OpenWebUI/Claude.
-    """
-    images: List[Dict[str, str]] = []
+def get_mcp_media_base_url() -> str:
+    url = (
+        os.getenv("PUBLIC_MEDIA_URL") or
+        os.getenv("PUBLIC_BASE_URL") or
+        os.getenv("BACKOFFICE_URL") or
+        os.getenv("MCP_PUBLIC_URL") or
+        ""
+    ).rstrip("/")
+    return url
 
-    # Regex matching keyword-prefixed base64 or explicit image base64, supporting multiline wraps
-    text_img_regex = re.compile(
-        r'(?P<prefix>(?:(?:foto|photo|image|gambar|picture)[\s_]*[:=]\s*)|(?:[\|\n]\s*))'
-        r'(?P<data>(?:data:image/[^;\s]+;base64,[A-Za-z0-9+/=\s\r\n]{40,}|/9j/[A-Za-z0-9+/=]{40,}(?:\r?\n[A-Za-z0-9+/=]{40,})*(?:\r?\n[A-Za-z0-9+/=]+={0,2})?|iVBORw0KGgo[A-Za-z0-9+/=]{40,}(?:\r?\n[A-Za-z0-9+/=]{40,})*(?:\r?\n[A-Za-z0-9+/=]+={0,2})?))',
-        re.IGNORECASE
-    )
+async def save_b64_image_cached(
+    b64_val: str,
+    ref_nik: Optional[str] = None,
+    ref_name: Optional[str] = None,
+    source_name: Optional[str] = None,
+    base_url: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Converts base64 image data to a cached image file and returns direct image URLs.
+    First tries Backoffice API /api/chat/media/convert (persisting to ChatMediaCache in DB),
+    falling back to saving directly to /app/uploads/chat_temp/media/.
+    """
+    clean_b64 = clean_b64_data(b64_val)
+    if not clean_b64 or len(clean_b64) < 40:
+        return {"url": "", "full_url": "", "filename": "", "mime_type": "image/jpeg"}
 
-    def _traverse(node: Any) -> Any:
+    mime = detect_mime_type(b64_val)
+    effective_base = (base_url or get_mcp_media_base_url()).rstrip("/")
+
+    # 1. Try Backoffice API conversion (persists into DB ChatMediaCache)
+    try:
+        async with httpx.AsyncClient(timeout=6.0) as client:
+            resp = await client.post(
+                f"{BACKOFFICE_API_URL}/api/chat/media/convert",
+                json={
+                    "data": b64_val,
+                    "ref_nik": ref_nik,
+                    "ref_name": ref_name,
+                    "source_name": source_name,
+                    "base_url": effective_base,
+                    "prefer_full_url": True
+                }
+            )
+            if resp.status_code == 200:
+                res_data = resp.json()
+                media_info = res_data.get("media") or {}
+                chosen_url = res_data.get("url") or media_info.get("full_url") or media_info.get("url")
+                if chosen_url:
+                    return {
+                        "url": chosen_url,
+                        "full_url": media_info.get("full_url") or chosen_url,
+                        "filename": media_info.get("filename", ""),
+                        "markdown": res_data.get("markdown") or f"![Foto]({chosen_url})",
+                        "mime_type": media_info.get("mime_type", mime)
+                    }
+    except Exception as be:
+        logger.debug(f"Notice connecting to backoffice media converter: {be}")
+
+    # 2. Local File Save Fallback
+    try:
+        raw_bytes = base64.b64decode(clean_b64)
+        ext = "jpg"
+        if "png" in mime:
+            ext = "png"
+        elif "webp" in mime:
+            ext = "webp"
+        elif "gif" in mime:
+            ext = "gif"
+
+        hash_id = hashlib.sha256(raw_bytes).hexdigest()[:16]
+        if ref_nik:
+            safe_nik = re.sub(r'[^0-9a-zA-Z_-]', '', str(ref_nik))
+            filename = f"img_{safe_nik}_{hash_id}.{ext}"
+        else:
+            filename = f"img_{hash_id}.{ext}"
+
+        possible_dirs = [
+            "/app/uploads/chat_temp/media",
+            "./data/uploads/chat_temp/media",
+            "uploads/chat_temp/media"
+        ]
+        target_dir = possible_dirs[0]
+        for d in possible_dirs:
+            if os.path.exists(os.path.dirname(d)):
+                target_dir = d
+                break
+
+        os.makedirs(target_dir, exist_ok=True)
+        fpath = os.path.join(target_dir, filename)
+        if not os.path.exists(fpath) or os.path.getsize(fpath) == 0:
+            with open(fpath, "wb") as f:
+                f.write(raw_bytes)
+
+        rel_url = f"/api/chat/media/{filename}"
+        full_url = f"{effective_base}{rel_url}" if effective_base else rel_url
+        label = f"Foto - {ref_name}" if ref_name else "Foto"
+        return {
+            "url": full_url,
+            "full_url": full_url,
+            "filename": filename,
+            "markdown": f"![{label}]({full_url})",
+            "mime_type": mime
+        }
+    except Exception as le:
+        logger.warning(f"Error saving local base64 image: {le}")
+
+    return {"url": "", "full_url": "", "filename": "", "mime_type": mime}
+
+
+async def extract_and_convert_mcp_images(
+    obj: Any,
+    base_url: Optional[str] = None,
+    max_images: int = 15
+) -> Tuple[Any, List[Dict[str, Any]]]:
+    """
+    Scans tool output data for any image/foto base64 data.
+    Converts base64 data into directly accessible cached image files and URLs.
+    Replaces raw base64 values with direct image URLs (and companion _url / _markdown fields).
+    NEVER sends heavy raw base64 over the wire.
+    """
+    images: List[Dict[str, Any]] = []
+
+    async def _walk(node: Any, parent_nik: Optional[str] = None, parent_name: Optional[str] = None) -> Any:
         if len(images) >= max_images:
             return node
 
         if isinstance(node, dict):
+            rec_nik = str(node.get("NIK") or node.get("nik") or node.get("no_ktp") or node.get("id") or parent_nik or "").strip() or None
+            rec_name = str(node.get("NAMA_LGKP") or node.get("nama") or node.get("name") or node.get("full_name") or parent_name or "").strip() or None
+
             new_dict = {}
             for k, v in node.items():
                 k_lower = str(k).lower()
                 is_img_key = any(w in k_lower for w in IMAGE_KEY_WORDS)
                 if is_img_key and is_b64_image_val(v):
                     if len(images) < max_images:
-                        mime = detect_mime_type(v)
-                        raw_b64 = clean_b64_data(v)
-                        images.append({"type": "image", "data": raw_b64, "mimeType": mime})
-                        new_dict[k] = f"[IMAGE_ATTACHED: {mime}, length={len(raw_b64)} chars]"
+                        info = await save_b64_image_cached(
+                            v,
+                            ref_nik=rec_nik,
+                            ref_name=rec_name,
+                            base_url=base_url
+                        )
+                        if info.get("url"):
+                            chosen_url = info["url"]
+                            new_dict[k] = chosen_url
+                            new_dict[f"{k}_url"] = chosen_url
+                            label = f"Foto - {rec_name}" if rec_name else f"Foto {k.title()}"
+                            new_dict[f"{k}_markdown"] = f"![{label}]({chosen_url})"
+                            images.append({
+                                "type": "image_url",
+                                "url": chosen_url,
+                                "filename": info.get("filename", ""),
+                                "mimeType": info.get("mime_type", "image/jpeg")
+                            })
+                        else:
+                            new_dict[k] = "[IMAGE: invalid base64]"
                     else:
                         new_dict[k] = v
                 elif is_img_key and isinstance(v, str) and os.path.isfile(v) and any(v.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif']):
                     try:
                         with open(v, 'rb') as f:
                             raw_b64 = base64.b64encode(f.read()).decode('utf-8')
-                            mime = 'image/png' if v.lower().endswith('.png') else ('image/webp' if v.lower().endswith('.webp') else 'image/jpeg')
-                            images.append({"type": "image", "data": raw_b64, "mimeType": mime})
-                            new_dict[k] = f"[IMAGE_ATTACHED: {mime}, file={os.path.basename(v)}]"
+                        info = await save_b64_image_cached(
+                            raw_b64,
+                            ref_nik=rec_nik,
+                            ref_name=rec_name,
+                            base_url=base_url
+                        )
+                        if info.get("url"):
+                            chosen_url = info["url"]
+                            new_dict[k] = chosen_url
+                            new_dict[f"{k}_url"] = chosen_url
+                            label = f"Foto - {rec_name}" if rec_name else f"Foto {k.title()}"
+                            new_dict[f"{k}_markdown"] = f"![{label}]({chosen_url})"
+                            images.append({
+                                "type": "image_url",
+                                "url": chosen_url,
+                                "filename": info.get("filename", ""),
+                                "mimeType": info.get("mime_type", "image/jpeg")
+                            })
+                        else:
+                            new_dict[k] = os.path.basename(v)
                     except Exception:
                         new_dict[k] = v
+                elif isinstance(v, (dict, list)):
+                    new_dict[k] = await _walk(v, parent_nik=rec_nik, parent_name=rec_name)
+                elif isinstance(v, str) and len(v) >= 100 and is_b64_image_val(v):
+                    info = await save_b64_image_cached(
+                        v,
+                        ref_nik=rec_nik,
+                        ref_name=rec_name,
+                        base_url=base_url
+                    )
+                    if info.get("url"):
+                        chosen_url = info["url"]
+                        new_dict[k] = chosen_url
+                        new_dict[f"{k}_url"] = chosen_url
+                        label = f"Foto - {rec_name}" if rec_name else "Foto"
+                        new_dict[f"{k}_markdown"] = f"![{label}]({chosen_url})"
+                        images.append({
+                            "type": "image_url",
+                            "url": chosen_url,
+                            "filename": info.get("filename", ""),
+                            "mimeType": info.get("mime_type", "image/jpeg")
+                        })
+                    else:
+                        new_dict[k] = v
                 else:
-                    new_dict[k] = _traverse(v)
+                    new_dict[k] = v
             return new_dict
 
         elif isinstance(node, list):
-            return [_traverse(item) for item in node]
+            res_list = []
+            for item in node:
+                res_list.append(await _walk(item, parent_nik=parent_nik, parent_name=parent_name))
+            return res_list
 
         elif isinstance(node, str) and len(node) >= 60:
-            def _replace_embedded(match):
-                if len(images) >= max_images:
-                    return match.group(0)
-                prefix = match.group('prefix')
-                b64_content = match.group('data')
-                raw_b64 = clean_b64_data(b64_content)
-                if len(raw_b64) < 100:
-                    return match.group(0)
-                mime = detect_mime_type(b64_content)
-                images.append({"type": "image", "data": raw_b64, "mimeType": mime})
-                return f"{prefix}[IMAGE_ATTACHED: {mime}, length={len(raw_b64)} chars]"
-
-            return text_img_regex.sub(_replace_embedded, node)
+            if is_b64_image_val(node):
+                info = await save_b64_image_cached(node, ref_nik=parent_nik, ref_name=parent_name, base_url=base_url)
+                if info.get("url"):
+                    images.append({
+                        "type": "image_url",
+                        "url": info["url"],
+                        "filename": info.get("filename", ""),
+                        "mimeType": info.get("mime_type", "image/jpeg")
+                    })
+                    return info["url"]
+            return node
 
         return node
 
-    cleaned = _traverse(copy.deepcopy(obj))
+    cleaned = await _walk(copy.deepcopy(obj))
     return cleaned, images
+
+def extract_mcp_images(obj: Any, max_images: int = 10) -> Tuple[Any, List[Dict[str, str]]]:
+    """Synchronous fallback alias."""
+    return obj, []
+
+@app.get("/media/{filename}")
+@app.get("/api/chat/media/{filename}")
+async def get_media_file_proxy(filename: str):
+    """
+    Serves converted temporary image files directly from local storage or proxies from Backoffice API.
+    Exempt from API key auth so images load seamlessly in browser/chat without bearer token.
+    """
+    clean_name = os.path.basename(filename.replace("\\", "/"))
+    
+    # 1. Check local uploads directory
+    possible_dirs = [
+        "/app/uploads/chat_temp/media",
+        "./data/uploads/chat_temp/media",
+        "uploads/chat_temp/media"
+    ]
+    for d in possible_dirs:
+        fpath = os.path.join(d, clean_name)
+        if os.path.isfile(fpath) and os.path.getsize(fpath) > 0:
+            ext = clean_name.rsplit(".", 1)[-1].lower() if "." in clean_name else "jpg"
+            mime_map = {
+                "jpg": "image/jpeg", "jpeg": "image/jpeg",
+                "png": "image/png", "webp": "image/webp",
+                "gif": "image/gif"
+            }
+            return FileResponse(fpath, media_type=mime_map.get(ext, "image/jpeg"), filename=clean_name)
+    
+    # 2. Proxy from Backoffice API if not found on local disk
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(f"{BACKOFFICE_API_URL}/api/chat/media/{clean_name}")
+            if resp.status_code == 200:
+                return Response(
+                    content=resp.content,
+                    media_type=resp.headers.get("content-type", "image/jpeg"),
+                    headers={"Cache-Control": "public, max-age=86400"}
+                )
+    except Exception as e:
+        logger.warning(f"Error proxying media file '{clean_name}': {e}")
+    
+    raise HTTPException(status_code=404, detail="Media not found or expired")
 
 @app.post("/call_tool")
 async def call_tool_endpoint(call: ToolCallRequest):
     result = await execute_tool(call.name, call.arguments)
-    clean_result, images = extract_mcp_images(result)
+    clean_result, images = await extract_and_convert_mcp_images(result)
     if images:
         clean_result["_mcp_images"] = images
     return JSONResponse(content=clean_result)
@@ -1144,7 +1357,7 @@ async def rpc_endpoint(req: JsonRpcRequest):
         tool_args = params.get("arguments", {})
         try:
             output = await execute_tool(tool_name, tool_args)
-            clean_output, images = extract_mcp_images(output)
+            clean_output, images = await extract_and_convert_mcp_images(output)
 
             content_blocks = [
                 {
@@ -1152,8 +1365,6 @@ async def rpc_endpoint(req: JsonRpcRequest):
                     "text": json.dumps(clean_output, indent=2)
                 }
             ]
-            for img in images:
-                content_blocks.append(img)
 
             return {
                 "jsonrpc": "2.0",
@@ -1242,23 +1453,14 @@ if HAS_MCP:
         arguments = params.arguments or {}
         try:
             output = await execute_tool(name, arguments)
-            clean_output, images = extract_mcp_images(output)
+            clean_output, images = await extract_and_convert_mcp_images(output)
             
-            content_blocks = []
-            content_blocks.append(
+            content_blocks = [
                 types.TextContent(
                     type="text",
                     text=json.dumps(clean_output, indent=2)
                 )
-            )
-            for img in images:
-                content_blocks.append(
-                    types.ImageContent(
-                        type="image",
-                        data=img["data"],
-                        mimeType=img["mimeType"]
-                    )
-                )
+            ]
             return types.CallToolResult(content=content_blocks)
         except Exception as e:
             return types.CallToolResult(content=[

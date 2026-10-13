@@ -5,7 +5,7 @@ import base64
 import hashlib
 import logging
 from datetime import datetime
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any, Tuple, List
 
 logger = logging.getLogger(__name__)
 
@@ -105,26 +105,61 @@ class MediaCacheService:
 
         return s, detected_mime
 
+    @staticmethod
+    def get_default_base_url(request: Optional[Any] = None) -> str:
+        """
+        Determines the public/base URL for media files so images can be loaded
+        directly by external clients (OpenWebUI, Claude, external chat, API users).
+        """
+        # 1. Environment variable override
+        pub = os.getenv("PUBLIC_MEDIA_URL") or os.getenv("PUBLIC_BASE_URL")
+        if pub:
+            return pub.rstrip("/")
+
+        # 2. Extract from FastAPI / Starlette request if available
+        if request is not None:
+            try:
+                proto = request.headers.get("x-forwarded-proto") or getattr(getattr(request, "url", None), "scheme", "http")
+                host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+                if host:
+                    return f"{proto}://{host}".rstrip("/")
+                if hasattr(request, "base_url"):
+                    return str(request.base_url).rstrip("/")
+            except Exception:
+                pass
+
+        # 3. Fallback to BACKOFFICE_URL or local default
+        backoffice_url = os.getenv("BACKOFFICE_URL")
+        if backoffice_url:
+            return backoffice_url.rstrip("/")
+
+        port = os.getenv("BACKOFFICE_API_PORT", "8002")
+        return f"http://localhost:{port}"
+
     def save_base64_as_file(
         self,
         b64_data: str,
         ref_nik: Optional[str] = None,
         ref_name: Optional[str] = None,
         source_name: Optional[str] = None,
+        base_url: Optional[str] = None,
         db: Optional[Any] = None
     ) -> Dict[str, Any]:
         """
         Decodes base64 data, saves it as an image file in the temporary media folder,
         and records it in ChatMediaCache for on-demand regeneration if evicted.
         
-        Returns dict with filename, url, mime_type, file_path, size_bytes.
+        Returns dict with filename, url, full_url, mime_type, file_path, size_bytes.
         """
+        root_base = (base_url or self.get_default_base_url()).rstrip("/")
+
         clean_b64, header_mime = self.clean_base64_string(b64_data)
         if not clean_b64 or len(clean_b64) < 40:
             return {
                 "media_id": "",
                 "filename": "",
                 "url": "",
+                "full_url": "",
                 "mime_type": "image/jpeg",
                 "file_path": "",
                 "size_bytes": 0
@@ -138,6 +173,7 @@ class MediaCacheService:
                 "media_id": "",
                 "filename": "",
                 "url": "",
+                "full_url": "",
                 "mime_type": "image/jpeg",
                 "file_path": "",
                 "size_bytes": 0
@@ -214,14 +250,123 @@ class MediaCacheService:
             self._last_cleanup = now
             self.cleanup_expired_files(self.ttl_hours)
 
+        rel_url = f"/api/chat/media/{filename}"
+        full_url = f"{root_base}{rel_url}" if root_base else rel_url
+
         return {
             "media_id": hash_id,
             "filename": filename,
-            "url": f"/api/chat/media/{filename}",
+            "url": rel_url,
+            "full_url": full_url,
             "mime_type": mime_type,
             "file_path": file_path,
             "size_bytes": len(raw_bytes)
         }
+
+    def convert_data_images(
+        self,
+        data: Any,
+        base_url: Optional[str] = None,
+        ref_nik: Optional[str] = None,
+        ref_name: Optional[str] = None,
+        source_name: Optional[str] = None,
+        prefer_full_url: bool = True,
+        db: Optional[Any] = None
+    ) -> Tuple[Any, List[Dict[str, Any]]]:
+        """
+        Recursively scans any data structure (dict, list, or primitive) for base64 images.
+        Converts each base64 image into a cached media file on disk.
+        Replaces raw base64 data with direct converted image URLs (and companion _url / _markdown fields).
+        
+        Returns: (sanitized_data, converted_media_records)
+        """
+        converted_media: List[Dict[str, Any]] = []
+        image_key_names = {'foto', 'photo', 'image', 'gambar', 'picture', 'avatar', 'img', 'ktp', 'thumbnail'}
+
+        def _is_image_key(k: str) -> bool:
+            kl = str(k).lower()
+            return any(ik in kl for ik in image_key_names)
+
+        def _is_b64(val: Any) -> bool:
+            if not isinstance(val, str) or len(val) < 50:
+                return False
+            vs = val.strip()
+            if vs.startswith("data:image/"):
+                return True
+            clean_s = re.sub(r'[\s"\'`]', '', vs)
+            return (
+                clean_s.startswith(('/9j/', 'iVBORw0KGgo', 'R0lGOD', 'UklGR', 'Qk')) or
+                (len(clean_s) >= 100 and bool(re.match(r'^[A-Za-z0-9+/=]+$', clean_s)))
+            )
+
+        def _walk(node: Any, parent_nik: Optional[str] = None, parent_name: Optional[str] = None) -> Any:
+            if isinstance(node, dict):
+                rec_nik = str(node.get("NIK") or node.get("nik") or node.get("no_ktp") or node.get("id") or parent_nik or "").strip() or None
+                rec_name = str(node.get("NAMA_LGKP") or node.get("nama") or node.get("name") or node.get("full_name") or parent_name or "").strip() or None
+
+                new_dict = {}
+                for k, v in node.items():
+                    if _is_image_key(k) and _is_b64(v):
+                        info = self.save_base64_as_file(
+                            v,
+                            base_url=base_url,
+                            ref_nik=rec_nik,
+                            ref_name=rec_name,
+                            source_name=source_name,
+                            db=db
+                        )
+                        if info.get("filename"):
+                            converted_media.append(info)
+                            chosen_url = info.get("full_url") if prefer_full_url else info.get("url")
+                            new_dict[k] = chosen_url
+                            new_dict[f"{k}_url"] = chosen_url
+                            label = f"Foto - {rec_name}" if rec_name else f"Foto {k.title()}"
+                            new_dict[f"{k}_markdown"] = f"![{label}]({chosen_url})"
+                        else:
+                            new_dict[k] = v
+                    elif isinstance(v, (dict, list)):
+                        new_dict[k] = _walk(v, parent_nik=rec_nik, parent_name=rec_name)
+                    elif isinstance(v, str) and len(v) > 100 and _is_b64(v):
+                        info = self.save_base64_as_file(
+                            v,
+                            base_url=base_url,
+                            ref_nik=rec_nik,
+                            ref_name=rec_name,
+                            source_name=source_name,
+                            db=db
+                        )
+                        if info.get("filename"):
+                            converted_media.append(info)
+                            chosen_url = info.get("full_url") if prefer_full_url else info.get("url")
+                            new_dict[k] = chosen_url
+                            new_dict[f"{k}_url"] = chosen_url
+                        else:
+                            new_dict[k] = v
+                    else:
+                        new_dict[k] = v
+                return new_dict
+
+            elif isinstance(node, list):
+                return [_walk(item, parent_nik=parent_nik, parent_name=parent_name) for item in node]
+
+            elif isinstance(node, str) and _is_b64(node):
+                info = self.save_base64_as_file(
+                    node,
+                    base_url=base_url,
+                    ref_nik=parent_nik,
+                    ref_name=parent_name,
+                    source_name=source_name,
+                    db=db
+                )
+                if info.get("filename"):
+                    converted_media.append(info)
+                    return info.get("full_url") if prefer_full_url else info.get("url")
+                return node
+
+            return node
+
+        sanitized_data = _walk(data, parent_nik=ref_nik, parent_name=ref_name)
+        return sanitized_data, converted_media
 
     def get_or_regenerate_file(self, filename_or_id: str, db: Optional[Any] = None) -> Optional[Tuple[str, str]]:
         """
@@ -337,6 +482,8 @@ class MediaCacheService:
         text: str,
         default_nik: Optional[str] = None,
         default_name: Optional[str] = None,
+        base_url: Optional[str] = None,
+        prefer_full_url: bool = False,
         db: Optional[Any] = None
     ) -> str:
         """
@@ -357,9 +504,10 @@ class MediaCacheService:
         def _sub_md_img(m):
             label = m.group(1).strip()
             raw_b64 = m.group(2).strip()
-            info = self.save_base64_as_file(raw_b64, ref_nik=default_nik, ref_name=default_name, db=db)
-            if info.get("url"):
-                return f"![{label or 'Foto'}]({info['url']})"
+            info = self.save_base64_as_file(raw_b64, base_url=base_url, ref_nik=default_nik, ref_name=default_name, db=db)
+            chosen_url = info.get("full_url") if prefer_full_url else info.get("url")
+            if chosen_url:
+                return f"![{label or 'Foto'}]({chosen_url})"
             # If base64 decoding failed or is invalid, do not leave broken /9j/... URL that causes 404 in UI
             return ""
 
@@ -375,9 +523,10 @@ class MediaCacheService:
             attrs_pre = m.group(1)
             raw_b64 = m.group(2).strip()
             attrs_post = m.group(3)
-            info = self.save_base64_as_file(raw_b64, ref_nik=default_nik, ref_name=default_name, db=db)
-            if info.get("url"):
-                return f'<img {attrs_pre}src="{info["url"]}"{attrs_post}>'
+            info = self.save_base64_as_file(raw_b64, base_url=base_url, ref_nik=default_nik, ref_name=default_name, db=db)
+            chosen_url = info.get("full_url") if prefer_full_url else info.get("url")
+            if chosen_url:
+                return f'<img {attrs_pre}src="{chosen_url}"{attrs_post}>'
             return ""
 
         cleaned_text = html_pattern.sub(_sub_html_img, cleaned_text)
@@ -386,8 +535,9 @@ class MediaCacheService:
         standalone_data_uri = re.compile(r'data:image\/[a-zA-Z0-9+.-]+;base64,[A-Za-z0-9+/=]{80,}', flags=re.IGNORECASE)
         def _sub_data_uri(m):
             raw_b64 = m.group(0).strip()
-            info = self.save_base64_as_file(raw_b64, ref_nik=default_nik, ref_name=default_name, db=db)
-            return info.get("url") or ""
+            info = self.save_base64_as_file(raw_b64, base_url=base_url, ref_nik=default_nik, ref_name=default_name, db=db)
+            chosen_url = info.get("full_url") if prefer_full_url else info.get("url")
+            return chosen_url or ""
 
         cleaned_text = standalone_data_uri.sub(_sub_data_uri, cleaned_text)
 
@@ -395,14 +545,37 @@ class MediaCacheService:
         standalone_raw_b64 = re.compile(r'(?:^|\n|\s|\()(?P<b64>/9j/[A-Za-z0-9+/=]{80,}|iVBORw0KGgo[A-Za-z0-9+/=]{80,})(?:\)|\s|\n|$)', flags=re.MULTILINE)
         def _sub_raw_b64(m):
             b64_val = m.group('b64').strip()
-            info = self.save_base64_as_file(b64_val, ref_nik=default_nik, ref_name=default_name, db=db)
-            if info.get("url"):
-                return f"\n\n![Foto Profil]({info['url']})\n\n"
+            info = self.save_base64_as_file(b64_val, base_url=base_url, ref_nik=default_nik, ref_name=default_name, db=db)
+            chosen_url = info.get("full_url") if prefer_full_url else info.get("url")
+            if chosen_url:
+                return f"\n\n![Foto Profil]({chosen_url})\n\n"
             return ""
 
         cleaned_text = standalone_raw_b64.sub(_sub_raw_b64, cleaned_text)
 
+        if prefer_full_url and base_url:
+            cleaned_text = self.expand_media_urls_to_absolute(cleaned_text, base_url)
+
         return cleaned_text
+
+    def expand_media_urls_to_absolute(self, text: str, base_url: Optional[str] = None) -> str:
+        """
+        Expands relative /api/chat/media/... URLs in markdown or HTML into full absolute URLs.
+        Useful when sending responses to external API or chat clients (e.g. OpenAI completions, MCP).
+        """
+        if not text or not isinstance(text, str):
+            return text
+        root_base = (base_url or self.get_default_base_url()).rstrip("/")
+        if not root_base:
+            return text
+
+        def _expand(m):
+            full_match = m.group(0)
+            if full_match.startswith(("http://", "https://")):
+                return full_match
+            return f"{root_base}{full_match}"
+
+        return re.sub(r'(?:https?://[^\s/\"\'\)]+)?/api/chat/media/[\w\-.]+', _expand, text)
 
 
 media_cache_service = MediaCacheService()

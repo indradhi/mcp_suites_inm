@@ -27,6 +27,7 @@ services:
       - "8001:8001"
     volumes:
       - ./services/mcp_server:/app
+      - ./data/uploads:/app/uploads
     environment:
       LOG_LEVEL: DEBUG
       RELOAD: "true"
