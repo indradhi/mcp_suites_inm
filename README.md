@@ -43,7 +43,7 @@ graph TD
 3. **📊 Analisis Data, Penemuan Korelasi & Deteksi Anomali**:
    - **Deteksi Hubungan Tersembunyi**: Mengidentifikasi afiliasi terselubung antar-entitas yang tidak tampak pada pencarian data sekuensial biasa.
    - **Deteksi Anomali & Risiko**: Menyoroti anomali data (misal: kepemilikan aset silang, ketidaksesuaian domisili kependudukan vs lokasi aset, atau peserta tender yang terafiliasi pada pengurus yang sama).
-   - **Zero-Hallucination & Anti-Rot Grounding**: Seluruh kesimpulan diverifikasi oleh *Context Rot Guard*, memisahkan individu bernama sama (*Anti-Conflation*), dan murni berpijak pada data otoritatif (*Ground Truth*) tanpa spekulasi liar.
+   - **Zero-Hallucination, Anti-Rot & Context Isolation**: Seluruh kesimpulan diverifikasi oleh *Context Rot Guard*, memisahkan individu bernama sama (*Anti-Conflation*), serta menerapkan **Graph-Bounded Context Isolation** agar pencarian vektor ChromaDB dibatasi murni pada jaringan relasi Neo4j dari subjek yang sedang diinvestigasi tanpa kebocoran data orang/entitas lain.
 
 ---
 
@@ -116,6 +116,8 @@ Ingestion is fully async via **Celery** + **Redis** workers with real-time job s
 | `enroll_face` | Enroll a new face identity into the biometric database |
 | `list_enrolled_faces` | List all enrolled face profiles |
 | `get_retrieval_flow_for_prompt` | Fetch the matching remembered orchestration flow for a query |
+| `set_chat_focus_context` | Menetapkan atau mengunci entitas/topik fokus secara manual pada sesi chat |
+| `get_chat_focus_context` | Mengambil status dan entitas fokus aktif untuk isolasi konteks sesi chat |
 | **Dynamic tools** | Any Database/API/MCP knowledge source marked `is_tool=true` is auto-exposed |
 
 ### 6. 🎭 AI Personality System
@@ -203,13 +205,82 @@ Sistem dilengkapi dengan subsistem penelusuran data (*knowledge tracing & analyt
 | **3. High-Precision Vector DB Hybrid Search** | Ekstraksi kata kunci pada pencarian hibrida hanya menangkap angka numerik 6–20 digit (`\d{6,20}`), sehingga format nomor sertifikat (SHM/HGB), NPWP bertanda baca, dan kode paket lelang terlewat. | • **Multi-Identifier Extraction**: Mengekstrak kode sertifikat tanah (`SHM`, `HGB`, `NIB`, `NOP`, `NO_HAK`, `SURAT UKUR`), NPWP (format titik-strip maupun angka bersih), serta kode pengadaan (`KD_RUP`, `KD_PENYEDIA`, `KD_TENDER`, `ID_PAKET`).<br>• **Exact Attribute Match Scoring**: Potongan dokumen yang memuat atribut pengenal spesifik (seperti `"nomorhak": "10132307303457"`, `"nib": "..."`, atau `NPWP:`) otomatis memperoleh skor relevansi maksimal (`1.0`), menjamin dokumen target selalu tampil di peringkat teratas. | Dokumen sertifikat pertanahan, perpajakan, dan tender langsung ditemukan seketika (*instant top hit*) bahkan dengan kueri bertanda baca atau kode parsial. |
 | **4. Multi-Hop Network Graph Intelligence (Neo4j)** | Penelusuran entitas sering kali kabur karena penamaan generic ("Entity"). Akibatnya identitas spesifik seperti NIK, Nama Perusahaan, atau Nomor Telepon saling tercampur. Kueri 1-hop sebelumnya membatasi penemuan afiliasi tersembunyi. | • **Strict Entity Modeling (Entity Detection)**: Menerapkan skema entitas spesifik di mana **"Orang"** diwakili unik oleh NIK (dengan relasi NAMA, KELUARGA, ALAMAT, BEKERJA_SEBAGAI, dll.), **"Perusahaan"** diwakili nama unik (PT/CV/Yayasan) dengan relasi kepemilikan/pengurus, dan **"Telepon"** diwakili MSISDN (relasi panggilan/WA/IPDR).<br>• **2-Hop Multi-Hop Network Traversal**: Menelusuri jalur hubungan tak langsung secara semantik (misal: Orang A ➜ Orang B ➜ Perusahaan C).<br>• **Distinct-Entity Grouping**: Distribusi kuota relasi seimbang per entitas (`WITH e LIMIT $limit`). | AI mampu mendeteksi profil entitas secara ketat tanpa halusinasi, memetakan jaringan keterkaitan spesifik antar individu dan instansi, serta menemukan hubungan tersembunyi atau anomali profil secara komprehensif. |
 
-### 14. 🔐 Security & RBAC
+### 14. 🔒 Graph-Bounded Context Isolation (Anti-Kebocoran Konteks ChromaDB via Neo4j Network Boundary)
+
+Pada sistem Retrieval-Augmented Generation (RAG) multi-sumber, seluruh hasil ingest (data Kependudukan Dukcapil, Sertifikat Tanah BPN, Rekanan Pengadaan SPSE/SIKAP, Notaris AHU, dll.) digabung ke dalam satu koleksi penyimpanan vektor ChromaDB (`knowledge_base`). 
+
+Ketika pengguna melakukan pencarian dengan kata kunci umum (seperti *"tanah"*, *"sertifikat"*, *"rekening"*, *"perusahaan"*), pencarian kemiripan kosinus (ANN) rentan memunculkan potongan data milik orang atau badan usaha lain yang sama sekali tidak berhubungan dengan subjek investigasi. Hal ini menyebabkan **kebocoran konteks (*context leakage*)** dan menurunkan akurasi analisis AI.
+
+Untuk mengatasi hal tersebut, MCP Server mengimplementasikan **Graph-Bounded Context Isolation Engine** (`services/mcp_server/context_isolator.py` & `services/backoffice_api/services/context_isolator.py`):
+
+```mermaid
+graph TD
+    UserQuery["Kueri Percakapan / Sesi Investigasi"] --> Isolator["Context Isolator Engine"]
+    
+    subgraph S1 ["1. Identifikasi & Pewarisan Fokus"]
+        Isolator --> EntityDetect["Ekstraksi Entitas & Topik Fokus<br>(Nama, NIK 16 digit, KK, PT/CV)"]
+        EntityDetect --> SessionMem["Pewarisan Konteks Sesi Multi-Turn<br>(Inherit Focus dari Riwayat Chat)"]
+        SessionMem --> TopicShift["Deteksi Pergantian Subjek / Topic Shift"]
+    end
+    
+    subgraph S2 ["2. Pemetaan Batas Jaringan Otoritatif"]
+        SessionMem --> Neo4j["Neo4j Knowledge Graph Traversal"]
+        Neo4j --> GraphBoundary["Batas Jaringan Multi-Hop (1-Hop & 2-Hop)<br>• NIK & KK Resmi<br>• Anggota Keluarga & Relasi<br>• Sertifikat Tanah & AJB Terdaftar<br>• Perusahaan & Kepengurusan"]
+    end
+    
+    subgraph S3 ["3. Pengambilan Kandidat Vektor"]
+        UserQuery --> Chroma["ChromaDB Vector Search (Expanded Candidates)"]
+    end
+    
+    subgraph S4 ["4. Graph-Bounded Filtering"]
+        Chroma & GraphBoundary --> Filter["Penyaringan Ketat Batas Graf<br>(isolate_chunks)"]
+        Filter -->|Terverifikasi dalam Jaringan Neo4j| Admitted["✅ Lolos ke Prompt AI (Admitted Context)"]
+        Filter -->|Subjek Asing / Tidak Terhubung| Blocked["❌ Diblokir & Dieliminasi (Dropped Contaminant)"]
+    end
+    
+    Admitted --> LLM["LLM Synthesis (Grounded, Terisolasi & Bebas Halusinasi)"]
+```
+
+#### Pilar Kerja Context Isolation:
+1. **🎯 Penentuan & Pewarisan Entitas Fokus (*Session Focus Inheritance*)**:
+   - Sistem secara cerdas mendeteksi entitas target dari pesan (misal: `"INDRADHI NUGRAHA MULYANTO"` atau NIK `"3671090910810001"`).
+   - Pada pertanyaan lanjutan (*follow-up turns*), jika pengguna bertanya tanpa menyebutkan nama (misal: *"Aset tanah apa saja yang dimiliki dan berapa nomor sertifikatnya?"*), sistem secara otomatis mewarisi entitas fokus dari sesi/riwayat obrolan sebelumnya.
+   - Jika pengguna sengaja menanyakan pihak baru (misal: *"Tampilkan profil PT Waskita Karya"*), sistem mendeteksi *Topic Shift* dan merefresh batas jaringan untuk entitas baru tersebut.
+2. **🌐 Resolusi Batas Jaringan Graf Neo4j (*Graph Network Boundary*)**:
+   - Menjalankan kueri Cypher 1-hop & 2-hop terhubung (`get_connected_context_network`).
+   - Mengumpulkan seluruh pengenal sah: NIK, nomor KK, nama keluarga/orang tua, nomor sertifikat tanah (SHM/HGB), akta jual beli (AJB), nama perusahaan terafiliasi, serta alamat domisili.
+3. **🛡️ Eliminasi Kontaminan Lintas Entitas (*Graph-Bounded Chunk Filter*)**:
+   - Memeriksa setiap potongan dokumen kandidat dari ChromaDB.
+   - Jika potongan dokumen memuat nama pemilik, pemegang hak, atau subjek pendaftaran sipil/pertanahan yang **berbeda dan tidak terhubung** dalam graf Neo4j, chunk tersebut langsung dibuang (*isolated and dropped*).
+   - Menghasilkan laporan metrik isolasi transparan pada balikan respons:
+     ```json
+     "context_isolation": {
+       "status": "enforced",
+       "focus_entity": "INDRADHI NUGRAHA MULYANTO",
+       "is_mapped_in_neo4j": true,
+       "network_size": 29,
+       "candidates_total": 9,
+       "admitted_count": 7,
+       "isolated_dropped_count": 2,
+       "dropped_reasons": [
+         "Blocked foreign entity 'INCOE HADJI DAPET JENISMODAL' not connected in Neo4j graph",
+         "Blocked foreign entity 'Unrelated Registry Record' not connected in Neo4j graph"
+       ]
+     }
+     ```
+4. **⚙️ Kontrol Fleksibel via MCP Tools & API**:
+   - `focus_entity`: Menetapkan target entitas/subjek isolasi secara spesifik.
+   - `session_id`: Mengikat percakapan ke sesi memori isolasi tertentu.
+   - `isolate_context`: Boolean toggle (default `true`) untuk mengaktifkan/menonaktifkan filter batas graf.
+   - Tersedia pada MCP Tools (`search_knowledge_base`, `orchestrate_knowledge_search`, `set_chat_focus_context`, `get_chat_focus_context`), Backoffice API (`/api/chat`, `/api/chat/stream`, `/api/knowledge/orchestrate-search`), dan endpoint standar `/v1/chat/completions`.
+
+### 15. 🔐 Security & RBAC
 - **JWT-based authentication** with role-based access: `admin`, `editor`, `viewer`.
 - **API Keys** with scoped permissions (tool allowlist, knowledge base allowlist).
 - Middleware-level key validation with **in-memory caching** (60s TTL) to minimize latency.
 - `MCP_AUTH_ENABLED` toggle for development environments.
 
-### 15. 🗄️ Enterprise Data Persistence & Zero-Loss Protection
+### 16. 🗄️ Enterprise Data Persistence & Zero-Loss Protection
 - Host bind-mount volumes under `./data/` survive container restarts and rebuilds.
 - **Automated daily backups**: MySQL dumps, Neo4j snapshots, ChromaDB archives, Redis AOF — all packaged into timestamped `.tar.gz` in `./backups/`.
 
