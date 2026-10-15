@@ -237,6 +237,9 @@ class ChatRequest(BaseModel):
     top_k: Optional[int] = 20
     strict_mode: Optional[bool] = True
     clear_prior_context: Optional[bool] = False  # Reset working context memory (Anti-Rot fresh topic)
+    session_id: Optional[str] = None             # Session identifier for Context Isolation memory
+    focus_entity: Optional[str] = None           # Explicit target entity or topic to isolate context
+    isolate_context: Optional[bool] = True       # Enforce Neo4j graph-bounded context isolation
     # ── OpenAI standard sampling parameters ──────────────────────────
     temperature: Optional[float] = None
     top_p: Optional[float] = None          # Nucleus sampling (0-1)
@@ -275,6 +278,7 @@ class ChatResponse(BaseModel):
     strict_mode: Optional[bool] = True
     temperature: Optional[float] = None
     context_rot_guard: Optional[Dict[str, Any]] = None
+    context_isolation: Optional[Dict[str, Any]] = None
     # ── OpenAI standard usage tracking ───────────────────────────────
     usage: Optional[Dict[str, Any]] = None  # prompt_tokens, completion_tokens, total_tokens
     finish_reason: Optional[str] = None    # "stop", "tool_calls", "length", "content_filter"
@@ -421,6 +425,9 @@ def chat_with_knowledge_endpoint(
         dislike_notes=dislike_notes,
         strict_mode=req.strict_mode if req.strict_mode is not None else True,
         temperature=req.temperature,
+        session_id=req.session_id,
+        focus_entity=req.focus_entity,
+        isolate_context=req.isolate_context if req.isolate_context is not None else True,
         # OpenAI standard parameters
         top_p=req.top_p,
         presence_penalty=req.presence_penalty,
@@ -524,6 +531,9 @@ async def chat_stream_endpoint(
                     dislike_notes=[],
                     strict_mode=req.strict_mode if req.strict_mode is not None else True,
                     temperature=req.temperature,
+                    session_id=req.session_id,
+                    focus_entity=req.focus_entity,
+                    isolate_context=req.isolate_context if req.isolate_context is not None else True,
                     top_p=req.top_p,
                     presence_penalty=req.presence_penalty,
                     frequency_penalty=req.frequency_penalty,

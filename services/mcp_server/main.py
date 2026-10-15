@@ -24,6 +24,7 @@ import httpx
 
 from vector_client import VectorClient
 from graph_client import GraphClient
+from context_isolator import context_isolator
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("mcp_server")
@@ -170,13 +171,27 @@ app.add_middleware(ApiKeyAuthMiddleware)
 TOOLS_METADATA = [
     {
         "name": "search_knowledge_base",
-        "description": "Search the knowledge base vector store for documents, PDFs (with OCR), spreadsheets, Word docs, web search results, and database records relevant to the query.",
+        "description": "Search the knowledge base vector store for documents, PDFs (with OCR), spreadsheets, Word docs, web search results, and database records. Enforces Graph-Bounded Context Isolation: chunks from unrelated entities are blocked, only admitting data belonging to the focus entity or its Neo4j graph-mapped network.",
         "parameters": {
             "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
                     "description": "The search query or concept to find relevant knowledge for."
+                },
+                "focus_entity": {
+                    "type": "string",
+                    "description": "Target entity or topic name (person, company, case, NIK) to isolate context to. When provided or detected, ChromaDB retrieval is bounded strictly to this entity and its Neo4j graph network."
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": "Conversation session ID to maintain active focus entity and topic isolation across multi-turn interactions (default 'default').",
+                    "default": "default"
+                },
+                "isolate_context": {
+                    "type": "boolean",
+                    "description": "Whether to enforce strict context isolation bounded by Neo4j graph network (default true). Chunks from alien entities are discarded.",
+                    "default": True
                 },
                 "max_results": {
                     "type": "integer",
@@ -185,6 +200,43 @@ TOOLS_METADATA = [
                 }
             },
             "required": ["query"]
+        }
+    },
+    {
+        "name": "set_chat_focus_context",
+        "description": "Explicitly set or switch the active entity or topic focus for the current chat session. Binds subsequent ChromaDB searches and tool operations strictly to this entity and its Neo4j graph-mapped network, preventing context leakage.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "entity_name": {
+                    "type": "string",
+                    "description": "The target person, organization, company, or case entity to anchor the session focus to."
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": "The conversation or session identifier (default 'default').",
+                    "default": "default"
+                },
+                "topic": {
+                    "type": "string",
+                    "description": "Optional investigation topic or case title."
+                }
+            },
+            "required": ["entity_name"]
+        }
+    },
+    {
+        "name": "get_chat_focus_context",
+        "description": "Inspect the currently active entity, topic, and Neo4j-mapped context boundary for a chat session.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string",
+                    "description": "The conversation or session identifier (default 'default').",
+                    "default": "default"
+                }
+            }
         }
     },
     {
@@ -258,13 +310,27 @@ TOOLS_METADATA = [
     },
     {
         "name": "orchestrate_knowledge_search",
-        "description": "Orchestrate a multi-source intelligent search across all knowledge sources (Vector Store, Knowledge Graph, and dynamic Database/API sources) according to AI search guidelines. Analyzes user input, queries relevant sources simultaneously, extracts entity relationships, suggests or invokes real-time tools, and returns a consolidated, grounded context package with guidelines for final response generation.",
+        "description": "Orchestrate a multi-source intelligent search across all knowledge sources (Vector Store, Knowledge Graph, and dynamic Database/API sources) according to AI search guidelines. Enforces Neo4j Graph-Bounded Context Isolation to prevent context leakage across unrelated entities.",
         "parameters": {
             "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
                     "description": "The search query or user input to orchestrate across knowledge base sources."
+                },
+                "focus_entity": {
+                    "type": "string",
+                    "description": "Target entity to isolate search to. Vector chunks and graph nodes are filtered against this entity's Neo4j mapped network."
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": "Conversation session ID to maintain active focus entity across turns (default 'default').",
+                    "default": "default"
+                },
+                "isolate_context": {
+                    "type": "boolean",
+                    "description": "Whether to enforce strict context isolation bounded by Neo4j graph network (default true).",
+                    "default": True
                 },
                 "search_strategy": {
                     "type": "string",
@@ -559,12 +625,95 @@ async def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         max_results = int(args.get("max_results", 5))
         if not query:
             return {"error": "Query parameter is required"}
-        results = await vector_client.search_knowledge(query_text=query, n_results=max_results)
+
+        session_id = args.get("session_id")
+        explicit_entity = args.get("focus_entity")
+        isolate_context = args.get("isolate_context", True)
+
+        focus_entity, is_shift, session_data = context_isolator.determine_active_focus(
+            query=query,
+            session_id=session_id,
+            explicit_entity=explicit_entity
+        )
+
+        if isolate_context and focus_entity:
+            # 1. Resolve Neo4j graph network boundary
+            network_boundary = await context_isolator.get_graph_network_boundary(graph_client, focus_entity)
+            # 2. Query expanded ChromaDB candidate pool
+            candidates = await vector_client.search_knowledge(
+                query_text=query,
+                n_results=max_results,
+                candidate_multiplier=3,
+                focus_entity=focus_entity
+            )
+            # 3. Filter & isolate chunks against Neo4j network
+            admitted, isolation_report = context_isolator.isolate_chunks(
+                candidates=candidates,
+                focus_entity=focus_entity,
+                network_boundary=network_boundary,
+                strict=True
+            )
+            final_results = admitted[:max_results]
+            return {
+                "tool": name,
+                "query": query,
+                "focus_entity": focus_entity,
+                "session_id": session_id or "default",
+                "count": len(final_results),
+                "results": final_results,
+                "context_isolation": isolation_report
+            }
+        else:
+            results = await vector_client.search_knowledge(query_text=query, n_results=max_results)
+            return {
+                "tool": name,
+                "query": query,
+                "count": len(results),
+                "results": results
+            }
+
+    elif name == "set_chat_focus_context":
+        ent_name = args.get("entity_name", "")
+        if not ent_name:
+            return {"error": "entity_name parameter is required"}
+        sid = args.get("session_id", "default")
+        topic = args.get("topic")
+        session_data = context_isolator.set_session_context(session_id=sid, entity_name=ent_name, topic=topic)
+        net_bound = await context_isolator.get_graph_network_boundary(graph_client, session_data["focus_entity"])
         return {
             "tool": name,
-            "query": query,
-            "count": len(results),
-            "results": results
+            "status": "success",
+            "session_id": sid,
+            "focus_entity": session_data["focus_entity"],
+            "is_mapped_in_neo4j": net_bound.get("is_mapped", False),
+            "network_nodes_count": net_bound.get("total_network_size", 1),
+            "network_nodes_sample": net_bound.get("allowed_names", [])[:12],
+            "message": f"Konteks percakapan sesi '{sid}' berhasil diisolasi ke entitas '{session_data['focus_entity']}'. Pencarian berikutnya dibatasi secara ketat pada entitas ini dan jaringan yang terpetakan di Neo4j."
+        }
+
+    elif name == "get_chat_focus_context":
+        sid = args.get("session_id", "default")
+        session_data = context_isolator.get_session_context(sid)
+        if not session_data or not session_data.get("focus_entity"):
+            return {
+                "tool": name,
+                "session_id": sid,
+                "has_focus": False,
+                "message": f"Belum ada entitas fokus yang terkunci untuk sesi '{sid}'. Konteks bersifat dinamis."
+            }
+        f_ent = session_data["focus_entity"]
+        net_bound = await context_isolator.get_graph_network_boundary(graph_client, f_ent)
+        return {
+            "tool": name,
+            "session_id": sid,
+            "has_focus": True,
+            "focus_entity": f_ent,
+            "topic": session_data.get("topic"),
+            "updated_at": session_data.get("updated_at"),
+            "is_mapped_in_neo4j": net_bound.get("is_mapped", False),
+            "network_nodes_count": net_bound.get("total_network_size", 1),
+            "network_nodes": net_bound.get("network_nodes", [])[:15],
+            "allowed_names": net_bound.get("allowed_names", [])[:15]
         }
 
     elif name == "get_entity_network_profile":
@@ -633,7 +782,7 @@ async def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
             "tool": name,
             "status": "success (local synthesis)",
             "guidelines": {
-                "core_mission": "Analis Intelijen & Penyelidikan KPK. Melakukan penelaahan bukti, penelusuran aset, profiling entitas terduga, verifikasi silang dokumen & data lapangan, serta menjaga integritas anti-halusinasi.",
+                "core_mission": "Analis Intelijen & Penyelidikan KPK. Melakukan penelaahan bukti, penelusuran aset, profiling entitas terduga, verifikasi silang dokumen & data lapangan, serta menjaga integritas anti-halusinasi dan isolasi konteks.",
                 "personality": {
                     "name": "Analis Intelijen & Penyelidikan KPK",
                     "role": "Analis Intelijen & Penyelidikan Korupsi",
@@ -643,19 +792,20 @@ async def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
                 "input_processing_protocol": [
                     {
                         "step": 1,
-                        "phase": "Query Intent Classification",
+                        "phase": "Context Isolation & Entity Anchoring",
                         "rules": [
-                            "Classify query into factual document search, graph network inquiry, or live database/API lookup.",
-                            "Extract key named entities, proper nouns, dates, and identifiers."
+                            "Tentukan entitas subjek atau topik yang sedang dibahas dalam sesi chat saat ini.",
+                            "Gunakan 'focus_entity' atau panggil 'set_chat_focus_context' untuk mengunci batasan konteks ke jaringan Neo4j entitas tersebut.",
+                            "ISOLASI KONTEKS MUTLAK: Seluruh data dalam bank pengetahuan ChromaDB tidak boleh dicampuradukkan. Jangan pernah menampilkan atau mengasumsikan data milik entitas lain yang tidak terhubung resmi dalam Neo4j."
                         ]
                     },
                     {
                         "step": 2,
                         "phase": "Source Routing Decision Tree",
                         "rules": [
-                            "Rule A: For live land/asset ownership or database records, invoke matching tools (e.g. cari_tanah_bpn, db_*).",
-                            "Rule B: For relationships between people or companies, query Neo4j with 'get_entity_network_profile' or 'analyze_data_relationship'.",
-                            "Rule C: For documents, policies, and files, query ChromaDB with 'search_knowledge_base' or 'orchestrate_knowledge_search'."
+                            "Rule A: Untuk data aset/tanah/kependudukan live, jalankan dynamic database/API tools (prioritas utama).",
+                            "Rule B: Untuk jaringan hubungan, gunakan Neo4j (get_entity_network_profile, analyze_data_relationship).",
+                            "Rule C: Untuk dokumen & berita, gunakan search_knowledge_base atau orchestrate_knowledge_search dengan batasan isolasi konteks."
                         ]
                     },
                     {
@@ -671,12 +821,12 @@ async def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
             },
             "catalog": {
                 "available_ai_tools": tools_list,
-                "vector_store": "ChromaDB (collection: knowledge_base)",
+                "vector_store": "ChromaDB (collection: knowledge_base, Graph-Bounded Isolation Active)",
                 "knowledge_graph": "Neo4j Graph Database"
             },
             "query_recommendations": {
                 "query": query,
-                "suggested_action": "Use 'orchestrate_knowledge_search' for automated multi-source retrieval."
+                "suggested_action": "Use 'orchestrate_knowledge_search' for automated multi-source retrieval with context isolation."
             } if query else None
         }
 
@@ -687,6 +837,15 @@ async def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         strategy = args.get("search_strategy", "hybrid")
         max_results = int(args.get("max_results", 5))
         source_types = args.get("source_types")
+        session_id = args.get("session_id")
+        explicit_entity = args.get("focus_entity")
+        isolate_context = args.get("isolate_context", True)
+
+        focus_entity, is_shift, session_data = context_isolator.determine_active_focus(
+            query=query,
+            session_id=session_id,
+            explicit_entity=explicit_entity
+        )
 
         # 1. Attempt delegating to Backoffice API
         try:
@@ -697,7 +856,10 @@ async def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
                         "query": query,
                         "search_strategy": strategy,
                         "source_types": source_types,
-                        "max_results": max_results
+                        "max_results": max_results,
+                        "focus_entity": focus_entity,
+                        "session_id": session_id or "default",
+                        "isolate_context": isolate_context
                     }
                 )
                 if res.status_code == 200:
@@ -707,19 +869,50 @@ async def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         except Exception as e:
             logger.debug(f"Backoffice orchestrate-search exception ({e}), falling back to local synthesis")
 
-        # 2. Local Fallback Multi-Source Orchestration
+        # 2. Local Fallback Multi-Source Orchestration with Graph-Bounded Context Isolation
+        network_boundary = None
+        if isolate_context and focus_entity:
+            network_boundary = await context_isolator.get_graph_network_boundary(graph_client, focus_entity)
+
         vector_results = []
+        isolation_report = None
         if strategy in ["hybrid", "semantic_only", "comprehensive"]:
-            vector_results = await vector_client.search_knowledge(query_text=query, n_results=max_results)
+            candidates = await vector_client.search_knowledge(
+                query_text=query,
+                n_results=max_results,
+                candidate_multiplier=3,
+                focus_entity=focus_entity
+            )
+            if isolate_context and focus_entity:
+                admitted, isolation_report = context_isolator.isolate_chunks(
+                    candidates=candidates,
+                    focus_entity=focus_entity,
+                    network_boundary=network_boundary,
+                    strict=True
+                )
+                vector_results = admitted[:max_results]
+            else:
+                vector_results = candidates[:max_results]
 
         graph_entities = []
         if strategy in ["hybrid", "graph_only", "comprehensive"]:
-            import re
-            words = [w.strip() for w in re.findall(r'\w+', query) if len(w) >= 3]
-            for w in words[:4]:
-                prof = await graph_client.get_entity_profile(entity_name=w)
+            if focus_entity:
+                prof = await graph_client.get_entity_profile(entity_name=focus_entity)
                 if prof:
                     graph_entities.append(prof)
+                if network_boundary and network_boundary.get("network_nodes"):
+                    for nn in network_boundary["network_nodes"][:5]:
+                        if nn.get("name") and nn["name"].upper() != focus_entity.upper():
+                            p = await graph_client.get_entity_profile(entity_name=nn["name"])
+                            if p and p not in graph_entities:
+                                graph_entities.append(p)
+            else:
+                import re
+                words = [w.strip() for w in re.findall(r'\w+', query) if len(w) >= 3]
+                for w in words[:4]:
+                    prof = await graph_client.get_entity_profile(entity_name=w)
+                    if prof:
+                        graph_entities.append(prof)
 
         dynamic_tools = await fetch_dynamic_api_tools()
         applicable_tools = []
@@ -734,20 +927,28 @@ async def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
                     "parameters": t["parameters"]
                 })
 
-        return {
+        guidelines = [
+            f"Konteks terisolasi untuk entitas: '{focus_entity}' (Terpetakan di Neo4j: {bool(network_boundary and network_boundary.get('is_mapped'))})." if focus_entity else "Pencarian pengetahuan umum (tanpa isolasi entitas khusus).",
+            f"Retrieved {len(vector_results)} document chunk(s) and {len(graph_entities)} graph entity profile(s).",
+            "PRIORITAS SUMBER DATA: Data yang didapat langsung dari query database/API live adalah PRIORITAS UTAMA MUTLAK yang wajib ditampilkan terlebih dahulu kepada pengguna di atas dokumen RAG/vektor.",
+            "ISOLASI KONTEKS: Jangan pernah mencantumkan atau mengaitkan data dari entitas/orang/perusahaan lain yang tidak terhubung dalam jaringan Neo4j.",
+            "Ground your answer strictly in these findings. Cite document IDs and source names."
+        ]
+
+        resp_dict = {
             "tool": name,
             "query": query,
+            "focus_entity": focus_entity,
+            "session_id": session_id or "default",
             "strategy_applied": strategy,
             "retrieved_documents": vector_results,
             "graph_entities": graph_entities,
             "applicable_tools": applicable_tools,
-            "ai_guidelines": [
-                f"Retrieved {len(vector_results)} document chunk(s) and {len(graph_entities)} graph entity profile(s).",
-                "PRIORITAS SUMBER DATA: Data yang didapat langsung dari query database/API live adalah PRIORITAS UTAMA MUTLAK yang wajib ditampilkan terlebih dahulu kepada pengguna di atas dokumen RAG/vektor.",
-                "Ground your answer strictly in these findings. Cite document IDs and source names.",
-                "If information is missing, clearly state that it is not found in the knowledge repository."
-            ]
+            "ai_guidelines": guidelines
         }
+        if isolation_report:
+            resp_dict["context_isolation"] = isolation_report
+        return resp_dict
 
     elif name == "recognize_face":
         image_input = args.get("image")

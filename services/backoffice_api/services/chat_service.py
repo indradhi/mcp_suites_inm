@@ -10,6 +10,7 @@ from services.graph.neo4j_client import neo4j_client
 from services.llm_service import llm_service
 from services.personality_service import personality_service
 from services.context_rot_guard import context_rot_guard
+from services.context_isolator import context_isolator
 from services.media_cache_service import media_cache_service
 
 logger = logging.getLogger(__name__)
@@ -130,6 +131,9 @@ class ChatService:
         dislike_notes: Optional[List[str]] = None,
         strict_mode: bool = True,
         temperature: Optional[float] = None,
+        session_id: Optional[str] = None,
+        focus_entity: Optional[str] = None,
+        isolate_context: bool = True,
         # ── OpenAI standard parameters ──────────────────────────────
         top_p: Optional[float] = None,
         presence_penalty: Optional[float] = None,
@@ -252,14 +256,50 @@ class ChatService:
                 except Exception as e:
                     logger.warning(f"Error filtering active sources for vector retrieval: {e}")
 
+            # Determine active focus entity and Neo4j network boundary for Context Isolation
+            active_focus_entity = None
+            is_topic_shift = False
+            topic_reason = "disabled"
+            network_boundary = None
+            isolation_report = None
+
+            if isolate_context:
+                try:
+                    active_focus_entity, is_topic_shift, topic_reason = context_isolator.determine_active_focus(
+                        current_message=message,
+                        history=history,
+                        explicit_entity=focus_entity
+                    )
+                    if session_id:
+                        if active_focus_entity:
+                            context_isolator.set_session_context(session_id, active_focus_entity)
+                        else:
+                            sess_data = context_isolator.get_session_context(session_id)
+                            if sess_data and sess_data.get("focus_entity"):
+                                active_focus_entity = sess_data.get("focus_entity")
+                                topic_reason = f"inherited_from_session: {active_focus_entity}"
+
+                    if active_focus_entity:
+                        network_boundary = context_isolator.get_graph_network_boundary(active_focus_entity)
+                        logger.info(f"[ContextIsolator] Active focus: '{active_focus_entity}' (mapped: {network_boundary.get('is_mapped')}, size: {network_boundary.get('total_network_size')})")
+                except Exception as e:
+                    logger.warning(f"[ContextIsolator] Error determining context focus: {e}")
+
             # Expand retrieval budget for multi-record requests or default to 20
             is_family_or_kk_query = bool(re.search(r'\b(?:kk|kartu\s+keluarga|no_kk)\b', message, re.IGNORECASE) or re.search(r'\b\d{16}\b', message))
             effective_top_k = max(top_k or 20, 20) if is_family_or_kk_query else (top_k or 20)
 
+            # Query enrichment: if focus_entity is active and not already in message, enrich query to boost recall
+            retrieval_query = message
+            if active_focus_entity and active_focus_entity.lower() not in message.lower():
+                retrieval_query = f"{message} {active_focus_entity}"
+
+            candidate_top_k = max(effective_top_k * 3, 30) if active_focus_entity else effective_top_k
+
             try:
                 retrieved_chunks = vector_store.query_similarity(
-                    query=message,
-                    n_results=effective_top_k,
+                    query=retrieval_query,
+                    n_results=candidate_top_k,
                     filter_meta=filter_meta
                 )
                 if retrieved_chunks and db:
@@ -299,47 +339,30 @@ class ChatService:
                     except Exception as e:
                         logger.warning(f"Error evaluating validity scoring for chunks: {e}")
 
-                # Anti-Rot Vector Filtering: Filter out cross-entity contaminated chunks belonging to different individuals
-                target_person_name = context_rot_guard.extract_target_subject_name(message)
-                if target_person_name and retrieved_chunks:
-                    target_tokens = set(w for w in target_person_name.upper().split() if len(w) >= 3)
-                    filtered_chunks = []
-                    for c in retrieved_chunks:
-                        content_up = c.get("content", "").upper()
-                        src_name_lower = str(c.get("metadata", {}).get("source_name", "")).lower()
-
-                        # Check explicit owner/person matches
-                        owner_matches = re.findall(
-                            r'(?:PEMILIK(?:_NAMA|\s+NAMA)?|NAMA(?:_LGKP|_LENGKAP|\s+LENGKAP|_WP|_PENYEDIA)?|PEMEGANG(?:_HAK|\s+HAK|HAK)?|SUBJEK)\s*[:=]\s*([A-Z\s.,]{3,50})',
-                            content_up
-                        )
-                        is_cross_contamination = False
-                        if owner_matches:
-                            for om in owner_matches:
-                                om_cleaned = context_rot_guard.clean_person_name(om).upper()
-                                om_tokens = set(w for w in om_cleaned.split() if len(w) >= 3)
-                                # If chunk has an explicit owner and shares NO significant token with the target person name
-                                if om_tokens and not (target_tokens & om_tokens):
-                                    is_cross_contamination = True
-                                    break
-
-                        # If chunk is from a person/land registry source and mentions other entities but has NO mention of target person
-                        is_entity_registry = any(k in src_name_lower for k in ["dukcapil", "kependudukan", "bpn", "pertanahan", "pemilik", "orang"])
-                        if is_entity_registry and not any(t in content_up for t in target_tokens):
-                            is_cross_contamination = True
-
-                        if is_cross_contamination:
-                            logger.info(f"Anti-Rot Guard: Dropped cross-entity chunk from '{src_name_lower}' not matching target '{target_person_name}'")
-                            continue
-                        filtered_chunks.append(c)
-                    retrieved_chunks = filtered_chunks
+                # Enforce Graph-Bounded Context Isolation:
+                if isolate_context and active_focus_entity:
+                    retrieved_chunks, isolation_report = context_isolator.isolate_chunks(
+                        candidates=retrieved_chunks,
+                        focus_entity=active_focus_entity,
+                        network_boundary=network_boundary,
+                        strict=strict_mode
+                    )
+                retrieved_chunks = retrieved_chunks[:effective_top_k]
             except Exception as e:
                 logger.warning(f"Vector retrieval warning in chat: {e}")
 
-        # 2. Graph Retrieval from Neo4j
+        # 2. Graph Retrieval from Neo4j (Focused on active entity and query)
         graph_entities = []
         if include_graph:
-            graph_entities = self.get_graph_entities(message, limit=8)
+            if active_focus_entity:
+                graph_entities = self.get_graph_entities(active_focus_entity, limit=8)
+                if any(k in message.lower() for k in ["aset", "tanah", "lelang", "perusahaan", "pt", "cv", "shm", "hgb"]):
+                    msg_entities = self.get_graph_entities(message, limit=4)
+                    for me in msg_entities:
+                        if not any(ge.get("name") == me.get("name") for ge in graph_entities):
+                            graph_entities.append(me)
+            else:
+                graph_entities = self.get_graph_entities(message, limit=8)
 
         # Resolve LLM Backend & Model early for Dynamic Context Budgeting
         api_base, api_key, model = llm_service.get_task_backend("general_qa", db)
@@ -2103,6 +2126,7 @@ Patuhi aturan:
             "temperature": effective_temperature,
             "matched_flow": matched_flow_res.get("flow") if (matched_flow_res and matched_flow_res.get("matched")) else None,
             "context_rot_guard": rot_metrics,
+            "context_isolation": isolation_report,
             "metrics": {
                 "chunks_retrieved": len(retrieved_chunks),
                 "entities_retrieved": len(graph_entities),
@@ -2114,7 +2138,8 @@ Patuhi aturan:
                 "strict_mode": strict_mode,
                 "temperature": effective_temperature,
                 "latency_ms": elapsed_ms,
-                "context_rot_guard": rot_metrics
+                "context_rot_guard": rot_metrics,
+                "context_isolation": isolation_report
             }
         }
 

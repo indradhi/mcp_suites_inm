@@ -22,6 +22,7 @@ from services.ingestion.database_ingester import database_ingester
 from services.ingestion.api_ingester import api_ingester
 from services.ingestion.mcp_ingester import mcp_ingester
 from services.personality_service import personality_service
+from services.context_isolator import context_isolator
 from tasks.ingest_tasks import run_ingest_source_task
 
 router = APIRouter(prefix="/knowledge", tags=["Knowledge Sources"])
@@ -1150,6 +1151,9 @@ class OrchestrateSearchRequest(BaseModel):
     source_types: Optional[List[str]] = None
     max_results: Optional[int] = 5
     image_base64: Optional[str] = None
+    focus_entity: Optional[str] = None
+    session_id: Optional[str] = "default"
+    isolate_context: Optional[bool] = True
 
 
 @router.get("/orchestration-guidelines")
@@ -1440,14 +1444,23 @@ async def orchestrate_search(
 
     strategy = (payload.search_strategy or "hybrid").lower()
     max_results = payload.max_results or 5
+    isolate_context = True if payload.isolate_context is None else payload.isolate_context
+
+    focus_entity = payload.focus_entity or context_isolator.extract_entity_from_text(query)
+    network_boundary = None
+    if isolate_context and focus_entity:
+        network_boundary = context_isolator.get_graph_network_boundary(focus_entity)
 
     results = {
         "query": query,
+        "focus_entity": focus_entity,
+        "session_id": payload.session_id or "default",
         "strategy_applied": strategy,
         "orchestration_plan": {
             "vector_search": strategy in ["hybrid", "semantic_only", "comprehensive"],
             "graph_search": strategy in ["hybrid", "graph_only", "comprehensive"],
-            "tool_matching": True
+            "tool_matching": True,
+            "context_isolation": bool(isolate_context and focus_entity)
         },
         "retrieved_documents": [],
         "graph_entities": [],
@@ -1455,13 +1468,14 @@ async def orchestrate_search(
         "ai_synthesis_guidelines": []
     }
 
-    # 1. Vector Search in ChromaDB with Validity Hybrid Reranking
+    # 1. Vector Search in ChromaDB with Validity Hybrid Reranking & Graph-Bounded Context Isolation
     if strategy in ["hybrid", "semantic_only", "comprehensive"]:
         try:
             filter_meta = None
             if payload.source_types and len(payload.source_types) == 1:
                 filter_meta = {"source_type": payload.source_types[0]}
-            vector_hits = vector_store.query_similarity(query=query, n_results=max_results, filter_meta=filter_meta)
+            fetch_k = max(max_results * 3, 15) if (isolate_context and focus_entity) else max_results
+            vector_hits = vector_store.query_similarity(query=query, n_results=fetch_k, filter_meta=filter_meta)
             
             # Map source configs for validity tier resolution
             sources_all = {s.id: s for s in db.query(KnowledgeSource).all()}
@@ -1494,16 +1508,32 @@ async def orchestrate_search(
             
             # Rerank by hybrid score
             raw_docs.sort(key=lambda d: d.get("hybrid_score", 0.0), reverse=True)
-            results["retrieved_documents"] = raw_docs
+
+            # Apply Graph-Bounded Context Isolation
+            if isolate_context and focus_entity:
+                admitted_docs, isolation_report = context_isolator.isolate_chunks(
+                    candidates=raw_docs,
+                    focus_entity=focus_entity,
+                    network_boundary=network_boundary,
+                    strict=True
+                )
+                results["retrieved_documents"] = admitted_docs[:max_results]
+                results["context_isolation"] = isolation_report
+            else:
+                results["retrieved_documents"] = raw_docs[:max_results]
         except Exception as e:
             results["retrieved_documents_error"] = str(e)
 
-    # 2. Graph Search in Neo4j
+    # 2. Graph Search in Neo4j (Focused on target entity & mapped network)
     if strategy in ["hybrid", "graph_only", "comprehensive"]:
         try:
             from services.graph.neo4j_client import neo4j_client
-            words = [w.strip().lower() for w in re.findall(r'\w+', query) if len(w) >= 3]
-            if words:
+            target_words = [focus_entity.lower()] if focus_entity else []
+            for w in re.findall(r'\w+', query):
+                if len(w) >= 3 and w.lower() not in target_words:
+                    target_words.append(w.lower())
+            
+            if target_words:
                 cypher = """
                 MATCH (e:Entity)
                 WHERE any(w in $words WHERE toLower(e.name) CONTAINS w OR toLower(coalesce(e.description, '')) CONTAINS w)
@@ -1514,9 +1544,9 @@ async def orchestrate_search(
                        type(r) AS relation,
                        target.name AS target_name,
                        target.type AS target_type
-                LIMIT 15
+                LIMIT 20
                 """
-                records = neo4j_client.execute_read(cypher, {"words": words})
+                records = neo4j_client.execute_read(cypher, {"words": target_words[:5]})
                 entities_map = {}
                 for row in records:
                     name = row.get("name")
