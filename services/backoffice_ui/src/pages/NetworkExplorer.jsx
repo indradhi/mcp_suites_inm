@@ -19,7 +19,8 @@ import {
   Filter,
   Eye,
   EyeOff,
-  RotateCcw
+  RotateCcw,
+  AlertCircle
 } from 'lucide-react';
 import api from '../api/client';
 import CytoscapeGraph from '../components/graph/CytoscapeGraph';
@@ -160,6 +161,9 @@ export default function NetworkExplorer() {
             fetchGraph();
             fetchMetrics();
             fetchInsights();
+            if (res.data.last_result?.status === 'error' || res.data.status?.toLowerCase().includes('error')) {
+              alert(`Pemberitahuan Remapping:\n${res.data.last_result?.message || res.data.status}`);
+            }
             return false;
           }
           return prev;
@@ -357,15 +361,25 @@ export default function NetworkExplorer() {
           {/* Graph Action Buttons Group */}
           <div className="flex items-center gap-2 bg-base-200/90 border border-base-300 p-1.5 rounded-xl shadow-sm">
             {isRemapping && remapStatus && (
-              <div className="text-xs font-bold text-warning px-2 flex items-center gap-1.5">
+              <div className="text-xs font-bold text-warning px-2 flex items-center gap-1.5 animate-pulse">
                  <RefreshCw size={13} className="spin-animation" />
                  {remapStatus.status} 
                  {remapStatus.progress?.total > 0 && ` (${remapStatus.progress.current}/${remapStatus.progress.total})`}
               </div>
             )}
-            {!isRemapping && (
+            {!isRemapping && remapStatus?.status?.toLowerCase().includes('error') && (
+              <div className="text-xs font-bold text-error px-2 flex items-center gap-1.5" title={remapStatus.last_error || remapStatus.status}>
+                 <AlertCircle size={13} /> Gagal: {remapStatus.status.replace(/^Error:\s*/i, '')}
+              </div>
+            )}
+            {!isRemapping && remapStatus?.status?.toLowerCase().includes('aborted') && (
+              <div className="text-xs font-bold text-warning px-2 flex items-center gap-1.5" title={remapStatus.last_result?.message || remapStatus.status}>
+                 <AlertCircle size={13} /> {remapStatus.status}
+              </div>
+            )}
+            {!isRemapping && !remapStatus?.status?.toLowerCase().includes('error') && !remapStatus?.status?.toLowerCase().includes('aborted') && (
               <div className="text-xs font-bold text-success px-2 flex items-center gap-1.5">
-                 <Check size={13} /> Grafik Siap
+                 <Check size={13} /> {remapStatus?.status === 'Completed' ? `Grafik Siap (${remapStatus.progress?.entities || allNodes.length} entitas, ${remapStatus.progress?.relationships || allEdges.length} relasi)` : 'Grafik Siap'}
               </div>
             )}
             <button

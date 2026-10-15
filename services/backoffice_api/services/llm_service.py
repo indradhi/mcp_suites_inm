@@ -197,6 +197,7 @@ Text to analyze:
         try:
             # Budget max tokens safely to prevent exceeding local models with 6K/8K context limits
             extract_max_tokens = 2048 if any(k in model.lower() for k in ["gemma", "phi", "6144"]) else 4096
+            is_o_series = any(p in model.lower() for p in ["o1-", "o3-", "o4-"]) or model.lower().startswith(("o1", "o3", "o4"))
             if is_o_series:
                 kwargs = {
                     "model": model,

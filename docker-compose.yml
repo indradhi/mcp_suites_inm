@@ -55,9 +55,10 @@ services:
     restart: unless-stopped
     environment:
       IS_PERSISTENT: "TRUE"
+      PERSIST_DIRECTORY: "/data"
       ANONYMIZED_TELEMETRY: "FALSE"
     volumes:
-      - ${DATA_DIR:-./data}/chromadb:/chroma/chroma
+      - ${DATA_DIR:-./data}/chromadb:/data
     networks:
       - mcp_net
     healthcheck:

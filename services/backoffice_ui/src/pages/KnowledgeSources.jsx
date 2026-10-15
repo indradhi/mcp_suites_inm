@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  Database, 
-  Globe, 
-  FileText, 
-  Search, 
-  Plus, 
-  RefreshCw, 
-  Trash2, 
+import {
+  Database,
+  Globe,
+  FileText,
+  Search,
+  Plus,
+  RefreshCw,
+  Trash2,
   ExternalLink,
   CheckCircle,
   Clock,
@@ -224,7 +224,7 @@ export default function KnowledgeSources() {
   const filteredSources = sources.filter(s => {
     const matchesSearch = s.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
       s.source_type.toLowerCase().includes(searchFilter.toLowerCase());
-    
+
     if (!matchesSearch) return false;
     if (statusFilter === 'active') return s.is_active !== false;
     if (statusFilter === 'disabled') return s.is_active === false;
@@ -294,7 +294,7 @@ export default function KnowledgeSources() {
               <span>Import</span>
             </button>
           </div>
-          
+
           <div style={{ display: 'flex', gap: '8px', paddingRight: '8px', borderRight: '1px solid var(--border-color)' }}>
             <button
               type="button"
@@ -322,27 +322,10 @@ export default function KnowledgeSources() {
           <button className="btn-secondary" onClick={() => { setEditingSource(null); setActiveModal('api'); }}>
             <Globe size={15} /> API
           </button>
-          <button 
-            type="button"
-            id="btn-import-curl"
-            className="btn-secondary" 
-            onClick={() => { setEditingSource({ openCurlImport: true }); setActiveModal('api'); }}
-            title="Import endpoint API dan parameter langsung dari perintah cURL"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              borderColor: 'rgba(6, 182, 212, 0.4)',
-              color: 'var(--accent-cyan)',
-              background: 'rgba(6, 182, 212, 0.08)'
-            }}
-          >
-            <Terminal size={15} /> Import cURL
-          </button>
-          <button 
+          <button
             type="button"
             id="btn-add-mcp-source"
-            className="btn-secondary" 
+            className="btn-secondary"
             onClick={() => { setEditingSource(null); setActiveModal('mcp'); }}
           >
             <Cpu size={15} /> Server MCP
@@ -429,9 +412,9 @@ export default function KnowledgeSources() {
       )}
 
       {/* Filter Bar with Status Tabs */}
-      <div className="glass-panel" style={{ 
-        padding: '14px 20px', 
-        display: 'flex', 
+      <div className="glass-panel" style={{
+        padding: '14px 20px',
+        display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         flexWrap: 'wrap',
@@ -625,8 +608,8 @@ export default function KnowledgeSources() {
           const isMcpTool = isMcp;
           const paramCount = isMcp ? (source.config?.tools?.length || 0) : (source.config?.parameters?.length || 0);
           const defaultPrefix = source.source_type === 'database' ? 'db_' : (isMcp ? 'mcp_' : 'api_');
-          const toolSlug = isMcp 
-            ? `${source.config?.tools?.length || 0} tools terdaftar` 
+          const toolSlug = isMcp
+            ? `${source.config?.tools?.length || 0} tools terdaftar`
             : (source.config?.tool_name || `${defaultPrefix}${source.name.toLowerCase().replace(/[^a-z0-9_]/g, '_')}`);
           const accentColor = isMcp ? 'var(--accent-primary)' : (isDbTool ? 'var(--accent-primary)' : 'var(--accent-cyan)');
           const accentBg = isMcp ? 'rgba(99, 102, 241, 0.12)' : (isDbTool ? 'rgba(99, 102, 241, 0.12)' : 'rgba(6, 182, 212, 0.12)');
@@ -635,19 +618,19 @@ export default function KnowledgeSources() {
           const isActive = source.is_active !== false;
 
           return (
-            <div 
-              key={source.id} 
-              className="glass-panel" 
+            <div
+              key={source.id}
+              className="glass-panel"
               onClick={() => setBankDataModalSource(source)}
               title="Klik card untuk melihat rekaman Data Bank yang tersimpan"
-              style={{ 
-                padding: '22px', 
-                display: 'flex', 
-                flexDirection: 'column', 
+              style={{
+                padding: '22px',
+                display: 'flex',
+                flexDirection: 'column',
                 justifyContent: 'space-between',
                 cursor: 'pointer',
-                border: !isActive 
-                  ? '1px dashed var(--border-subtle)' 
+                border: !isActive
+                  ? '1px dashed var(--border-subtle)'
                   : (isTool ? `1px solid ${accentBorder}` : '1px solid var(--border-color)'),
                 background: !isActive
                   ? 'var(--bg-glass-3)'
@@ -662,8 +645,8 @@ export default function KnowledgeSources() {
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.borderColor = !isActive 
-                  ? 'var(--border-subtle)' 
+                e.currentTarget.style.borderColor = !isActive
+                  ? 'var(--border-subtle)'
                   : (isTool ? accentBorder : 'var(--border-color)');
               }}
             >
@@ -955,8 +938,8 @@ export default function KnowledgeSources() {
                   <span title={isTool ? (isMcp ? "Server MCP: Terhubung langsung ke Remote MCP Server melalui protokol SSE / JSON-RPC" : "On-Demand Tool: Query langsung ke database/API secara real-time, dan setiap data otomatis disimpan ke ChromaDB sebagai Bank Data") : ""}>
                     {isTool ? (isMcp ? `⚡ Server MCP Connected (${paramCount} Tools)` : (isDbTool ? '⚡ On-Demand (Auto Bank Data)' : '⚡ Live API (Auto Bank Data)')) : `Last sync: ${source.last_synced_at ? formatDateTimeWIB(source.last_synced_at) : 'Never'}`}
                   </span>
-                  <span 
-                    style={{ 
+                  <span
+                    style={{
                       color: !isActive ? 'var(--text-muted)' : (isTool ? 'var(--accent-primary)' : 'var(--text-main)'),
                       background: 'var(--bg-glass-2)',
                       padding: '2px 8px',
@@ -1000,8 +983,8 @@ export default function KnowledgeSources() {
                   {!isTool && (
                     <button
                       className="btn-secondary"
-                      style={{ 
-                        padding: '6px 12px', 
+                      style={{
+                        padding: '6px 12px',
                         fontSize: '12px',
                         opacity: !isActive ? 0.45 : 1,
                         cursor: !isActive ? 'not-allowed' : 'pointer'
@@ -1019,11 +1002,11 @@ export default function KnowledgeSources() {
                   {isTool && (
                     <button
                       className="btn-secondary"
-                      style={{ 
-                        padding: '6px 12px', 
-                        fontSize: '12px', 
-                        color: !isActive ? 'var(--text-muted)' : accentColor, 
-                        borderColor: !isActive ? 'var(--border-color)' : accentBorder 
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        color: !isActive ? 'var(--text-muted)' : accentColor,
+                        borderColor: !isActive ? 'var(--border-color)' : accentBorder
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
