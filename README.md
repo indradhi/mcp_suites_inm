@@ -273,6 +273,10 @@ graph TD
    - `session_id`: Mengikat percakapan ke sesi memori isolasi tertentu.
    - `isolate_context`: Boolean toggle (default `true`) untuk mengaktifkan/menonaktifkan filter batas graf.
    - Tersedia pada MCP Tools (`search_knowledge_base`, `orchestrate_knowledge_search`, `set_chat_focus_context`, `get_chat_focus_context`), Backoffice API (`/api/chat`, `/api/chat/stream`, `/api/knowledge/orchestrate-search`), dan endpoint standar `/v1/chat/completions`.
+5. **✨ Zero-Data Leakage Suggestion Guard (Pencegahan Bocoran Saran pada Chat Baru & Aplikasi Eksternal)**:
+   - **Bypass Vektor & Graf Otomatis pada Chat Baru**: Saat pengguna membuka sesi chat baru atau mengirimkan sapaan (*greeting* seperti *"Halo"*, *"Hai"*, atau *"Apa yang bisa kamu lakukan?"*), sistem mendeteksi bahwa kueri bersifat eksplorasi umum tanpa target entitas. Sistem secara otomatis **melewati (*bypass*) pencarian vektor ChromaDB dan graf Neo4j** sehingga bank data tidak tercampur ke dalam konteks pembuka.
+   - **Sanitasi Determinir Tag `<suggestions>`**: Seluruh saran pertanyaan lanjutan (*chips*) yang dikirimkan ke aplikasi eksternal disaring secara ketat melalui `sanitize_response_suggestions`. Pada percakapan baru / tanpa entitas fokus, sistem secara otomatis mengganti setiap saran yang menyebutkan nama orang, NIK 16 digit, nama PT/CV, atau nomor sertifikat dari database dengan panduan prosedural umum yang aman (contoh: *"Bagaimana cara menelusuri data kependudukan berdasarkan NIK?"*, *"Bagaimana alur pengecekan sertifikat tanah di BPN?"*).
+   - **Isolasi Rekomendasi Terikat Jaringan**: Saat subjek investigasi aktif, saran pertanyaan lanjutan dibatasi secara ketat hanya pada batas jaringan Neo4j milik subjek tersebut, mencegah kebocoran data orang/perusahaan lain ke bagian *suggestion*.
 
 ### 15. 🔐 Security & RBAC
 - **JWT-based authentication** with role-based access: `admin`, `editor`, `viewer`.

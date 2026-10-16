@@ -1,4 +1,5 @@
 import re
+import json
 import time
 import logging
 from typing import Dict, Any, List, Optional, Tuple, Set
@@ -428,6 +429,199 @@ class ContextIsolator:
         """Clears working context for a fresh topic."""
         sid = session_id or "default"
         self._sessions.pop(sid, None)
+
+    DEFAULT_GENERAL_SUGGESTIONS = [
+        "Bagaimana cara menelusuri data kependudukan berdasarkan NIK?",
+        "Bagaimana alur pengecekan sertifikat tanah di BPN?",
+        "Bagaimana cara menelusuri profil perusahaan di AHU & SIKAP?"
+    ]
+
+    def is_greeting_or_general_query(self, message: str, history: Optional[List[Dict[str, Any]]] = None) -> bool:
+        """
+        Determines whether the incoming message is a greeting, capability query, or general exploratory
+        turn without any specific entity target (no NIK, KK, person name, company, or land certificate).
+        """
+        if not message or not message.strip():
+            return True
+
+        text = message.strip().lower()
+        cleaned = re.sub(r'[^\w\s]', ' ', text)
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+
+        # 1. If message contains 16-digit number (NIK/KK), it is NOT a greeting
+        if re.search(r'\b\d{16}\b', message):
+            return False
+
+        # 2. If message contains explicit entity extraction, it is NOT a greeting
+        extracted = self.extract_entity_from_text(message)
+        if extracted:
+            return False
+
+        # 3. Known greeting words
+        GREETING_WORDS = {
+            "halo", "hai", "hi", "hey", "helo", "hello", "assalamualaikum",
+            "assalamu alaikum", "salam", "p", "ping", "test", "tes", "testing",
+            "pagi", "siang", "sore", "malam", "start", "mulai", "menu", "bantuan", "help"
+        }
+
+        if cleaned in GREETING_WORDS:
+            return True
+
+        GREETING_PHRASES = [
+            "selamat pagi", "selamat siang", "selamat sore", "selamat malam",
+            "halo asisten", "halo bot", "halo admin", "halo ai",
+            "assalamu alaikum", "assalamualaikum wr wb",
+            "siapa kamu", "kamu siapa", "siapakah kamu",
+            "apa yang bisa kamu lakukan", "kamu bisa apa", "bisa apa saja",
+            "bisa apa", "apa fungsimu", "apa tugasmu", "apa peranmu",
+            "fitur apa saja", "layanan apa saja", "panduan", "cara pakai",
+            "bagaimana cara pakai", "bisa bantu apa", "apa yang kamu tahu",
+            "informasi apa saja yang ada", "perkenalkan dirimu", "kenalan",
+            "apa saja yang bisa kamu lakukan", "bisa cari data apa saja",
+            "bagaimana cara mencari", "apa saja fitur", "ada data apa saja"
+        ]
+
+        for phrase in GREETING_PHRASES:
+            if phrase in cleaned:
+                remaining = cleaned.replace(phrase, "").strip()
+                rem_words = [w for w in remaining.split() if len(w) >= 3 and w not in ["tolong", "mohon", "dong", "bisa", "kah", "ya", "nih", "saja"]]
+                if not rem_words:
+                    return True
+
+        words = [w for w in cleaned.split() if w]
+        if len(words) <= 3 and all(w in GREETING_WORDS or w in ["ya", "nih", "dong", "kah", "bisa", "tolong", "mohon", "pak", "bu", "min"] for w in words):
+            return True
+
+        return False
+
+    def sanitize_suggestions(
+        self,
+        suggestions: List[str],
+        active_focus_entity: Optional[str] = None,
+        network_boundary: Optional[Dict[str, Any]] = None,
+        is_greeting_or_general: bool = False
+    ) -> List[str]:
+        """
+        Sanitizes suggestion chips / follow-up questions to eliminate private database record leaks:
+          1. For new chats / greetings or when no entity is focused:
+             GUARANTEES ZERO real data leakage (no NIKs, no real person names, no real company names).
+             Replaces any leaking questions with clean procedural exploration guides.
+          2. For focused entity investigations:
+             Strictly bounds suggestions to the active entity and its Neo4j graph-mapped network.
+        """
+        if not suggestions:
+            return list(self.DEFAULT_GENERAL_SUGGESTIONS)
+
+        sanitized = []
+        is_unbound_chat = is_greeting_or_general or not active_focus_entity
+
+        allowed_names = set(network_boundary.get("allowed_names", [])) if network_boundary else set()
+        allowed_ids = set(network_boundary.get("allowed_identifiers", [])) if network_boundary else set()
+        if active_focus_entity:
+            allowed_names.add(active_focus_entity.upper())
+
+        for idx, s in enumerate(suggestions):
+            s_str = str(s).strip()
+            if not s_str:
+                continue
+
+            has_leak = False
+
+            # Check 1: 16-digit sequence (NIK/KK)
+            if re.search(r'\b\d{16}\b', s_str):
+                has_leak = True
+
+            # Check 2: 8+ digit numeric identifier
+            elif re.search(r'\b\d{8,}\b', s_str):
+                has_leak = True
+
+            # Check 3: If unbound / new chat, check for company indicators or person names
+            if is_unbound_chat:
+                if re.search(r'\b(?:PT|CV|YAYASAN|KOPERASI|UD)\s+[A-Z0-9\s]{3,}', s_str, re.IGNORECASE):
+                    has_leak = True
+                elif re.search(r'\b(?:atas\s+nama|bernama|subjek|orang)\s+[A-Z\s]{4,}', s_str, re.IGNORECASE):
+                    has_leak = True
+                elif re.search(r'\b(?:sertifikat|shm|hgb|nomor\s+hak)\s*(?:no\.?|nomor)?\s*\d+', s_str, re.IGNORECASE):
+                    has_leak = True
+                elif re.search(r'\b(?:nik|no_kk)\s*[:=]?\s*\d+', s_str, re.IGNORECASE):
+                    has_leak = True
+                else:
+                    ent_in_s = self.extract_entity_from_text(s_str)
+                    if ent_in_s:
+                        has_leak = True
+            else:
+                ent_in_s = self.extract_entity_from_text(s_str)
+                if ent_in_s:
+                    ent_clean = ent_in_s.upper()
+                    if ent_clean not in allowed_names and not any(an in ent_clean or ent_clean in an for an in allowed_names):
+                        has_leak = True
+
+            if has_leak:
+                if is_unbound_chat:
+                    fallback = self.DEFAULT_GENERAL_SUGGESTIONS[idx % len(self.DEFAULT_GENERAL_SUGGESTIONS)]
+                    sanitized.append(fallback)
+                else:
+                    safe_options = [
+                        f"Telusuri aset tanah milik {active_focus_entity} di BPN",
+                        f"Periksa afiliasi perusahaan dan rekanan {active_focus_entity}",
+                        f"Lihat jaringan relasi graf entitas {active_focus_entity}"
+                    ]
+                    sanitized.append(safe_options[idx % len(safe_options)])
+            else:
+                sanitized.append(s_str)
+
+        # Deduplicate while preserving order
+        unique_sanitized = []
+        for item in sanitized:
+            if item not in unique_sanitized:
+                unique_sanitized.append(item)
+
+        while len(unique_sanitized) < 3:
+            for def_s in self.DEFAULT_GENERAL_SUGGESTIONS:
+                if def_s not in unique_sanitized:
+                    unique_sanitized.append(def_s)
+                if len(unique_sanitized) >= 3:
+                    break
+
+        return unique_sanitized[:3]
+
+    def sanitize_response_suggestions(
+        self,
+        clean_answer: str,
+        active_focus_entity: Optional[str] = None,
+        network_boundary: Optional[Dict[str, Any]] = None,
+        is_greeting_or_general: bool = False
+    ) -> str:
+        """
+        Extracts <suggestions>...</suggestions> tag from the assistant's answer text,
+        sanitizes the suggestions, and replaces or appends the clean JSON array.
+        """
+        match = re.search(r'<suggestions>([\s\S]*?)</suggestions>', clean_answer, flags=re.IGNORECASE)
+        raw_suggestions = []
+        if match:
+            raw_text = match.group(1).strip()
+            try:
+                parsed = json.loads(raw_text)
+                if isinstance(parsed, list):
+                    raw_suggestions = [str(x) for x in parsed]
+            except Exception:
+                raw_suggestions = re.findall(r'["\']([^"\']{6,120})["\']', raw_text)
+
+        cleaned_suggestions = self.sanitize_suggestions(
+            suggestions=raw_suggestions,
+            active_focus_entity=active_focus_entity,
+            network_boundary=network_boundary,
+            is_greeting_or_general=is_greeting_or_general
+        )
+
+        suggestions_tag = f'<suggestions>{json.dumps(cleaned_suggestions, ensure_ascii=False)}</suggestions>'
+
+        if match:
+            clean_answer = clean_answer[:match.start()] + suggestions_tag + clean_answer[match.end():]
+        else:
+            clean_answer = clean_answer.rstrip() + f"\n\n{suggestions_tag}"
+
+        return clean_answer
 
 
 context_isolator = ContextIsolator()

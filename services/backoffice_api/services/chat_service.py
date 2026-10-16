@@ -262,6 +262,7 @@ class ChatService:
             topic_reason = "disabled"
             network_boundary = None
             isolation_report = None
+            is_greeting_or_general = context_isolator.is_greeting_or_general_query(message, history)
 
             if isolate_context:
                 try:
@@ -296,65 +297,82 @@ class ChatService:
 
             candidate_top_k = max(effective_top_k * 3, 30) if active_focus_entity else effective_top_k
 
-            try:
-                retrieved_chunks = vector_store.query_similarity(
-                    query=retrieval_query,
-                    n_results=candidate_top_k,
-                    filter_meta=filter_meta
-                )
-                if retrieved_chunks and db:
-                    try:
-                        from models.knowledge_source import KnowledgeSource
-                        sources_map = {s.id: s for s in db.query(KnowledgeSource).all()}
-                        active_ids_set = set(sid for sid, s in sources_map.items() if s.is_active)
-                        scored_chunks = []
-                        for c in retrieved_chunks:
-                            sid = c.get("metadata", {}).get("source_id")
-                            if sid is not None and sid not in active_ids_set:
-                                continue
-                            s_obj = sources_map.get(sid)
-                            cfg = (s_obj.config or {}) if s_obj else {}
-
-                            # Validity tier hierarchy defaults
-                            default_tier = "authoritative" if s_obj and s_obj.source_type in ["database", "api", "mcp", "mcp_server"] and (cfg.get("is_tool") or cfg.get("parameters") or s_obj.source_type in ["mcp", "mcp_server"]) else ("verified" if s_obj and s_obj.source_type in ["database", "file"] else "secondary")
-                            default_score = 95 if default_tier == "authoritative" else (85 if default_tier == "verified" else 65)
-
-                            v_tier = cfg.get("validity_tier") or default_tier
-                            v_score = int(cfg.get("validity_score", default_score)) if cfg.get("validity_score") is not None else default_score
-                            v_notes = cfg.get("validity_notes") or ""
-
-                            sim_score = float(c.get("score", 0.0))
-                            # Hybrid score: 70% semantic relevance + 30% authority validity score
-                            effective_score = round(sim_score * 0.7 + (v_score / 100.0) * 0.3, 4)
-
-                            c["validity_tier"] = v_tier
-                            c["validity_score"] = v_score
-                            c["validity_notes"] = v_notes
-                            c["effective_score"] = effective_score
-                            scored_chunks.append(c)
-
-                        # Sort chunks by effective score (high validity outranks lower validity when similarity is comparable)
-                        scored_chunks.sort(key=lambda x: x.get("effective_score", 0.0), reverse=True)
-                        retrieved_chunks = scored_chunks
-                    except Exception as e:
-                        logger.warning(f"Error evaluating validity scoring for chunks: {e}")
-
-                # Enforce Graph-Bounded Context Isolation:
-                if isolate_context and active_focus_entity:
-                    retrieved_chunks, isolation_report = context_isolator.isolate_chunks(
-                        candidates=retrieved_chunks,
-                        focus_entity=active_focus_entity,
-                        network_boundary=network_boundary,
-                        strict=strict_mode
+            if is_greeting_or_general and not active_focus_entity:
+                logger.info("[ContextIsolator] Greeting / general inquiry detected without active entity focus. Bypassing ChromaDB vector retrieval to prevent data leaks.")
+                retrieved_chunks = []
+            else:
+                try:
+                    retrieved_chunks = vector_store.query_similarity(
+                        query=retrieval_query,
+                        n_results=candidate_top_k,
+                        filter_meta=filter_meta
                     )
-                retrieved_chunks = retrieved_chunks[:effective_top_k]
-            except Exception as e:
-                logger.warning(f"Vector retrieval warning in chat: {e}")
+                    if retrieved_chunks and db:
+                        try:
+                            from models.knowledge_source import KnowledgeSource
+                            sources_map = {s.id: s for s in db.query(KnowledgeSource).all()}
+                            active_ids_set = set(sid for sid, s in sources_map.items() if s.is_active)
+                            scored_chunks = []
+                            for c in retrieved_chunks:
+                                sid = c.get("metadata", {}).get("source_id")
+                                if sid is not None and sid not in active_ids_set:
+                                    continue
+                                s_obj = sources_map.get(sid)
+                                cfg = (s_obj.config or {}) if s_obj else {}
+
+                                # Validity tier hierarchy defaults
+                                default_tier = "authoritative" if s_obj and s_obj.source_type in ["database", "api", "mcp", "mcp_server"] and (cfg.get("is_tool") or cfg.get("parameters") or s_obj.source_type in ["mcp", "mcp_server"]) else ("verified" if s_obj and s_obj.source_type in ["database", "file"] else "secondary")
+                                default_score = 95 if default_tier == "authoritative" else (85 if default_tier == "verified" else 65)
+
+                                v_tier = cfg.get("validity_tier") or default_tier
+                                v_score = int(cfg.get("validity_score", default_score)) if cfg.get("validity_score") is not None else default_score
+                                v_notes = cfg.get("validity_notes") or ""
+
+                                sim_score = float(c.get("score", 0.0))
+                                # Hybrid score: 70% semantic relevance + 30% authority validity score
+                                effective_score = round(sim_score * 0.7 + (v_score / 100.0) * 0.3, 4)
+
+                                c["validity_tier"] = v_tier
+                                c["validity_score"] = v_score
+                                c["validity_notes"] = v_notes
+                                c["effective_score"] = effective_score
+                                scored_chunks.append(c)
+
+                            # Sort chunks by effective score (high validity outranks lower validity when similarity is comparable)
+                            scored_chunks.sort(key=lambda x: x.get("effective_score", 0.0), reverse=True)
+                            retrieved_chunks = scored_chunks
+                        except Exception as e:
+                            logger.warning(f"Error evaluating validity scoring for chunks: {e}")
+
+                    # Enforce Graph-Bounded Context Isolation:
+                    if isolate_context and active_focus_entity:
+                        retrieved_chunks, isolation_report = context_isolator.isolate_chunks(
+                            candidates=retrieved_chunks,
+                            focus_entity=active_focus_entity,
+                            network_boundary=network_boundary,
+                            strict=strict_mode
+                        )
+                    elif isolate_context and not active_focus_entity:
+                        # For general queries without entity focus, scrub private citizen/registry records from context
+                        clean_unbound_chunks = []
+                        for c in retrieved_chunks:
+                            c_text = c.get("content", "")
+                            if re.search(r'\b\d{16}\b', c_text) and not re.search(r'\b\d{16}\b', message):
+                                continue
+                            clean_unbound_chunks.append(c)
+                        retrieved_chunks = clean_unbound_chunks
+
+                    retrieved_chunks = retrieved_chunks[:effective_top_k]
+                except Exception as e:
+                    logger.warning(f"Vector retrieval warning in chat: {e}")
 
         # 2. Graph Retrieval from Neo4j (Focused on active entity and query)
         graph_entities = []
         if include_graph:
-            if active_focus_entity:
+            if is_greeting_or_general and not active_focus_entity:
+                logger.info("[ContextIsolator] Greeting / general inquiry detected without active entity focus. Bypassing Neo4j graph retrieval.")
+                graph_entities = []
+            elif active_focus_entity:
                 graph_entities = self.get_graph_entities(active_focus_entity, limit=8)
                 if any(k in message.lower() for k in ["aset", "tanah", "lelang", "perusahaan", "pt", "cv", "shm", "hgb"]):
                     msg_entities = self.get_graph_entities(message, limit=4)
@@ -998,6 +1016,22 @@ class ChatService:
 
         has_real_context = bool(retrieved_chunks or graph_entities or face_result or uploaded_document)
 
+        if not active_focus_entity or is_greeting_or_general:
+            followup_instruction = (
+                "- FOLLOW-UP QUESTIONS (<suggestions>): At the very end of your response, you MUST provide 3 smart follow-up questions. "
+                "ATURAN MUTLAK PERCAKAPAN AWAL / UMUM (ANTI-KEBOCORAN DATA BANK): "
+                "DILARANG KERAS menyarankan pertanyaan yang menyebutkan data riil dari database (DILARANG menyebut nama orang tertentu, NIK tertentu seperti angka 16 digit, nama perusahaan tertentu seperti PT/CV, nomor sertifikat tertentu)! "
+                "HANYA berikan pertanyaan panduan eksplorasi fitur dan panduan prosedural umum "
+                "(contoh: 'Bagaimana cara menelusuri data kependudukan berdasarkan NIK?', 'Bagaimana alur pengecekan sertifikat tanah di BPN?', 'Bagaimana cara menelusuri profil perusahaan di AHU & SIKAP?'). "
+                "Output as JSON array of strings wrapped in <suggestions> tag. Example: <suggestions>[\"Bagaimana cara memverifikasi data kependudukan berdasarkan NIK?\", \"Bagaimana alur pengecekan sertifikat tanah di BPN?\", \"Bagaimana cara mencari profil perusahaan di AHU & SIKAP?\"]</suggestions>"
+            )
+        else:
+            followup_instruction = (
+                f"- FOLLOW-UP QUESTIONS (<suggestions>): At the very end of your response, you MUST provide 3 smart follow-up questions strictly bounded to '{active_focus_entity}' and its verified network. "
+                f"DILARANG KERAS mengambil atau menebak pertanyaan lanjutan dari data bank lain di luar relasi subjek '{active_focus_entity}'. "
+                f"Output as JSON array of strings wrapped in <suggestions> tag. Example: <suggestions>[\"Q1\", \"Q2\", \"Q3\"]</suggestions>"
+            )
+
         if tools:
             prompt_content = f"""Context Information from Knowledge Base:
 \"\"\"
@@ -1020,7 +1054,7 @@ Instructions:
 - ZERO-SPECULATION IN CONCLUSIONS: Pada bagian simpulan atau ringkasan, hanya sampaikan fakta yang tertera dalam data resmi (nomor sertifikat, NIK, luas m2, wilayah). DILARANG menambahkan dugaan spekulatif yang tidak berdasar.
 - ANTI-CONTENT-ROT: Dilarang mengaitkan atau memasukkan kembali data/aset milik orang lain dari sesi percakapan sebelumnya ke dalam simpulan subjek saat ini.
 - When tool results or context contain photos, render the photo in Markdown image tag `![Foto Profil - NAMA_LENGKAP](foto_resmi)` ONLY IF the photo strictly belongs to the specific person or entity being profiled (matching NIK or Full Name). The system backend will automatically replace (foto_resmi) with the verified image. NEVER output raw base64 strings manually in the answer.
-- FOLLOW-UP QUESTIONS: At the very end of your response, you MUST provide 3 smart, context-aware follow-up questions that the user might want to ask next based strictly on the CURRENT topic of conversation and the user's latest query. DILARANG KERAS mengambil atau menebak pertanyaan lanjutan dari isi data bank yang tidak terkait langsung dengan percakapan saat ini. Output them as a JSON array of strings wrapped in a <suggestions> tag. Example: <suggestions>["Question 1", "Question 2", "Question 3"]</suggestions>"""
+{followup_instruction}"""
         else:
             if not has_real_context and strict_mode:
                 prompt_content = f"""Context Information from Knowledge Base:
@@ -1033,7 +1067,8 @@ User Question: {message}
 Instruksi Anti-Halusinasi (Wajib):
 Konteks basis data di atas kosong / tidak ditemukan dokumen yang relevan dengan pertanyaan.
 Jika pertanyaan memerlukan data resmi, profil orang, NIK, data internal, atau aset, Anda HARUS MENYATAKAN SECARA JUJUR bahwa data tersebut TIDAK DITEMUKAN dalam basis data atau dokumen yang tersedia.
-DILARANG KERAS mengarang nama, NIK, tanggal lahir, alamat, atau fakta fiktif."""
+DILARANG KERAS mengarang nama, NIK, tanggal lahir, alamat, atau fakta fiktif.
+{followup_instruction}"""
             else:
                 prompt_content = f"""Context Information:
 \"\"\"
@@ -1053,7 +1088,7 @@ Patuhi aturan:
 6. INTEGRITAS KESIMPULAN (ANTI-CONTENT-ROT): Bagian kesimpulan/ringkasan wajib murni 100% dari data yang terverifikasi. Dilarang mengarang asumsi atau spekulasi.
 7. DISAMBIGUASI NAMA (ANTI-CONFLATION): Jika terdapat banyak entitas dengan nama sama namun NIK/TTL/Alamat berbeda, pisahkan secara tegas dan jangan menyimpulkan aset mereka sebagai satu orang.
 8. ISOLASI KONTEN RIWAYAT: Jangan pernah membawa masuk data subjek percakapan sebelumnya ke dalam jawaban subjek saat ini.
-9. FOLLOW-UP QUESTIONS: Di akhir jawaban, berikan 3 pertanyaan lanjutan yang SANGAT RELEVAN HANYA dengan topik yang dibicarakan saat ini. DILARANG KERAS menyarankan pertanyaan dari data bank yang tidak berkaitan dengan konteks saat ini. Format sebagai JSON array berisi string di dalam tag <suggestions>. Contoh: <suggestions>["Q1", "Q2", "Q3"]</suggestions>"""
+9. {followup_instruction}"""
 
         # ── ANTI-CONTEXT-ROT GUARD (Poisoning, Distraction, Confusion Prevention) ──
         sanitized_history, rot_metrics = context_rot_guard.sanitize_and_compact_history(
@@ -2076,6 +2111,17 @@ Patuhi aturan:
                 )
             else:
                 clean_answer = f"⚠️ Terjadi kendala saat menghubungi backend AI ({backend_name} / {model}): {err_str}"
+
+        # 7. Post-Synthesis Verification: Suggestion Sanitization (Zero Data Leakage for New Chat / Bounded for Focus)
+        try:
+            clean_answer = context_isolator.sanitize_response_suggestions(
+                clean_answer=clean_answer,
+                active_focus_entity=active_focus_entity,
+                network_boundary=network_boundary,
+                is_greeting_or_general=is_greeting_or_general
+            )
+        except Exception as sugg_err:
+            logger.warning(f"Notice during suggestion sanitization: {sugg_err}")
 
         elapsed_ms = int((time.time() - start_time) * 1000)
 
