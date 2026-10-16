@@ -66,6 +66,8 @@ class Settings(BaseSettings):
     DEFAULT_OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "Qwen/Qwen3.6-35B-A3B-FP8")
     LOCAL_LLM_TIMEOUT: float = float(os.getenv("LOCAL_LLM_TIMEOUT", "600.0"))
     CLOUD_LLM_TIMEOUT: float = float(os.getenv("CLOUD_LLM_TIMEOUT", "60.0"))
+    LLM_MAX_RETRIES: int = int(os.getenv("LLM_MAX_RETRIES", "3"))
+    LLM_RETRY_BACKOFF: float = float(os.getenv("LLM_RETRY_BACKOFF", "1.5"))
 
     class Config:
         case_sensitive = True

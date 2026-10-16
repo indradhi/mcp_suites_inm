@@ -34,11 +34,13 @@ class LLMService:
             # 60s for cloud endpoints, 600s (10 mins) for local models to allow compute/tool calling
             timeout = cloud_timeout if is_cloud else local_timeout
 
+        max_retries = getattr(settings, "LLM_MAX_RETRIES", int(os.getenv("LLM_MAX_RETRIES", "3")))
         return OpenAI(
             base_url=base,
             api_key=key,
             default_headers=default_headers,
-            timeout=timeout
+            timeout=timeout,
+            max_retries=max_retries
         )
 
     def get_async_client(self, api_base: Optional[str] = None, api_key: Optional[str] = None, timeout: Optional[float] = None) -> AsyncOpenAI:
@@ -59,11 +61,13 @@ class LLMService:
             local_timeout = float(os.getenv("LOCAL_LLM_TIMEOUT", "600.0"))
             timeout = cloud_timeout if is_cloud else local_timeout
 
+        max_retries = getattr(settings, "LLM_MAX_RETRIES", int(os.getenv("LLM_MAX_RETRIES", "3")))
         return AsyncOpenAI(
             base_url=base,
             api_key=key,
             default_headers=default_headers,
-            timeout=timeout
+            timeout=timeout,
+            max_retries=max_retries
         )
 
     async def list_remote_models(self, api_base: str, api_key: Optional[str] = None) -> List[str]:

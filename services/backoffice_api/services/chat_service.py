@@ -114,6 +114,101 @@ class ChatService:
             logger.warning(f"Error querying graph entities for chat: {e}")
             return []
 
+    def _call_completion_with_retry(
+        self,
+        client: Any,
+        kwargs: Dict[str, Any],
+        is_local_vllm: bool = False,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        model: str = "",
+        stream_callback: Optional[callable] = None,
+        max_retries: int = 3,
+        backoff_seconds: float = 1.5,
+    ) -> Any:
+        """
+        Executes an OpenAI-compatible chat completion with automated retry logic,
+        exponential backoff for transient network/rate/server errors, context-length
+        trimming, and fallback for unsupported parameters (tools, temperature, max_tokens).
+        """
+        attempt = 0
+        call_kwargs = dict(kwargs)
+        if is_local_vllm and "extra_body" not in call_kwargs:
+            call_kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
+
+        last_error = None
+        while attempt < max_retries:
+            attempt += 1
+            try:
+                return client.chat.completions.create(**call_kwargs)
+            except Exception as err:
+                last_error = err
+                err_s = str(err).lower()
+                logger.warning(f"LLM completion attempt {attempt}/{max_retries} failed on {model or 'model'}: {err}")
+
+                # 1. Context length limit error -> trim context and retry
+                if "maximum context length" in err_s or "reduce the length of the input prompt" in err_s or "context length is" in err_s:
+                    logger.warning(f"Context length limit exceeded on {model}: {err}. Trimming context and retrying...")
+                    if stream_callback:
+                        stream_callback(f"⚠️ Batas konteks tercapai ({attempt}/{max_retries}), memangkas riwayat konteks & mencoba ulang...\n")
+                    if "max_tokens" in call_kwargs:
+                        call_kwargs["max_tokens"] = 1200
+                    if "max_completion_tokens" in call_kwargs:
+                        call_kwargs["max_completion_tokens"] = 1200
+                    trimmed = []
+                    for m in call_kwargs.get("messages", []):
+                        m_copy = dict(m)
+                        content = str(m_copy.get("content", ""))
+                        if m_copy.get("role") == "user" and len(content) > 8000:
+                            m_copy["content"] = content[:8000] + "\n\n...[Konteks dipangkas otomatis karena limitasi model]..."
+                        elif m_copy.get("role") == "tool" and len(content) > 3000:
+                            m_copy["content"] = content[:3000] + "\n...[Data tool dipangkas]..."
+                        trimmed.append(m_copy)
+                    call_kwargs["messages"] = trimmed
+                    continue
+
+                # 2. Tools parameter not supported -> remove tools and retry
+                if ("tool" in err_s or "function" in err_s) and "tools" in call_kwargs:
+                    logger.warning(f"Backend does not support tools parameter, removing tools: {err}")
+                    if stream_callback:
+                        stream_callback(f"⚠️ Backend tidak mendukung parameter tools, mencoba ulang tanpa tools...\n")
+                    call_kwargs.pop("tools", None)
+                    call_kwargs.pop("tool_choice", None)
+                    continue
+
+                # 3. Parameter incompatibility (max_tokens vs max_completion_tokens or temperature)
+                if "max_tokens" in err_s or "temperature" in err_s:
+                    logger.info(f"Adjusting parameters for model compatibility: {err}")
+                    call_kwargs.pop("temperature", None)
+                    if "max_tokens" in call_kwargs:
+                        call_kwargs["max_completion_tokens"] = call_kwargs.pop("max_tokens")
+                    continue
+
+                # 4. Incompatible extra_body
+                if "extra_body" in call_kwargs:
+                    call_kwargs.pop("extra_body", None)
+                    continue
+
+                # 5. Transient network/server/rate-limit errors
+                is_transient = (
+                    "429" in err_s or "rate" in err_s or
+                    "500" in err_s or "502" in err_s or "503" in err_s or "504" in err_s or
+                    "timeout" in err_s or "connection" in err_s or "reset" in err_s or "overloaded" in err_s or
+                    "econnrefused" in err_s or "socket" in err_s or "bad gateway" in err_s or "gateway timeout" in err_s
+                )
+                if is_transient and attempt < max_retries:
+                    wait_time = backoff_seconds * (1.5 ** (attempt - 1))
+                    if stream_callback:
+                        stream_callback(f"⚠️ Koneksi AI terganggu ({type(err).__name__}). Mencoba ulang otomatis dalam {wait_time:.1f}s (percobaan {attempt}/{max_retries})...\n")
+                    time.sleep(wait_time)
+                    continue
+
+                # For non-transient errors or reached max retries, break loop
+                break
+
+        if last_error:
+            raise last_error
+        raise RuntimeError("LLM completion failed with unknown error.")
+
     def chat_with_knowledge(
         self,
         message: str,
@@ -1218,58 +1313,20 @@ Patuhi aturan:
                 else:
                     kwargs["tool_choice"] = "auto"
 
-            try:
-                if is_local_vllm:
-                    response = client.chat.completions.create(
-                        **kwargs,
-                        extra_body={"chat_template_kwargs": {"enable_thinking": False}}
-                    )
-                else:
-                    response = client.chat.completions.create(**kwargs)
-            except Exception as be_err:
-                logger.info(f"Primary completion attempt error ({be_err}), trying fallback parameters")
-                try:
-                    response = client.chat.completions.create(**kwargs)
-                except Exception as tool_err:
-                    err_s = str(tool_err).lower()
-                    if tools and ("tool" in err_s or "function" in err_s):
-                        logger.warning(f"Backend doesn't support tools parameter, falling back without tools: {tool_err}")
-                        kwargs.pop("tools", None)
-                        kwargs.pop("tool_choice", None)
-                        response = client.chat.completions.create(**kwargs)
-                    elif "maximum context length" in err_s or "reduce the length of the input prompt" in err_s or "context length is" in err_s:
-                        logger.warning(f"Context length limit exceeded on {model}: {tool_err}. Trimming context and retrying...")
-                        if "max_tokens" in kwargs:
-                            kwargs["max_tokens"] = 1200
-                        if "max_completion_tokens" in kwargs:
-                            kwargs["max_completion_tokens"] = 1200
-                        trimmed_messages = []
-                        for m in kwargs.get("messages", []):
-                            m_copy = dict(m)
-                            content = str(m_copy.get("content", ""))
-                            if m_copy.get("role") == "user" and len(content) > 10000:
-                                m_copy["content"] = content[:10000] + "\n\n...[Konteks dipangkas otomatis karena limitasi context length model AI]..."
-                            elif m_copy.get("role") == "tool" and len(content) > 4000:
-                                m_copy["content"] = content[:4000] + "\n...[Data tool dipangkas]..."
-                            trimmed_messages.append(m_copy)
-                        kwargs["messages"] = trimmed_messages
-                        try:
-                            response = client.chat.completions.create(**kwargs)
-                        except Exception as retry2_err:
-                            if "tools" in kwargs:
-                                kwargs.pop("tools", None)
-                                kwargs.pop("tool_choice", None)
-                                response = client.chat.completions.create(**kwargs)
-                            else:
-                                raise retry2_err
-                    elif "max_tokens" in err_s or "temperature" in err_s:
-                        logger.info(f"Adjusting parameters for model compatibility: {tool_err}")
-                        kwargs.pop("temperature", None)
-                        if "max_tokens" in kwargs:
-                            kwargs["max_completion_tokens"] = kwargs.pop("max_tokens")
-                        response = client.chat.completions.create(**kwargs)
-                    else:
-                        raise tool_err
+            # Execute completion with automated retry & fallback logic
+            max_llm_retries = int(os.getenv("LLM_MAX_RETRIES", "3"))
+            llm_retry_backoff = float(os.getenv("LLM_RETRY_BACKOFF", "1.5"))
+
+            response = self._call_completion_with_retry(
+                client=client,
+                kwargs=kwargs,
+                is_local_vllm=is_local_vllm,
+                tools=tools,
+                model=model,
+                stream_callback=stream_callback,
+                max_retries=max_llm_retries,
+                backoff_seconds=llm_retry_backoff
+            )
 
             msg = response.choices[0].message
             tool_calls = getattr(msg, "tool_calls", None) or []
@@ -1592,24 +1649,16 @@ Patuhi aturan:
                     if is_local_vllm:
                         followup_kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
 
-                    try:
-                        followup_resp = client.chat.completions.create(**followup_kwargs)
-                    except Exception as follow_p_err:
-                        if "extra_body" in followup_kwargs:
-                            followup_kwargs.pop("extra_body", None)
-                        if "max_tokens" in str(follow_p_err) or "temperature" in str(follow_p_err):
-                            followup_kwargs.pop("temperature", None)
-                            if "max_tokens" in followup_kwargs:
-                                followup_kwargs["max_completion_tokens"] = followup_kwargs.pop("max_tokens")
-                        if "maximum context length" in str(follow_p_err).lower() or "reduce the length of the input prompt" in str(follow_p_err).lower():
-                            if "max_tokens" in followup_kwargs:
-                                followup_kwargs["max_tokens"] = 1200
-                            if "max_completion_tokens" in followup_kwargs:
-                                followup_kwargs["max_completion_tokens"] = 1200
-                            for m in followup_kwargs.get("messages", []):
-                                if m.get("role") == "tool" and len(str(m.get("content", ""))) > 4000:
-                                    m["content"] = str(m["content"])[:4000] + "\n[Data dipangkas]"
-                        followup_resp = client.chat.completions.create(**followup_kwargs)
+                    followup_resp = self._call_completion_with_retry(
+                        client=client,
+                        kwargs=followup_kwargs,
+                        is_local_vllm=is_local_vllm,
+                        tools=tools,
+                        model=model,
+                        stream_callback=stream_callback,
+                        max_retries=max_llm_retries,
+                        backoff_seconds=llm_retry_backoff
+                    )
 
                     msg = followup_resp.choices[0].message
                     tool_calls = getattr(msg, "tool_calls", None) or []

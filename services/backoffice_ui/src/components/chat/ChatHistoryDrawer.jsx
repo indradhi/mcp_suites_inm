@@ -34,7 +34,7 @@ const getTimeBucket = (isoString) => {
  */
 export const toOpenAIMessages = (messages) => {
   return (messages || [])
-    .filter((m) => m.id !== 'welcome-msg')
+    .filter((m) => m.id !== 'welcome-msg' && !m.isError && !m.id?.startsWith('error-'))
     .map((m) => {
       const msg = {
         role: m.role || 'user',
@@ -399,7 +399,7 @@ export default function ChatHistoryDrawer({
                   {list.map((session) => {
                     const isActive = session.id === activeSessionId;
                     const isEditing = editingId === session.id;
-                    const messageCount = (session.messages || []).filter((m) => m.id !== 'welcome-msg').length;
+                    const messageCount = (session.messages || []).filter((m) => m.id !== 'welcome-msg' && !m.isError && !m.id?.startsWith('error-')).length;
 
                     return (
                       <div

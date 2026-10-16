@@ -669,38 +669,30 @@ export default function Chat() {
     }
   };
 
-  const handleSend = async (customPrompt) => {
-    const textToSend = typeof customPrompt === 'string' ? customPrompt : input;
-    const effectiveText = textToSend.trim() || 
-      (attachedDocument ? `Analisis isi dokumen '${attachedDocument.file_name}' dan berikan poin-poin penting serta ringkasannya` : 
-      (attachedImage ? 'Recognize this face / analyze image' : ''));
-    if (!effectiveText && !attachedImage && !attachedDocument) return;
-    if (loading || docUploading) return;
-
-    const currentAttachedImage = attachedImage;
-    const currentAttachedDoc = attachedDocument;
-
-    const userMessage = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: effectiveText,
-      image: currentAttachedImage,
-      document: currentAttachedDoc,
-      timestamp: formatTimeWIB(new Date())
-    };
-
-    const newMessages = [...messages, userMessage];
-    setMessages(newMessages);
-    setInput('');
-    setAttachedImage(null);
-    setAttachedDocument(null);
+  const executeChatStream = async (effectiveText, currentAttachedImage, currentAttachedDoc, activeMessages) => {
     setLoading(true);
 
-    // Prepare conversational history (respect context reset index & exclude dividers/welcome)
-    const historySlice = contextResetIndex > 0 ? newMessages.slice(contextResetIndex) : newMessages;
+    // Prepare conversational history (respect context reset index & exclude dividers/welcome/error)
+    const historySlice = contextResetIndex > 0 ? activeMessages.slice(contextResetIndex) : activeMessages;
     const historyPayload = historySlice
-      .filter(m => m.id !== 'welcome-msg' && m.role !== 'divider')
+      .filter(m => m.id !== 'welcome-msg' && m.role !== 'divider' && !m.isError && !m.id?.startsWith('error-'))
       .map(m => ({ role: m.role, content: m.content }));
+
+    let aiMessage = {
+      id: `assistant-${Date.now()}`,
+      role: 'assistant',
+      content: '',
+      thinking: null,
+      sources: [],
+      entities: [],
+      tools_executed: [],
+      face_recognition: null,
+      model_used: selectedModelName || 'Qwen3.6-35B',
+      backend_name: selectedBackendId ? 'Loading...' : null,
+      metrics: null,
+      context_rot_guard: null,
+      timestamp: formatTimeWIB(new Date())
+    };
 
     try {
       const token = localStorage.getItem('access_token');
@@ -738,22 +730,6 @@ export default function Chat() {
       const decoder = new TextDecoder('utf-8');
       let done = false;
       let buffer = '';
-
-      let aiMessage = {
-        id: `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: '',
-        thinking: null,
-        sources: [],
-        entities: [],
-        tools_executed: [],
-        face_recognition: null,
-        model_used: selectedModelName || 'Qwen3.6-35B',
-        backend_name: selectedBackendId ? 'Loading...' : null,
-        metrics: null,
-        context_rot_guard: null,
-        timestamp: formatTimeWIB(new Date())
-      };
 
       setMessages(prev => [...prev, aiMessage]);
 
@@ -829,8 +805,6 @@ export default function Chat() {
       if (extractedPolygons && extractedPolygons.length > 0) {
         setGeoJsonModalData({ features: extractedPolygons, activeIndex: 0 });
       }
-      
-      // All additional info sections (sources, tools, graph, map, face) default to COLLAPSED
     } catch (err) {
       let errorDetail = err.response?.data?.detail || err.message;
       const isTimeout = err.response?.status === 504 || 
@@ -860,19 +834,82 @@ export default function Chat() {
       const errorMsg = {
         id: `error-${Date.now()}`,
         role: 'assistant',
+        isError: true,
         content: `⚠️ **Kendala Komunikasi dengan AI Knowledge Service:**\n\n${errorDetail}`,
         sources: [],
         entities: [],
         metrics: null,
         timestamp: formatTimeWIB(new Date())
       };
-      setMessages(prev => [...prev, errorMsg]);
+      setMessages(prev => {
+        const filtered = prev.filter(m => m.id !== aiMessage.id);
+        return [...filtered, errorMsg];
+      });
     } finally {
       setLoading(false);
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
       }
     }
+  };
+
+  const handleSend = async (customPrompt) => {
+    const textToSend = typeof customPrompt === 'string' ? customPrompt : input;
+    const effectiveText = textToSend.trim() || 
+      (attachedDocument ? `Analisis isi dokumen '${attachedDocument.file_name}' dan berikan poin-poin penting serta ringkasannya` : 
+      (attachedImage ? 'Recognize this face / analyze image' : ''));
+    if (!effectiveText && !attachedImage && !attachedDocument) return;
+    if (loading || docUploading) return;
+
+    const currentAttachedImage = attachedImage;
+    const currentAttachedDoc = attachedDocument;
+
+    const userMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: effectiveText,
+      image: currentAttachedImage,
+      document: currentAttachedDoc,
+      timestamp: formatTimeWIB(new Date())
+    };
+
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
+    setInput('');
+    setAttachedImage(null);
+    setAttachedDocument(null);
+
+    await executeChatStream(effectiveText, currentAttachedImage, currentAttachedDoc, newMessages);
+  };
+
+  const handleRetry = async (targetMsgId) => {
+    if (loading || docUploading) return;
+    const targetIdx = messages.findIndex(m => m.id === targetMsgId);
+    if (targetIdx === -1) return;
+
+    let userMsg = null;
+    let userIdx = -1;
+
+    if (messages[targetIdx].role === 'user') {
+      userMsg = messages[targetIdx];
+      userIdx = targetIdx;
+    } else {
+      for (let i = targetIdx; i >= 0; i--) {
+        if (messages[i].role === 'user') {
+          userMsg = messages[i];
+          userIdx = i;
+          break;
+        }
+      }
+    }
+
+    if (!userMsg) return;
+
+    // Discard failed response/error and messages below it, retaining up to user message
+    const baseMessages = messages.slice(0, userIdx + 1);
+    setMessages(baseMessages);
+
+    await executeChatStream(userMsg.content, userMsg.image, userMsg.document, baseMessages);
   };
 
   const handleKeyDown = (e) => {
@@ -3146,8 +3183,12 @@ export default function Chat() {
                     width: '34px',
                     height: '34px',
                     borderRadius: '10px',
-                    background: 'linear-gradient(135deg, #2b394e 0%, #172233 100%)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    background: (msg.isError || msg.id.startsWith('error-'))
+                      ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.3) 0%, rgba(185, 28, 28, 0.2) 100%)'
+                      : 'linear-gradient(135deg, #2b394e 0%, #172233 100%)',
+                    border: (msg.isError || msg.id.startsWith('error-'))
+                      ? '1px solid rgba(239, 68, 68, 0.4)'
+                      : '1px solid rgba(255, 255, 255, 0.12)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -3155,7 +3196,11 @@ export default function Chat() {
                     marginTop: '2px',
                     boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
                   }}>
-                    <Bot size={18} color="#ffffff" />
+                    {(msg.isError || msg.id.startsWith('error-')) ? (
+                      <AlertCircle size={18} color="#ef4444" />
+                    ) : (
+                      <Bot size={18} color="#ffffff" />
+                    )}
                   </div>
                 )}
 
@@ -3163,12 +3208,20 @@ export default function Chat() {
                 <div style={{
                   background: isUser 
                     ? 'linear-gradient(135deg, #2b394e 0%, #1a2738 100%)' 
-                    : 'var(--bg-glass-1)',
-                  border: isUser ? '1px solid rgba(255, 255, 255, 0.14)' : '1px solid var(--border-subtle)',
+                    : (msg.isError || msg.id.startsWith('error-'))
+                      ? 'rgba(239, 68, 68, 0.06)'
+                      : 'var(--bg-glass-1)',
+                  border: isUser 
+                    ? '1px solid rgba(255, 255, 255, 0.14)' 
+                    : (msg.isError || msg.id.startsWith('error-'))
+                      ? '1px solid rgba(239, 68, 68, 0.35)'
+                      : '1px solid var(--border-subtle)',
                   borderRadius: isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                   padding: '16px 20px',
                   color: isUser ? '#ffffff' : 'var(--text-main)',
-                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+                  boxShadow: (msg.isError || msg.id.startsWith('error-'))
+                    ? '0 4px 20px rgba(239, 68, 68, 0.1)'
+                    : '0 4px 20px rgba(0, 0, 0, 0.08)',
                   fontSize: '14px',
                   lineHeight: '1.5',
                   maxWidth: '100%',
@@ -3315,6 +3368,70 @@ export default function Chat() {
 
                   {renderFormattedContent(msg.content)}
 
+                  {/* Retry action for user messages */}
+                  {isUser && (
+                    <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                      <button
+                        type="button"
+                        id={`retry-user-btn-${msg.id}`}
+                        onClick={() => handleRetry(msg.id)}
+                        disabled={loading}
+                        title="Kirim ulang pertanyaan ini (Retry)"
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.08)',
+                          border: '1px solid rgba(255, 255, 255, 0.15)',
+                          padding: '3px 9px',
+                          color: 'rgba(255, 255, 255, 0.75)',
+                          cursor: loading ? 'not-allowed' : 'pointer',
+                          fontSize: '11px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          borderRadius: '6px',
+                          transition: 'all 0.2s',
+                          fontWeight: '500'
+                        }}
+                        onMouseEnter={(e) => { if (!loading) { e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.background = 'rgba(255, 255, 255, 0.18)'; } }}
+                        onMouseLeave={(e) => { if (!loading) { e.currentTarget.style.color = 'rgba(255, 255, 255, 0.75)'; e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'; } }}
+                      >
+                        <RotateCcw size={11} className={loading ? "animate-spin" : ""} />
+                        <span>Kirim Ulang</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Dedicated Retry Action for Error Messages */}
+                  {(msg.isError || msg.id.startsWith('error-')) && (
+                    <div style={{ marginTop: '14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <button
+                        type="button"
+                        id={`retry-error-btn-${msg.id}`}
+                        onClick={() => handleRetry(msg.id)}
+                        disabled={loading}
+                        style={{
+                          background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.35) 100%)',
+                          border: '1px solid rgba(239, 68, 68, 0.5)',
+                          borderRadius: '8px',
+                          padding: '6px 14px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '12px',
+                          color: '#ffffff',
+                          cursor: loading ? 'not-allowed' : 'pointer',
+                          fontWeight: '600',
+                          transition: 'all 0.2s',
+                          boxShadow: '0 2px 10px rgba(239, 68, 68, 0.25)'
+                        }}
+                        onMouseEnter={(e) => { if (!loading) e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                        onMouseLeave={(e) => { if (!loading) e.currentTarget.style.transform = 'none'; }}
+                      >
+                        <RotateCcw size={13} className={loading ? "animate-spin" : ""} />
+                        <span>{loading ? 'Mencoba Ulang...' : 'Coba Lagi (Retry)'}</span>
+                      </button>
+                    </div>
+                  )}
+
                   {/* Starter recommendations for new conversation (Welcome state) */}
                   {msg.id === 'welcome-msg' && messages.length === 1 && (
                     <RecommendationChips
@@ -3324,8 +3441,8 @@ export default function Chat() {
                     />
                   )}
 
-                {/* Like / Dislike Feedback Row (assistant messages only, not welcome) */}
-                {isAssistant && msg.id !== 'welcome-msg' && (
+                {/* Like / Dislike / Copy / Retry Action Row (assistant messages only, not welcome, not error) */}
+                {isAssistant && msg.id !== 'welcome-msg' && !msg.isError && !msg.id.startsWith('error-') && (
                   <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
@@ -3411,6 +3528,34 @@ export default function Chat() {
                       >
                         {copiedResponseId === msg.id ? <Check size={13} color="#10b981" /> : <Copy size={13} />}
                         <span>{copiedResponseId === msg.id ? 'Tersalin! ✓' : 'Salin'}</span>
+                      </button>
+
+                      {/* Coba Lagi (Regenerate / Retry) button */}
+                      <button
+                        type="button"
+                        id={`retry-resp-bar-${msg.id}`}
+                        onClick={() => handleRetry(msg.id)}
+                        disabled={loading}
+                        title="Buat ulang respon ini (Regenerate / Retry)"
+                        style={{
+                          background: 'var(--bg-glass-2)',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: '8px',
+                          padding: '4px 10px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          fontSize: '12px',
+                          color: 'var(--text-sub)',
+                          cursor: loading ? 'not-allowed' : 'pointer',
+                          transition: 'all 0.2s',
+                          fontWeight: '500'
+                        }}
+                        onMouseEnter={(e) => { if (!loading) { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.borderColor = 'var(--accent-primary)'; } }}
+                        onMouseLeave={(e) => { if (!loading) { e.currentTarget.style.color = 'var(--text-sub)'; e.currentTarget.style.borderColor = 'var(--border-subtle)'; } }}
+                      >
+                        <RotateCcw size={13} className={loading ? "animate-spin" : ""} />
+                        <span>Coba Lagi</span>
                       </button>
 
                       {feedbackState[msg.id] === 'like' && (
@@ -4525,6 +4670,52 @@ export default function Chat() {
             }}>
               <AlertCircle size={14} />
               <span>{docUploadError}</span>
+            </div>
+          )}
+
+          {/* Quick Retry Banner above input if last message was an error */}
+          {messages.length > 0 && (messages[messages.length - 1].isError || messages[messages.length - 1].id?.startsWith('error-')) && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '8px 14px',
+              marginBottom: '4px',
+              background: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.35)',
+              borderRadius: '10px',
+              fontSize: '12px',
+              color: '#fca5a5'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertCircle size={15} color="#ef4444" />
+                <span>Pesan terakhir gagal terkirim karena kendala respon AI/koneksi.</span>
+              </div>
+              <button
+                type="button"
+                id="quick-retry-last-btn"
+                onClick={() => handleRetry(messages[messages.length - 1].id)}
+                disabled={loading}
+                style={{
+                  background: 'rgba(239, 68, 68, 0.25)',
+                  border: '1px solid rgba(239, 68, 68, 0.5)',
+                  borderRadius: '6px',
+                  padding: '4px 12px',
+                  color: '#ffffff',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  fontSize: '12px',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => { if (!loading) e.currentTarget.style.background = 'rgba(239, 68, 68, 0.4)'; }}
+                onMouseLeave={(e) => { if (!loading) e.currentTarget.style.background = 'rgba(239, 68, 68, 0.25)'; }}
+              >
+                <RotateCcw size={12} className={loading ? "animate-spin" : ""} />
+                <span>{loading ? 'Mencoba...' : 'Coba Lagi (Retry)'}</span>
+              </button>
             </div>
           )}
 
