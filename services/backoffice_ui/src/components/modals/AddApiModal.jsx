@@ -23,13 +23,15 @@ import {
 } from 'lucide-react';
 import api from '../../api/client';
 import { inferFieldDescription, inferFieldDataType } from '../../utils/fieldDefinitionHelper';
-import { parseCurl } from '../../utils/curlParser';
+import { parseCurl, parseRawJsonBody } from '../../utils/curlParser';
 import ValidityTierSelector from '../common/ValidityTierSelector';
 
 export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = null }) {
   const [name, setName] = useState('');
   const [endpoint, setEndpoint] = useState('');
   const [method, setMethod] = useState('GET');
+  const [headers, setHeaders] = useState({});
+  const [isHeadersCollapsed, setIsHeadersCollapsed] = useState(true);
   const [authMode, setAuthMode] = useState('static'); // static, endpoint_token, none
   const [bearerToken, setBearerToken] = useState('');
   const [tokenUrl, setTokenUrl] = useState('');
@@ -54,6 +56,12 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
   const [curlSuccessMsg, setCurlSuccessMsg] = useState('');
   const [autoExtractParams, setAutoExtractParams] = useState(true);
   const [autoEnableToolMode, setAutoEnableToolMode] = useState(true);
+
+  // Raw JSON Body Import States
+  const [isJsonImportOpen, setIsJsonImportOpen] = useState(false);
+  const [jsonInput, setJsonInput] = useState('');
+  const [jsonError, setJsonError] = useState('');
+  const [jsonSuccessMsg, setJsonSuccessMsg] = useState('');
 
   // AI Tool Mode States
   const [isTool, setIsTool] = useState(false);
@@ -85,6 +93,8 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       const conf = initialData.config || {};
       setEndpoint(conf.endpoint || '');
       setMethod(conf.method || 'GET');
+      setHeaders(conf.headers || {});
+      setIsHeadersCollapsed(true);
       const auth = conf.auth || {};
       const rawMode = auth.mode || 'none';
       const isDynamic = rawMode === 'oauth2' || rawMode === 'endpoint_token' || rawMode === 'token_endpoint';
@@ -135,10 +145,16 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       setCurlInput('');
       setCurlError('');
       setCurlSuccessMsg('');
+      setIsJsonImportOpen(false);
+      setJsonInput('');
+      setJsonError('');
+      setJsonSuccessMsg('');
     } else if (isOpen && !initialData) {
       setName('');
       setEndpoint('');
       setMethod('GET');
+      setHeaders({});
+      setIsHeadersCollapsed(true);
       setAuthMode('static');
       setBearerToken('');
       setTokenUrl('');
@@ -172,6 +188,10 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       setCurlInput('');
       setCurlError('');
       setCurlSuccessMsg('');
+      setIsJsonImportOpen(false);
+      setJsonInput('');
+      setJsonError('');
+      setJsonSuccessMsg('');
     }
   }, [isOpen, initialData]);
 
@@ -244,7 +264,12 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
     setEndpoint(parsed.endpoint);
     setMethod(parsed.method);
 
-    // 2. Auth Mode & Token
+    // 2. Headers
+    if (parsed.headers && Object.keys(parsed.headers).length > 0) {
+      setHeaders(parsed.headers);
+    }
+
+    // 3. Auth Mode & Token
     if (parsed.authMode === 'static' && parsed.bearerToken) {
       setAuthMode('static');
       setBearerToken(parsed.bearerToken);
@@ -252,10 +277,10 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       setAuthMode('none');
     }
 
-    // 3. SSL Verification
+    // 4. SSL Verification
     setVerifySsl(parsed.verifySsl);
 
-    // 4. Source Name & Tool Identifier
+    // 5. Source Name & Tool Identifier
     if (!name || name.trim() === '') {
       setName(parsed.suggestedName);
     }
@@ -263,7 +288,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       setToolName(parsed.suggestedToolName);
     }
 
-    // 5. Parameters & Tool Mode
+    // 6. Parameters & Tool Mode
     if (autoExtractParams && parsed.parameters && parsed.parameters.length > 0) {
       setParameters(parsed.parameters);
       if (autoEnableToolMode) {
@@ -276,6 +301,89 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
 
     setCurlSuccessMsg(`Berhasil mengimpor: ${parsed.summary}`);
     setIsCurlImportOpen(false);
+  };
+
+  const handleUpdateHeader = (oldKey, newKey, value) => {
+    setHeaders(prev => {
+      const next = { ...prev };
+      if (oldKey !== newKey && oldKey in next) {
+        delete next[oldKey];
+      }
+      if (newKey) {
+        next[newKey] = value;
+      }
+      return next;
+    });
+  };
+
+  const handleRemoveHeader = (keyToRemove) => {
+    setHeaders(prev => {
+      const next = { ...prev };
+      delete next[keyToRemove];
+      return next;
+    });
+  };
+
+  const handleAddHeader = () => {
+    setIsHeadersCollapsed(false);
+    setHeaders(prev => ({ ...prev, '': '' }));
+  };
+
+  // Raw JSON Body Import Handlers
+  const handleApplyRawJson = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    setJsonError('');
+    setJsonSuccessMsg('');
+
+    if (!jsonInput || !jsonInput.trim()) {
+      setJsonError('Silakan tempel (paste) teks JSON terlebih dahulu.');
+      return;
+    }
+
+    const parsed = parseRawJsonBody(jsonInput);
+    if (!parsed.success) {
+      setJsonError(parsed.error || 'Format JSON tidak valid.');
+      return;
+    }
+
+    setParameters(parsed.parameters);
+    if (parsed.testArgs) {
+      setTestArgs(parsed.testArgs);
+    }
+    setIsTool(true);
+    if (method === 'GET') {
+      setMethod('POST');
+    }
+    setHeaders(prev => ({
+      ...prev,
+      'Content-Type': prev['Content-Type'] || prev['content-type'] || 'application/json'
+    }));
+    setJsonSuccessMsg(`Berhasil mengekstrak ${parsed.count} parameter body dari JSON.`);
+    setIsJsonImportOpen(false);
+  };
+
+  const handleLoadSampleJson = () => {
+    const sample = `{\n  "NIK": "",\n  "NO_KK": "",\n  "NAMA": "IWAN FALS",\n  "START_TGL_LHR": "",\n  "FINISH_TGL_LHR": "",\n  "START_ROW": 1,\n  "FINISH_ROW": 500\n}`;
+    setJsonInput(sample);
+    setJsonError('');
+  };
+
+  const handlePasteJsonFromClipboard = async () => {
+    try {
+      if (navigator?.clipboard?.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && text.trim()) {
+          setJsonInput(text);
+          setJsonError('');
+        } else {
+          setJsonError('Clipboard kosong.');
+        }
+      } else {
+        setJsonError('Akses clipboard otomatis tidak didukung browser ini. Silakan paste manual (Ctrl+V).');
+      }
+    } catch {
+      setJsonError('Izin clipboard ditolak. Silakan tempel secara manual dengan Ctrl+V.');
+    }
   };
 
   const handlePasteFromClipboard = async () => {
@@ -297,11 +405,16 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
   };
 
   const handleLoadSampleCurl = () => {
-    const sample = `curl -X POST "https://api.internal.bin.go.id/v1/lhkpn/search?status=aktif" \\
-  -H "Authorization: Bearer sample_bearer_token_xyz" \\
-  -H "Content-Type: application/json" \\
-  -k \\
-  -d '{"nama": "Budi", "tahun": 2024, "jabatan": "Direktur", "catatan": ""}'`;
+    const sample = `curl --location 'http://172.18.20.5:4013/api/ebdesk/v.1.0.0/ktp' \\
+  --header 'Content-Type: application/json' \\
+  --data '{ "NIK": "",
+  "NO_KK":"",
+  "NAMA": "IWAN FALS",
+  "START_TGL_LHR": "",
+  "FINISH_TGL_LHR": "",
+  "START_ROW": 1,
+  "FINISH_ROW": 500
+}'`;
     setCurlInput(sample);
     setCurlError('');
   };
@@ -378,17 +491,17 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
         Object.keys(obj).forEach(key => {
           const val = obj[key];
           const newPrefix = prefix ? `${prefix}.${key}` : key;
-          
+
           fields.push({
             key: newPrefix,
             val: val
           });
-          
+
           if (typeof val === 'object' && val !== null) {
             if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'object' && val[0] !== null) {
-               fields = fields.concat(extractFields(val[0], newPrefix));
+              fields = fields.concat(extractFields(val[0], newPrefix));
             } else if (!Array.isArray(val)) {
-               fields = fields.concat(extractFields(val, newPrefix));
+              fields = fields.concat(extractFields(val, newPrefix));
             }
           }
         });
@@ -494,6 +607,55 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
     }
   };
 
+  const getLiveBodyJson = () => {
+    const bodyParams = parameters.filter(p => p.name && (p.in === 'body' || ['POST', 'PUT', 'PATCH'].includes(method)));
+    if (bodyParams.length === 0) return null;
+    const obj = {};
+    bodyParams.forEach(p => {
+      let val = testArgs[p.name] !== undefined ? testArgs[p.name] : p.default;
+      if (p.type === 'integer') {
+        val = val !== '' && val !== undefined && !isNaN(Number(val)) ? parseInt(val, 10) : (p.include_empty ? '' : 0);
+      } else if (p.type === 'number') {
+        val = val !== '' && val !== undefined && !isNaN(Number(val)) ? parseFloat(val) : (p.include_empty ? '' : 0.0);
+      } else if (p.type === 'boolean') {
+        val = val === 'true' || val === true;
+      } else {
+        val = val !== undefined ? String(val) : '';
+      }
+      obj[p.name] = val;
+    });
+    return JSON.stringify(obj, null, 2);
+  };
+
+  const liveBodyJson = getLiveBodyJson();
+
+  const handleCopyGeneratedCurl = () => {
+    let curl = `curl --location '${endpoint || 'http://localhost/api'}' \\\n`;
+    const effHeaders = { ...(headers || {}) };
+    if (['POST', 'PUT', 'PATCH'].includes(method) && !effHeaders['Content-Type'] && !effHeaders['content-type']) {
+      effHeaders['Content-Type'] = 'application/json';
+    }
+    if (authMode === 'static' && bearerToken) {
+      effHeaders['Authorization'] = `Bearer ${bearerToken}`;
+    }
+    Object.entries(effHeaders).forEach(([k, v]) => {
+      if (k && k.trim()) {
+        curl += `  --header '${k}: ${v}' \\\n`;
+      }
+    });
+    if (['POST', 'PUT', 'PATCH'].includes(method) && liveBodyJson) {
+      curl += `  --data '${liveBodyJson}'`;
+    } else {
+      curl += `  -X ${method}`;
+    }
+    try {
+      navigator.clipboard.writeText(curl);
+      alert('Perintah cURL berhasil disalin ke clipboard!');
+    } catch {
+      alert('Gagal menyalin otomatis. Silakan salin dari preview.');
+    }
+  };
+
   const handleTest = async () => {
     setTesting(true);
     setTestResult(null);
@@ -511,10 +673,16 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
         });
       }
 
+      const activeHeaders = Object.keys(headers).length > 0
+        ? headers
+        : (['POST', 'PUT', 'PATCH'].includes(method) ? { 'Content-Type': 'application/json' } : undefined);
+
       const configPayload = {
         endpoint,
         method,
+        headers: activeHeaders,
         verify_ssl: verifySsl,
+        follow_redirects: true,
         auth: authConfig,
         is_tool: isTool,
         tool_name: toolName.trim() || undefined,
@@ -543,6 +711,9 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
 
       const validParameters = isTool ? parameters.filter(p => p.name && p.name.trim() !== '') : [];
       const validFieldDefs = fieldDefinitions.filter(f => f.name && f.name.trim() !== '');
+      const activeHeaders = Object.keys(headers).length > 0
+        ? headers
+        : (['POST', 'PUT', 'PATCH'].includes(method) ? { 'Content-Type': 'application/json' } : undefined);
 
       const payload = {
         name,
@@ -554,7 +725,9 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
         config: {
           endpoint,
           method,
+          headers: activeHeaders,
           verify_ssl: verifySsl,
+          follow_redirects: true,
           auth: authConfig,
           is_tool: isTool,
           tool_name: isTool ? (toolName.trim() || `api_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`) : undefined,
@@ -590,6 +763,9 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       const validFieldDefs = fieldDefinitions.filter(f => f.name && f.name.trim() !== '');
       const copyName = name.includes('(Copy') ? name : `${name} (Copy)`;
       const copyToolName = isTool && toolName ? (toolName.includes('_copy') ? toolName : `${toolName}_copy`) : undefined;
+      const activeHeaders = Object.keys(headers).length > 0
+        ? headers
+        : (['POST', 'PUT', 'PATCH'].includes(method) ? { 'Content-Type': 'application/json' } : undefined);
 
       const payload = {
         name: copyName,
@@ -601,7 +777,9 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
         config: {
           endpoint,
           method,
+          headers: activeHeaders,
           verify_ssl: verifySsl,
+          follow_redirects: true,
           auth: authConfig,
           is_tool: isTool,
           tool_name: copyToolName,
@@ -977,6 +1155,84 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
             <label htmlFor="verify_ssl" style={{ fontSize: '12px', color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
               Verifikasi Sertifikat SSL <span style={{ color: 'var(--text-muted)' }}>(Biarkan tidak tercentang untuk endpoint internal BIN / sertifikat self-signed)</span>
             </label>
+          </div>
+
+          {/* Custom Request Headers */}
+          <div style={{
+            background: 'var(--bg-glass-2)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '8px',
+            padding: '10px 14px'
+          }}>
+            <div
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+              onClick={() => setIsHeadersCollapsed(!isHeadersCollapsed)}
+            >
+              <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {isHeadersCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                <span>Request Headers {Object.keys(headers).length > 0 ? `(${Object.keys(headers).length})` : ''}</span>
+                {['POST', 'PUT', 'PATCH'].includes(method) && !headers['Content-Type'] && !headers['content-type'] && (
+                  <span style={{ fontSize: '10px', color: 'var(--accent-cyan)', background: 'rgba(6, 182, 212, 0.12)', padding: '1px 6px', borderRadius: '4px' }}>
+                    auto Content-Type: application/json
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); handleAddHeader(); }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--accent-cyan)',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <Plus size={12} /> Tambah Header
+              </button>
+            </div>
+
+            {!isHeadersCollapsed && (
+              <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {Object.keys(headers).length === 0 ? (
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    Belum ada header kustom. Header <code>Content-Type: application/json</code> akan otomatis dikirim untuk request POST/PUT/PATCH dengan parameter body.
+                  </div>
+                ) : (
+                  Object.entries(headers).map(([k, v], hIdx) => (
+                    <div key={hIdx} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr 28px', gap: '8px', alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        className="input-field font-mono"
+                        style={{ padding: '4px 8px', fontSize: '11.5px' }}
+                        placeholder="Header-Name"
+                        value={k}
+                        onChange={(e) => handleUpdateHeader(k, e.target.value, v)}
+                      />
+                      <input
+                        type="text"
+                        className="input-field font-mono"
+                        style={{ padding: '4px 8px', fontSize: '11.5px' }}
+                        placeholder="Value"
+                        value={v}
+                        onChange={(e) => handleUpdateHeader(k, k, e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveHeader(k)}
+                        style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', display: 'flex', justifyContent: 'center' }}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
 
           {/* Authentication Mode */}
@@ -1483,26 +1739,187 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                     <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Code size={14} color="var(--accent-cyan)" /> Parameters Schema ({parameters.length})
                     </label>
-                    <button
-                      type="button"
-                      onClick={handleAddParameter}
-                      style={{
-                        background: 'rgba(6, 182, 212, 0.15)',
-                        border: '1px solid rgba(6, 182, 212, 0.4)',
-                        color: 'var(--accent-cyan)',
-                        padding: '4px 10px',
-                        borderRadius: '6px',
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <Plus size={12} /> Add Parameter
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setIsJsonImportOpen(prev => !prev)}
+                        style={{
+                          background: isJsonImportOpen ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.1)',
+                          border: '1px solid rgba(59, 130, 246, 0.4)',
+                          color: '#60a5fa',
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          cursor: 'pointer'
+                        }}
+                        title="Ekstrak parameter otomatis dari JSON body (--data)"
+                      >
+                        <Terminal size={12} /> {isJsonImportOpen ? 'Tutup Raw JSON' : 'Tempel Raw JSON'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAddParameter}
+                        style={{
+                          background: 'rgba(6, 182, 212, 0.15)',
+                          border: '1px solid rgba(6, 182, 212, 0.4)',
+                          color: 'var(--accent-cyan)',
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Plus size={12} /> Add Parameter
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Raw JSON Import Drawer / Box */}
+                  {isJsonImportOpen && (
+                    <div style={{
+                      marginBottom: '14px',
+                      padding: '12px 14px',
+                      background: 'rgba(15, 23, 42, 0.7)',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(59, 130, 246, 0.35)'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <div style={{ fontSize: '12px', fontWeight: '700', color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Terminal size={14} /> Import Parameter dari Raw JSON Body (--data)
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={handleLoadSampleJson}
+                            style={{
+                              background: 'rgba(255, 255, 255, 0.08)',
+                              border: '1px solid var(--border-subtle)',
+                              color: 'var(--text-secondary)',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Contoh KTP JSON
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handlePasteJsonFromClipboard}
+                            style={{
+                              background: 'rgba(255, 255, 255, 0.08)',
+                              border: '1px solid var(--border-subtle)',
+                              color: 'var(--text-secondary)',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Tempel Clipboard
+                          </button>
+                        </div>
+                      </div>
+
+                      <textarea
+                        className="input-field font-mono"
+                        style={{
+                          width: '100%',
+                          height: '110px',
+                          fontSize: '12px',
+                          lineHeight: '1.4',
+                          resize: 'vertical',
+                          padding: '8px'
+                        }}
+                        placeholder='{\n  "NIK": "",\n  "NAMA": "IWAN FALS",\n  "START_ROW": 1,\n  "FINISH_ROW": 500\n}'
+                        value={jsonInput}
+                        onChange={(e) => {
+                          setJsonInput(e.target.value);
+                          setJsonError('');
+                        }}
+                      />
+
+                      {jsonError && (
+                        <div style={{ marginTop: '6px', fontSize: '11px', color: '#f87171', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <AlertCircle size={12} /> {jsonError}
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '10px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsJsonImportOpen(false);
+                            setJsonError('');
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: '1px solid var(--border-subtle)',
+                            color: 'var(--text-secondary)',
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Batal
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleApplyRawJson}
+                          style={{
+                            background: '#2563eb',
+                            border: 'none',
+                            color: '#ffffff',
+                            padding: '4px 12px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Zap size={12} /> Terapkan ke Skema Parameter
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {jsonSuccessMsg && (
+                    <div style={{
+                      marginBottom: '10px',
+                      padding: '8px 12px',
+                      background: 'rgba(34, 197, 94, 0.12)',
+                      border: '1px solid rgba(34, 197, 94, 0.3)',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      color: '#4ade80',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <CheckCircle size={13} /> {jsonSuccessMsg}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setJsonSuccessMsg('')}
+                        style={{ background: 'none', border: 'none', color: '#4ade80', cursor: 'pointer', fontSize: '12px' }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
 
                   {parameters.length === 0 ? (
                     <div style={{ padding: '14px', textAlign: 'center', background: 'var(--bg-glass-2)', border: '1px solid var(--border-subtle)', borderRadius: '6px', fontSize: '12px', color: 'var(--text-muted)' }}>
@@ -1643,6 +2060,79 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                           </button>
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Live JSON Body Preview & cURL Generator */}
+                  {['POST', 'PUT', 'PATCH'].includes(method) && liveBodyJson && (
+                    <div style={{
+                      marginTop: '12px',
+                      padding: '12px',
+                      background: 'rgba(15, 23, 42, 0.65)',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(6, 182, 212, 0.3)'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: '700', color: 'var(--accent-cyan)' }}>
+                          <Code size={13} /> Live JSON Body Preview (--data raw json)
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              try {
+                                navigator.clipboard.writeText(liveBodyJson);
+                                alert('JSON body berhasil disalin!');
+                              } catch {
+                                alert('Gagal menyalin.');
+                              }
+                            }}
+                            style={{
+                              background: 'rgba(255, 255, 255, 0.08)',
+                              border: '1px solid var(--border-subtle)',
+                              color: 'var(--text-secondary)',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Salin JSON
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCopyGeneratedCurl}
+                            style={{
+                              background: 'rgba(6, 182, 212, 0.15)',
+                              border: '1px solid rgba(6, 182, 212, 0.4)',
+                              color: 'var(--accent-cyan)',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: '600',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Salin cURL Lengkap
+                          </button>
+                        </div>
+                      </div>
+                      <pre style={{
+                        margin: 0,
+                        padding: '8px',
+                        background: 'rgba(0, 0, 0, 0.35)',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        color: '#a5f3fc',
+                        fontFamily: 'monospace',
+                        maxHeight: '140px',
+                        overflowY: 'auto'
+                      }}>
+                        {liveBodyJson}
+                      </pre>
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                        Tipe data (angka, teks, boolean) dan string kosong (&quot;&quot;) otomatis dipertahankan sesuai konfigurasi skema.
+                      </div>
                     </div>
                   )}
                 </div>
