@@ -537,11 +537,17 @@ async def fetch_dynamic_api_tools() -> List[Dict[str, Any]]:
                         elif p_type in ["boolean", "bool"]:
                             schema_type = "boolean"
 
-                        properties[p_name] = {
+                        prop_def = {
                             "type": schema_type,
                             "description": p.get("description") or f"Parameter {p_name}"
                         }
-                        if p.get("required"):
+                        if "default" in p and p["default"] is not None and str(p["default"]).strip() != "":
+                            prop_def["default"] = p["default"]
+                        properties[p_name] = prop_def
+
+                        include_empty = bool(p.get("include_empty") or p.get("allow_empty"))
+                        has_default = "default" in p and p["default"] is not None and str(p["default"]).strip() != ""
+                        if p.get("required") and not include_empty and not has_default:
                             required_fields.append(p_name)
 
                     field_defs = item.get("field_definitions") or (item.get("config", {}) or {}).get("field_definitions", [])
