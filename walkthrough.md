@@ -649,5 +649,42 @@ Telah dilakukan pengujian end-to-end langsung pada server dan container Docker:
 - **Hasil**: `✓ built in 8.50s` dengan status Exit Code `0`.
 - **Integrasi**: Tombol Paperclip (`📎`), preview chip, state upload, dan bubble dokumen pengguna berfungsi harmonis di UI Chat.
 
+---
 
+# Fitur Auto-Refresh & Periodic Scheduling (Knowledge WebSearch & Website)
 
+## 1. Latar Belakang & Kebutuhan
+Sebelumnya, sumber data pengetahuan seperti **WebSearch** (DuckDuckGo Search) dan **Website** hanya ditarik secara manual satu kali saat dibuat atau diedit, atau ketika tombol *Sync* ditekan. Analis dan pengguna membutuhkan mekanisme **Auto-Refresh / Periodic Scheduling** agar informasi eksternal (regulasi industri, tren pasar, berita investigasi, halaman dokumentasi) diperbarui secara otomatis tanpa intervensi manual.
+
+## 2. Arsitektur & Komponen yang Diimplementasikan
+
+### A. Celery Beat Periodic Runner & Evaluator (`tasks/scheduler_tasks.py` & `tasks/celery_app.py`)
+1. **Periodic Celery Task**: `tasks.scheduler_tasks.check_and_trigger_scheduled_sources` didaftarkan pada Celery Beat dengan frekuensi periksa setiap 60 detik (`schedule: 60.0`).
+2. **Evaluasi Interval & Pola Cron**:
+   - Mendukung format interval ramah pengguna: `1h`, `2h`, `3h`, `6h`, `12h`, `24h` / `daily`, `weekly`, serta format durasi kustom (`30m`, `4h`, `2d`).
+   - Mendukung sintaks standar 5-bagian Cron (`menit jam hari bulan hari_dalam_minggu`) dengan evaluasi terhadap UTC maupun WIB (GMT+7) tanpa ketergantungan library eksternal.
+   - Dilengkapi proteksi anti-duplikasi run dalam menit yang sama (`last_synced_at` delta check) dan pencegahan *overlapping execution* (`sync_status == "running"`).
+3. **Pembersihan & Vector Ingest Otomatis**:
+   - Saat scheduler memicu ingest, `run_ingest_source_task` otomatis menghapus vektor lama milik sumber tersebut di ChromaDB (`vector_store.delete_by_source`) dan mengisinya dengan hasil penelusuran web terbaru, mencegah polusi vektor ganda.
+
+### B. REST API Endpoints (`routers/knowledge.py`)
+- `GET /api/knowledge/sources`: Sekarang menyertakan kolom `schedule_cron` dalam respons daftar sumber.
+- `GET /api/knowledge/schedules`: Memberikan ringkasan seluruh sumber yang memiliki jadwal aktif beserta estimasi run berikutnya (`next_run_estimate`).
+- `POST /api/knowledge/schedules/check-now`: Titik uji langsung untuk memicu pengecekan jadwal secara instan dan melihat daftar sumber yang dieksekusi.
+
+### C. Komponen UI Backoffice (`ScheduleSelector.jsx`, Modals, & `KnowledgeSources.jsx`)
+- **`ScheduleSelector.jsx`**: Komponen pilihan jadwal dengan opsi:
+  - `Manual Only (Tanpa Jadwal Otomatis)`
+  - `Setiap 1 Jam` (`1h`)
+  - `Setiap 3 Jam` (`3h`)
+  - `Setiap 6 Jam (Direkomendasikan)` (`6h`)
+  - `Setiap 12 Jam` (`12h`)
+  - `Setiap 24 Jam (Harian)` (`24h`)
+  - `Setiap 7 Hari (Mingguan)` (`weekly`)
+  - `Kustom Pola Cron (5 Bagian)...`
+- **Modal WebSearch & Website**:
+  - [AddWebSearchModal.jsx](file:///d:/sourcecode/MCP_SERVER_IN_CEC/services/backoffice_ui/src/components/modals/AddWebSearchModal.jsx): Pengguna dapat langsung menentukan siklus auto-refresh saat membuat atau mengedit pencarian web.
+  - [AddWebsiteModal.jsx](file:///d:/sourcecode/MCP_SERVER_IN_CEC/services/backoffice_ui/src/components/modals/AddWebsiteModal.jsx): Mendukung auto-refresh untuk URL situs web.
+- **Kartu Sumber Pengetahuan ([KnowledgeSources.jsx](file:///d:/sourcecode/MCP_SERVER_IN_CEC/services/backoffice_ui/src/pages/KnowledgeSources.jsx))**:
+  - Menampilkan badge jadwal aktif: `🕒 Tiap 6 Jam` atau `🕒 Cron (...)`.
+  - Menampilkan status jadwal pada baris *Last sync*.

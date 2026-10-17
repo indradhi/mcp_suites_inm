@@ -70,6 +70,14 @@ services:
       - 172.20.10.1
       - 8.8.8.8
 
+  celery-beat:
+    environment:
+      LOG_LEVEL: INFO
+    volumes:
+      - ./services/backoffice_api:/app
+      - ./data/uploads:/app/uploads
+
+
   backoffice-ui:
     image: mcp_server_in_cec-backoffice-ui:latest
     build:

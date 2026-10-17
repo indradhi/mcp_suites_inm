@@ -81,3 +81,26 @@ export function formatDateWIB(dateInput) {
     year: 'numeric'
   });
 }
+
+/**
+ * Returns a human-friendly Indonesian label for schedule_cron / interval.
+ */
+export function formatScheduleLabel(schedule) {
+  if (!schedule) return null;
+  const s = String(schedule).trim().toLowerCase();
+  const map = {
+    '1h': 'Tiap 1 Jam',
+    'hourly': 'Tiap 1 Jam',
+    'every_1h': 'Tiap 1 Jam',
+    '2h': 'Tiap 2 Jam',
+    '3h': 'Tiap 3 Jam',
+    '6h': 'Tiap 6 Jam',
+    '12h': 'Tiap 12 Jam',
+    '24h': 'Tiap 24 Jam',
+    'daily': 'Harian',
+    'weekly': 'Mingguan'
+  };
+  if (map[s]) return map[s];
+  return `Cron (${schedule})`;
+}
+

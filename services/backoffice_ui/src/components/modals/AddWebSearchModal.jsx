@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { X, Search, Edit2 } from 'lucide-react';
 import api from '../../api/client';
+import ScheduleSelector from '../common/ScheduleSelector';
 
 export default function AddWebSearchModal({ isOpen, onClose, onSuccess, initialData = null }) {
   const [name, setName] = useState('');
   const [query, setQuery] = useState('');
   const [crawlPages, setCrawlPages] = useState(true);
+  const [scheduleCron, setScheduleCron] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -13,10 +15,12 @@ export default function AddWebSearchModal({ isOpen, onClose, onSuccess, initialD
       setName(initialData.name || '');
       setQuery(initialData.config?.query || '');
       setCrawlPages(initialData.config?.crawl_pages ?? true);
+      setScheduleCron(initialData.schedule_cron || '');
     } else if (isOpen && !initialData) {
       setName('');
       setQuery('');
       setCrawlPages(true);
+      setScheduleCron('');
     }
   }, [isOpen, initialData]);
 
@@ -30,7 +34,8 @@ export default function AddWebSearchModal({ isOpen, onClose, onSuccess, initialD
         name,
         source_type: 'websearch',
         description: `Web search query: "${query}"`,
-        config: { query, crawl_pages: crawlPages }
+        config: { query, crawl_pages: crawlPages },
+        schedule_cron: scheduleCron || null
       };
       if (initialData) {
         await api.put(`/knowledge/sources/${initialData.id}?re_sync=true`, payload);
@@ -109,6 +114,11 @@ export default function AddWebSearchModal({ isOpen, onClose, onSuccess, initialD
               Deep Crawl: Automatically download and vectorize the top 3 result pages
             </label>
           </div>
+
+          <ScheduleSelector
+            value={scheduleCron}
+            onChange={setScheduleCron}
+          />
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>
             <button type="button" className="btn-secondary" onClick={onClose}>

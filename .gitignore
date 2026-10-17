@@ -18,6 +18,7 @@ venv/
 dist/
 build/
 *.egg
+celerybeat-schedule*
 
 # ─── Node / React ────────────────────────────────────────────────
 node_modules/

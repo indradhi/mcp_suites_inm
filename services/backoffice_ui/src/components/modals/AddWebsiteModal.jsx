@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Globe, Edit2 } from 'lucide-react';
 import api from '../../api/client';
 import ValidityTierSelector from '../common/ValidityTierSelector';
+import ScheduleSelector from '../common/ScheduleSelector';
 
 export default function AddWebsiteModal({ isOpen, onClose, onSuccess, initialData = null }) {
   const [name, setName] = useState('');
@@ -9,6 +10,7 @@ export default function AddWebsiteModal({ isOpen, onClose, onSuccess, initialDat
   const [validityTier, setValidityTier] = useState('secondary');
   const [validityScore, setValidityScore] = useState(65);
   const [validityNotes, setValidityNotes] = useState('');
+  const [scheduleCron, setScheduleCron] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -19,12 +21,14 @@ export default function AddWebsiteModal({ isOpen, onClose, onSuccess, initialDat
       setValidityTier(conf.validity_tier || 'secondary');
       setValidityScore(conf.validity_score !== undefined ? conf.validity_score : 65);
       setValidityNotes(conf.validity_notes || '');
+      setScheduleCron(initialData.schedule_cron || '');
     } else if (isOpen && !initialData) {
       setName('');
       setUrl('');
       setValidityTier('secondary');
       setValidityScore(65);
       setValidityNotes('');
+      setScheduleCron('');
     }
   }, [isOpen, initialData]);
 
@@ -43,7 +47,8 @@ export default function AddWebsiteModal({ isOpen, onClose, onSuccess, initialDat
           validity_tier: validityTier,
           validity_score: validityScore,
           validity_notes: validityNotes
-        }
+        },
+        schedule_cron: scheduleCron || null
       };
       if (initialData) {
         await api.put(`/knowledge/sources/${initialData.id}?re_sync=true`, payload);
@@ -118,6 +123,11 @@ export default function AddWebsiteModal({ isOpen, onClose, onSuccess, initialDat
             onChangeTier={setValidityTier}
             onChangeScore={setValidityScore}
             onChangeNotes={setValidityNotes}
+          />
+
+          <ScheduleSelector
+            value={scheduleCron}
+            onChange={setScheduleCron}
           />
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>

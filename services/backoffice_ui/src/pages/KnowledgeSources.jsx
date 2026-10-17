@@ -23,7 +23,7 @@ import {
   Terminal
 } from 'lucide-react';
 import api from '../api/client';
-import { formatDateTimeWIB } from '../utils/dateUtils';
+import { formatDateTimeWIB, formatScheduleLabel } from '../utils/dateUtils';
 import AddDatabaseModal from '../components/modals/AddDatabaseModal';
 import AddApiModal from '../components/modals/AddApiModal';
 import AddMcpModal from '../components/modals/AddMcpModal';
@@ -725,6 +725,29 @@ export default function KnowledgeSources() {
                       </span>
                     )}
 
+                    {/* Schedule Auto-Sync Badge */}
+                    {source.schedule_cron && (
+                      <span
+                        title={`Auto-Sync terjadwal: ${formatScheduleLabel(source.schedule_cron)}`}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          background: !isActive ? 'var(--bg-glass-light)' : 'rgba(168, 85, 247, 0.12)',
+                          color: !isActive ? 'var(--text-muted)' : '#c084fc',
+                          padding: '3px 9px',
+                          borderRadius: '12px',
+                          fontSize: '10px',
+                          fontWeight: '700',
+                          border: `1px solid ${!isActive ? 'var(--border-color)' : 'rgba(168, 85, 247, 0.35)'}`,
+                          letterSpacing: '0.02em'
+                        }}
+                      >
+                        <Clock size={10} />
+                        {formatScheduleLabel(source.schedule_cron)}
+                      </span>
+                    )}
+
                     {/* Cache Badge */}
                     {isTool && source.cache_ttl_minutes && source.cache_ttl_minutes > 0 && (
                       <span
@@ -935,9 +958,16 @@ export default function KnowledgeSources() {
                   justifyContent: 'space-between',
                   alignItems: 'center'
                 }}>
-                  <span title={isTool ? (isMcp ? "Server MCP: Terhubung langsung ke Remote MCP Server melalui protokol SSE / JSON-RPC" : "On-Demand Tool: Query langsung ke database/API secara real-time, dan setiap data otomatis disimpan ke ChromaDB sebagai Bank Data") : ""}>
-                    {isTool ? (isMcp ? `⚡ Server MCP Connected (${paramCount} Tools)` : (isDbTool ? '⚡ On-Demand (Auto Bank Data)' : '⚡ Live API (Auto Bank Data)')) : `Last sync: ${source.last_synced_at ? formatDateTimeWIB(source.last_synced_at) : 'Never'}`}
-                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span title={isTool ? (isMcp ? "Server MCP: Terhubung langsung ke Remote MCP Server melalui protokol SSE / JSON-RPC" : "On-Demand Tool: Query langsung ke database/API secara real-time, dan setiap data otomatis disimpan ke ChromaDB sebagai Bank Data") : ""}>
+                      {isTool ? (isMcp ? `⚡ Server MCP Connected (${paramCount} Tools)` : (isDbTool ? '⚡ On-Demand (Auto Bank Data)' : '⚡ Live API (Auto Bank Data)')) : `Last sync: ${source.last_synced_at ? formatDateTimeWIB(source.last_synced_at) : 'Never'}`}
+                    </span>
+                    {source.schedule_cron && (
+                      <span style={{ fontSize: '11px', color: '#c084fc', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Clock size={11} /> Auto-Sync: {formatScheduleLabel(source.schedule_cron)}
+                      </span>
+                    )}
+                  </div>
                   <span
                     style={{
                       color: !isActive ? 'var(--text-muted)' : (isTool ? 'var(--accent-primary)' : 'var(--text-main)'),

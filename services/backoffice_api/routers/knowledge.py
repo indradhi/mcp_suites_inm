@@ -81,6 +81,7 @@ def list_sources(db: Session = Depends(get_db), user = Depends(get_current_user)
             "source_type": s.source_type,
             "description": s.description,
             "config": s.config,
+            "schedule_cron": s.schedule_cron,
             "is_active": s.is_active,
             "cache_ttl_minutes": s.cache_ttl_minutes,
             "sync_status": s.sync_status,
@@ -1671,4 +1672,40 @@ async def orchestrate_search(
     results["ai_synthesis_guidelines"] = guidance
 
     return results
+
+@router.get("/schedules")
+def list_scheduled_sources(
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user)
+):
+    from tasks.scheduler_tasks import get_next_run_estimate
+    sources = db.query(KnowledgeSource).filter(
+        KnowledgeSource.schedule_cron.isnot(None),
+        KnowledgeSource.schedule_cron != ""
+    ).all()
+
+    now = datetime.utcnow()
+    items = []
+    for s in sources:
+        next_est = get_next_run_estimate(s, now)
+        items.append({
+            "id": s.id,
+            "name": s.name,
+            "source_type": s.source_type,
+            "schedule_cron": s.schedule_cron,
+            "is_active": s.is_active,
+            "sync_status": s.sync_status,
+            "last_synced_at": (s.last_synced_at.isoformat() + "Z") if s.last_synced_at else None,
+            "next_run_estimate": (next_est.isoformat() + "Z") if next_est else None
+        })
+    return items
+
+@router.post("/schedules/check-now")
+def trigger_schedule_check(
+    user = Depends(require_role(["admin", "editor"]))
+):
+    from tasks.scheduler_tasks import check_and_trigger_scheduled_sources
+    res = check_and_trigger_scheduled_sources()
+    return res
+
 
