@@ -607,7 +607,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
     }
   };
 
-  const liveBodyJson = React.useMemo(() => {
+  const getLiveBodyJson = () => {
     const bodyParams = parameters.filter(p => p.name && (p.in === 'body' || ['POST', 'PUT', 'PATCH'].includes(method)));
     if (bodyParams.length === 0) return null;
     const obj = {};
@@ -625,7 +625,9 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
       obj[p.name] = val;
     });
     return JSON.stringify(obj, null, 2);
-  }, [parameters, method, testArgs]);
+  };
+
+  const liveBodyJson = getLiveBodyJson();
 
   const handleCopyGeneratedCurl = () => {
     let curl = `curl --location '${endpoint || 'http://localhost/api'}' \\\n`;
