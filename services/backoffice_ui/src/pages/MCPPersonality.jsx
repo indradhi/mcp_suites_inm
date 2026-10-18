@@ -25,7 +25,8 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 
 const PRESET_ICONS = {
-  bin_investigator: ShieldCheck,
+  strategic_investigator: ShieldCheck,
+  bin_investigator: ShieldCheck, // fallback
   legal_compliance: Scale,
   forensic_auditor: Search,
   general_enterprise: Building2,
@@ -33,11 +34,17 @@ const PRESET_ICONS = {
 };
 
 const PRESET_COLORS = {
+  strategic_investigator: {
+    bg: 'rgba(51, 65, 85, 0.15)',
+    border: 'rgba(51, 65, 85, 0.35)',
+    accent: '#475569',
+    badge: 'Official Analyst'
+  },
   bin_investigator: {
     bg: 'rgba(51, 65, 85, 0.15)',
     border: 'rgba(51, 65, 85, 0.35)',
     accent: '#475569',
-    badge: 'BIN Official'
+    badge: 'Official Analyst'
   },
   legal_compliance: {
     bg: 'rgba(59, 130, 246, 0.12)',
@@ -77,9 +84,9 @@ export default function MCPPersonality() {
 
   // Active personality form state
   const [personality, setPersonality] = useState({
-    preset: 'bin_investigator',
-    name: 'Analis Intelijen & Penyelidikan BIN',
-    nickname: 'Asisten Intelijen',
+    preset: 'strategic_investigator',
+    name: 'Analis Intelijen & Penyelidikan Strategis',
+    nickname: 'Asisten Analis',
     role: 'Analis Intelijen & Penyelidikan Strategis',
     tone_of_voice: 'Formal, lugas, analitis, presisi, objektif, berintegritas tinggi',
     core_mission: 'Melakukan penelaahan bukti dan fakta, penelusuran aset (asset tracing), profiling entitas terduga...',
@@ -99,8 +106,8 @@ export default function MCPPersonality() {
         if (res.data.personality) {
           const p = res.data.personality;
           setPersonality({
-            preset: p.preset_id || p.preset || 'bin_investigator',
-            name: p.name || 'Analis Intelijen & Penyelidikan BIN',
+            preset: p.preset_id || p.preset || 'strategic_investigator',
+            name: p.name || 'Analis Intelijen & Penyelidikan Strategis',
             nickname: p.nickname || '',
             role: p.role_title || p.role || 'Enterprise AI Knowledge & Investigation Orchestrator',
             tone_of_voice: p.tone_label || p.tone_of_voice || p.tone || 'Formal, Tegas & Berbasis Bukti Faktual',
@@ -212,7 +219,7 @@ export default function MCPPersonality() {
 
   const handleUpdatePreset = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
-    const presetId = personality.preset || 'bin_investigator';
+    const presetId = personality.preset || 'strategic_investigator';
     setSaving(true);
     setErrorMessage(null);
     setSaveSuccess(false);
@@ -257,9 +264,9 @@ export default function MCPPersonality() {
     }
   };
 
-  // Reset to BIN default
+  // Reset to default
   const handleReset = async () => {
-    if (!window.confirm('Kembalikan konfigurasi kepribadian MCP ke setelan awal resmi (Analis Intelijen BIN)?')) {
+    if (!window.confirm('Kembalikan konfigurasi kepribadian MCP ke setelan awal resmi (Analis Intelijen & Penyelidikan Strategis)?')) {
       return;
     }
     setResetting(true);
@@ -326,7 +333,7 @@ export default function MCPPersonality() {
     reader.readAsText(file);
   };
 
-  const activeColor = PRESET_COLORS[personality.preset] || PRESET_COLORS.bin_investigator;
+  const activeColor = PRESET_COLORS[personality.preset] || PRESET_COLORS.strategic_investigator;
   const ActiveIcon = PRESET_ICONS[personality.preset] || ShieldCheck;
 
   return (
@@ -401,10 +408,10 @@ export default function MCPPersonality() {
               padding: '9px 16px', 
               fontSize: '13px'
             }}
-            title="Kembalikan ke Kepribadian Asli Analis BIN"
+            title="Kembalikan ke Kepribadian Asli Analis Strategis"
           >
             <RotateCcw size={16} />
-            {resetting ? 'Mereset...' : 'Reset ke Default BIN'}
+            {resetting ? 'Mereset...' : 'Reset ke Default'}
           </button>
           <button
             type="button"
@@ -679,7 +686,7 @@ export default function MCPPersonality() {
                 className="input-field"
                 value={personality.name}
                 onChange={(e) => setPersonality({ ...personality, name: e.target.value })}
-                placeholder="Contoh: Analis Intelijen & Penyelidikan BIN"
+                placeholder="Contoh: Analis Intelijen & Penyelidikan Strategis"
                 required
                 style={{ width: '100%', fontSize: '14px', padding: '10px 14px' }}
               />
@@ -704,7 +711,7 @@ export default function MCPPersonality() {
                   className="input-field"
                   value={personality.nickname || ''}
                   onChange={(e) => setPersonality({ ...personality, nickname: e.target.value })}
-                  placeholder="Contoh: Asisten BIN"
+                  placeholder="Contoh: Asisten Analis"
                   required
                   style={{ flex: 1, fontSize: '14px', padding: '10px 14px' }}
                 />

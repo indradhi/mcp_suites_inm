@@ -1916,7 +1916,7 @@ Patuhi aturan:
                         except Exception as m_err:
                             logger.warning(f"Notice caching entity photo for {u_ep.name or u_ep.nik}: {m_err}")
 
-                generic_names = {"admin", "user", "bin", "indonesia", "pemerintah", "null", "none", "unknown", "foto", "profil", "subjek", "data"}
+                generic_names = {"admin", "user", "indonesia", "pemerintah", "null", "none", "unknown", "foto", "profil", "subjek", "data"}
 
                 def _matches_subject(ep: EntityPhoto, text: str) -> bool:
                     if not text or not ep:

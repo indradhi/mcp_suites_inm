@@ -10,16 +10,16 @@ SETTING_KEY_MCP_CUSTOM_PERSONALITIES = "mcp_custom_personalities"
 SETTING_KEY_MCP_PRESET_OVERRIDES = "mcp_preset_overrides"
 
 DEFAULT_PERSONALITY: Dict[str, Any] = {
-    "name": "Analis Intelijen & Penyelidikan BIN",
-    "nickname": "Asisten Intelijen",
+    "name": "Analis Intelijen & Penyelidikan Strategis",
+    "nickname": "Asisten Analis",
     "role_title": "Enterprise AI Knowledge & Investigation Orchestrator",
-    "preset_id": "bin_investigator",
+    "preset_id": "strategic_investigator",
     "tone": "formal_investigative",
     "tone_label": "Formal, Tegas & Berbasis Bukti Faktual",
     "language_style": "id",
     "core_mission": (
-        "Anda adalah Asisten Resmi Knowledge Management dan Analisis Data Intelijen BIN (Badan Intelijen Nasional). "
-        "Misi utama Anda adalah menganalisis pertanyaan pengguna, memetakan jaringan relasi entitas target intelijen, "
+        "Anda adalah Asisten Resmi Knowledge Management dan Analisis Data Intelijen & Penyelidikan Strategis. "
+        "Misi utama Anda adalah menganalisis pertanyaan pengguna, memetakan jaringan relasi entitas target penyelidikan, "
         "menelusuri kepemilikan aset dan dokumen resmi, serta menyajikan fakta yang terverifikasi dan akurat "
         "dari basis data tanpa spekulasi atau halusinasi."
     ),
@@ -40,9 +40,9 @@ DEFAULT_PERSONALITY: Dict[str, Any] = {
 
 CURATED_PRESETS: List[Dict[str, Any]] = [
     {
-        "id": "bin_investigator",
-        "name": "Analis Intelijen & Penyelidikan BIN",
-        "nickname": "Asisten Intelijen",
+        "id": "strategic_investigator",
+        "name": "Analis Intelijen & Penyelidikan Strategis",
+        "nickname": "Asisten Analis",
         "role_title": "Enterprise AI Knowledge & Investigation Orchestrator",
         "category": "investigation",
         "tone": "formal_investigative",
@@ -50,8 +50,8 @@ CURATED_PRESETS: List[Dict[str, Any]] = [
         "badge_color": "#dc2626",
         "description": "Fokus pada penyelidikan intelijen strategis, profiling aset, verifikasi identitas, dan analisis jaringan relasi entitas.",
         "core_mission": (
-            "Anda adalah Asisten Resmi Knowledge Management dan Analisis Data Intelijen BIN (Badan Intelijen Nasional). "
-            "Misi utama Anda adalah menganalisis pertanyaan pengguna, memetakan jaringan relasi entitas target intelijen, "
+            "Anda adalah Asisten Resmi Knowledge Management dan Analisis Data Intelijen & Penyelidikan Strategis. "
+            "Misi utama Anda adalah menganalisis pertanyaan pengguna, memetakan jaringan relasi entitas target penyelidikan, "
             "menelusuri kepemilikan aset dan dokumen resmi, serta menyajikan fakta yang terverifikasi dan akurat "
             "dari basis data tanpa spekulasi atau halusinasi."
         ),
@@ -101,7 +101,7 @@ CURATED_PRESETS: List[Dict[str, Any]] = [
         "badge_color": "#059669",
         "description": "Fokus pada audit investigatif, analisis transaksi keuangan mencurigakan, penelusuran aliran dana, dan deteksi anomali aset.",
         "core_mission": (
-            "Anda adalah Auditor Forensik Keuangan AI BIN. Misi Anda adalah mendeteksi ketidakwajaran "
+            "Anda adalah Auditor Forensik Keuangan AI. Misi Anda adalah mendeteksi ketidakwajaran "
             "laporan keuangan dan profil kekayaan, menganalisis profil aset yang dilaporkan vs aset riil, "
             "serta membedah pola aliran dana dan transaksi keuangan mencurigakan."
         ),
@@ -168,11 +168,13 @@ class PersonalityService:
         except Exception as e:
             logger.warning(f"Error reading MCP personality from database: {e}")
 
-        # Ensure aliases are present for UI and callers
+        # Ensure aliases are present for UI and callers (with backward compatibility)
         valid_presets = {p["id"] for p in CURATED_PRESETS}
-        preset_val = res.get("preset_id") or res.get("preset") or "bin_investigator"
+        preset_val = res.get("preset_id") or res.get("preset") or "strategic_investigator"
+        if preset_val in ("bin_investigator", "kpk_investigator"):
+            preset_val = "strategic_investigator"
         if not preset_val.startswith("custom_") and preset_val not in valid_presets:
-            preset_val = "bin_investigator"
+            preset_val = "strategic_investigator"
         res["preset"] = preset_val
         res["role"] = res.get("role_title", "Enterprise AI Knowledge & Investigation Orchestrator")
         res["tone_of_voice"] = res.get("tone_label", "Formal, Tegas & Berbasis Bukti Faktual")
@@ -225,7 +227,7 @@ class PersonalityService:
 
     def reset_personality(self, db: Session) -> Dict[str, Any]:
         """
-        Resets MCP Personality to default (Analis Intelijen & Penyelidikan BIN).
+        Resets MCP Personality to default (Analis Intelijen & Penyelidikan Strategis).
         """
         return self.update_personality(db, DEFAULT_PERSONALITY)
 
@@ -449,7 +451,7 @@ class PersonalityService:
             base_prompt = pers["system_prompt_override"].strip()
             prompt = f"{base_prompt}\n\n"
         else:
-            name = pers.get("name") or "Asisten Intelijen & Penyelidikan BIN"
+            name = pers.get("name") or "Asisten Intelijen & Penyelidikan Strategis"
             nickname = pers.get("nickname") or "Asisten AI"
             role = pers.get("role_title") or "Enterprise AI Knowledge Orchestrator"
             tone_label = pers.get("tone_label") or "Formal, Tegas & Berbasis Bukti Faktual"
@@ -478,7 +480,7 @@ class PersonalityService:
             f"\nHIERARKI TINGKAT VALIDITAS DATA & RESOLUSI KONFLIK (DATA VALIDITY HIERARCHY):\n"
             f"Setiap sumber pengetahuan dalam katalog memiliki parameter Tingkat Validitas resmi (Skor 0-100):\n"
             f"- Tingkat 1 (Otoritatif Primer / Sangat Valid [Skor: 90-100]): Sumber data resmi negara / lembaga primer (Dukcapil SIAK, BPN ATR, Korlantas, AHU Kemenkumham, Bank resmi). Merupakan SUMBER KEBENARAN MUTLAK (Ground Truth).\n"
-            f"- Tingkat 2 (Terverifikasi Internal [Skor: 75-89]): Database operasional tervalidasi, BAP resmi, laporan telaah intelijen internal BIN, data terverifikasi.\n"
+            f"- Tingkat 2 (Terverifikasi Internal [Skor: 75-89]): Database operasional tervalidasi, BAP resmi, laporan telaah intelijen internal terverifikasi, data terverifikasi.\n"
             f"- Tingkat 3 (Sekunder Publik [Skor: 55-74]): Portal berita resmi instansi, siaran pers pemerintah, website resmi, kliping media terverifikasi.\n"
             f"- Tingkat 4 (Pendukung / Mentah [Skor: 30-54]): Catatan observasi, data media sosial, laporan aduan masyarakat belum terkonfirmasi.\n"
             f"\nATURAN PENAMPILAN & RESOLUSI KONFLIK DATA:\n"

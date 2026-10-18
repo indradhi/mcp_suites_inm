@@ -37,7 +37,7 @@ export const VALIDITY_TIERS = {
     bg: 'rgba(37, 99, 235, 0.12)',
     border: 'rgba(37, 99, 235, 0.35)',
     icon: Shield,
-    description: 'Basis data operasional terverifikasi, laporan telaah intelijen resmi, atau laporan forensik internal BIN.',
+    description: 'Basis data operasional terverifikasi, laporan telaah intelijen resmi, atau laporan forensik internal organisasi.',
     examples: 'Laporan Intelijen Tervalidasi, BAP/Laporan Hasil Penyelidikan, Telaah Forensik'
   },
   secondary: {

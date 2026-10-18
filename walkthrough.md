@@ -62,7 +62,7 @@ Knowledge Base Database & API telah disempurnakan secara menyeluruh dengan konse
      - `services/backoffice_api/services/chat_service.py` (`chat_with_knowledge`): Menginjeksi definisi tool dan instruksi pemanggilan ke model AI.
    - **Dispatcher Eksekusi**:
      - `services/backoffice_api/routers/knowledge.py` (`execute_api_tool`): Titik masuk eksekusi tool berparameter.
-     - `services/mcp_server/main.py` (`execute_tool` / `rpc_endpoint`): Menghubungkan MCP client (OpenWebUI/Claude) ke database internal BIN.
+     - `services/mcp_server/main.py` (`execute_tool` / `rpc_endpoint`): Menghubungkan MCP client (OpenWebUI/Claude) ke database internal terverifikasi.
    - **Interpolasi Parameter & Driver TCP Database**:
      - `services/backoffice_api/services/ingestion/database_ingester.py` (`execute_tool_call` & `substitute_query_parameters`): Melakukan sanitasi parameter, membuka koneksi pool database (MySQL, PostgreSQL, Oracle, MongoDB, SQL Server), mengeksekusi query, dan mengembalikan data mentah terverifikasi.
 

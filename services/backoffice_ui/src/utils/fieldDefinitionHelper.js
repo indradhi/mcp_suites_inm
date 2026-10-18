@@ -1,7 +1,7 @@
 /**
  * Field Definition & Dictionary Inference Helper
  * Provides automatic contextual descriptions and data type detection
- * for database columns and API response fields (BIN, Dukcapil, BPN, Korlantas, Finance domains).
+ * for database columns and API response fields (Intelijen Strategis, Dukcapil, BPN, Korlantas, Finance domains).
  */
 
 const KNOWN_FIELD_DICTIONARY = {

@@ -1002,7 +1002,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
                     color: 'var(--text-main)',
                     resize: 'vertical'
                   }}
-                  placeholder={`curl -X POST "https://api.example.com/v1/search?query=bin" \\\n  -H "Authorization: Bearer eyJhbGci..." \\\n  -H "Content-Type: application/json" \\\n  -d '{"status": "aktif", "tahun": 2024}'`}
+                  placeholder={`curl -X POST "https://api.example.com/v1/search?query=target" \\\n  -H "Authorization: Bearer eyJhbGci..." \\\n  -H "Content-Type: application/json" \\\n  -d '{"status": "aktif", "tahun": 2024}'`}
                   value={curlInput}
                   onChange={(e) => {
                     setCurlInput(e.target.value);
@@ -1153,7 +1153,7 @@ export default function AddApiModal({ isOpen, onClose, onSuccess, initialData = 
               style={{ accentColor: 'var(--accent-cyan)', cursor: 'pointer', width: '15px', height: '15px' }}
             />
             <label htmlFor="verify_ssl" style={{ fontSize: '12px', color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
-              Verifikasi Sertifikat SSL <span style={{ color: 'var(--text-muted)' }}>(Biarkan tidak tercentang untuk endpoint internal BIN / sertifikat self-signed)</span>
+              Verifikasi Sertifikat SSL <span style={{ color: 'var(--text-muted)' }}>(Biarkan tidak tercentang untuk endpoint internal organisasi / sertifikat self-signed)</span>
             </label>
           </div>
 

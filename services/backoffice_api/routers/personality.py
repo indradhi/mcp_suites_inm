@@ -97,7 +97,7 @@ def reset_personality_settings(
     db: Session = Depends(get_db)
 ):
     """
-    Resets active MCP Personality to standard BIN Investigator preset.
+    Resets active MCP Personality to standard Strategic Investigator preset.
     """
     try:
         resetted = personality_service.reset_personality(db)
@@ -105,7 +105,7 @@ def reset_personality_settings(
         return {
             "status": "success",
             "success": True,
-            "message": "Kepribadian MCP berhasil dikembalikan ke standar default (Analis Intelijen BIN).",
+            "message": "Kepribadian MCP berhasil dikembalikan ke standar default (Analis Intelijen & Penyelidikan Strategis).",
             "personality": resetted,
             "active": resetted,
             "data": resetted,

@@ -263,7 +263,7 @@ export default function DataOrchestrator() {
   };
 
   const handleResetDefaultFlows = async () => {
-    if (!window.confirm('Reset semua alur perolehan ke template default bawaan sistem BIN?')) return;
+    if (!window.confirm('Reset semua alur perolehan ke template default bawaan sistem?')) return;
     setFlowsLoading(true);
     try {
       const res = await api.post('/orchestrator/flows/seed');
