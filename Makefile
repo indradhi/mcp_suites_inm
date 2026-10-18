@@ -20,7 +20,7 @@ help:
 	@echo ""
 
 init-data:
-	@echo "Creating host data directories...."
+	@echo "Creating host data directories..."
 	@mkdir -p data/mysql data/neo4j/data data/neo4j/logs data/neo4j/import data/neo4j/plugins
 	@mkdir -p data/chromadb data/redis data/uploads
 	@mkdir -p backups
