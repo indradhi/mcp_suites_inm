@@ -88,6 +88,26 @@ def get_current_user_profile(current_user: User = Depends(get_current_user)):
     }
 
 
+class ChangeOwnPasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.put("/change-password")
+def change_own_password(
+    payload: ChangeOwnPasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if not verify_password(payload.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Password saat ini salah")
+    if not payload.new_password or len(payload.new_password.strip()) < 6:
+        raise HTTPException(status_code=400, detail="Password baru minimal 6 karakter")
+    current_user.hashed_password = get_password_hash(payload.new_password.strip())
+    db.commit()
+    return {"message": "Password Anda berhasil diperbarui"}
+
+
 class ValidateApiKeyRequest(BaseModel):
     api_key: str
 

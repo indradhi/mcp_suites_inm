@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import ThemeSwitcher from './ThemeSwitcher';
+import ChangePasswordModal from './modals/ChangePasswordModal';
 import { 
   LayoutDashboard, 
   Database, 
@@ -20,6 +21,7 @@ import { useAuthStore } from '../store/authStore';
 export default function Sidebar() {
   const { user, logout, isAdmin } = useAuthStore();
   const navigate = useNavigate();
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -106,16 +108,31 @@ export default function Sidebar() {
               {user?.role || 'Administrator'}
             </div>
           </div>
-          <button 
-            onClick={handleLogout}
-            title="Logout"
-            className="btn btn-ghost btn-sm btn-square text-base-content/60 hover:text-error"
-          >
-            <LogOut size={18} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <button 
+              onClick={() => setShowPasswordModal(true)}
+              title="Ganti Password"
+              className="btn btn-ghost btn-sm btn-square text-base-content/60 hover:text-primary"
+            >
+              <Key size={17} />
+            </button>
+            <button 
+              onClick={handleLogout}
+              title="Logout"
+              className="btn btn-ghost btn-sm btn-square text-base-content/60 hover:text-error"
+            >
+              <LogOut size={18} />
+            </button>
+          </div>
         </div>
         <ThemeSwitcher />
       </div>
+
+      <ChangePasswordModal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        mode="self"
+      />
     </aside>
   );
 }

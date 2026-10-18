@@ -93,7 +93,7 @@ services:
       - ${DATA_DIR:-./data}/neo4j/import:/import
       - ${DATA_DIR:-./data}/neo4j/plugins:/plugins
     tmpfs:
-      - /tmp:rw,size=1g
+      - /tmp:rw,exec,size=1g
     networks:
       - mcp_net
     logging:

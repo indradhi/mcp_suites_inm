@@ -23,6 +23,9 @@ class UserUpdate(BaseModel):
     role_id: Optional[int] = None
     is_active: Optional[bool] = None
 
+class AdminChangePassword(BaseModel):
+    new_password: str
+
 @router.get("")
 def list_users(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     users = db.query(User).all()
@@ -101,3 +104,19 @@ def delete_user(
     db.delete(user)
     db.commit()
     return {"message": "User deleted successfully"}
+
+@router.put("/{user_id}/password")
+def admin_change_password(
+    user_id: int,
+    payload: AdminChangePassword,
+    db: Session = Depends(get_db),
+    admin = Depends(require_role(["admin"]))
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not payload.new_password or len(payload.new_password.strip()) < 6:
+        raise HTTPException(status_code=400, detail="Password baru minimal 6 karakter")
+    user.hashed_password = get_password_hash(payload.new_password.strip())
+    db.commit()
+    return {"message": f"Password untuk user '{user.username}' berhasil diperbarui"}
