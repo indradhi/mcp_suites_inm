@@ -383,7 +383,7 @@ def seed_golden_flows(
     user = Depends(require_role(["admin", "editor"]))
 ):
     """
-    Forces a re-seed of the default golden KPK investigation and governance flows.
+    Forces a re-seed of the default golden investigation and governance flows.
     """
     count = flow_orchestrator.seed_default_flows(db)
     return {

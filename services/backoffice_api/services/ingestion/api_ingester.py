@@ -9,7 +9,7 @@ class APIIngester:
         """
         Determines whether SSL certificate verification is enabled.
         Defaults to False for enterprise/government internal endpoints
-        (such as *.kpk.go.id, internal CAs, or self-signed certificates),
+        (such as *.internal.domain, internal CAs, or self-signed certificates),
         or reads explicit config flag 'verify_ssl' / 'ssl_verify'.
         """
         if not config:
@@ -262,8 +262,9 @@ class APIIngester:
             params = merged_params
 
         verify_ssl = self._get_verify_ssl(config)
+        follow_redirects = config.get("follow_redirects", True)
         async def _do_fetch(v_ssl: bool):
-            async with httpx.AsyncClient(timeout=30.0, verify=v_ssl) as client:
+            async with httpx.AsyncClient(timeout=30.0, verify=v_ssl, follow_redirects=follow_redirects) as client:
                 if method == "GET":
                     resp = await client.get(endpoint, headers=headers, params=params)
                 else:
@@ -322,6 +323,153 @@ class APIIngester:
 
         return results
 
+    @staticmethod
+    def _cast_param_value(val: Any, p_type: str) -> Any:
+        if val is None:
+            return val
+        p_type = str(p_type).lower()
+        if p_type in ["integer", "int"]:
+            if str(val).strip() != "":
+                try:
+                    return int(val)
+                except (ValueError, TypeError):
+                    pass
+        elif p_type in ["number", "float"]:
+            if str(val).strip() != "":
+                try:
+                    return float(val)
+                except (ValueError, TypeError):
+                    pass
+        elif p_type in ["boolean", "bool"]:
+            if isinstance(val, str):
+                return val.lower() in ["true", "1", "yes"]
+            return bool(val)
+        return val
+
+    def _prepare_request_params(self, config: Dict[str, Any], arguments: Dict[str, Any]):
+        import json
+        import urllib.parse
+
+        endpoint = config.get("endpoint", "")
+        method = config.get("method", "GET").upper()
+        headers = config.get("headers", {}).copy()
+        parameters_def = config.get("parameters", [])
+
+        query_params = {}
+        body_params = {}
+        param_specs = {p.get("name"): p for p in parameters_def if p.get("name")}
+
+        # 1. Process passed arguments
+        for arg_name, arg_val in (arguments or {}).items():
+            spec = param_specs.get(arg_name, {})
+            include_empty = bool(spec.get("include_empty") or spec.get("allow_empty"))
+
+            # Skip empty or null parameters unless include_empty is enabled
+            if (arg_val is None or (isinstance(arg_val, str) and str(arg_val).strip() == "")) and not include_empty:
+                continue
+
+            val_to_use = "" if (arg_val is None or (isinstance(arg_val, str) and str(arg_val).strip() == "")) and include_empty else arg_val
+            val_to_use = self._cast_param_value(val_to_use, spec.get("type", "string"))
+
+            loc = spec.get("in", "query").lower()
+            if loc == "path" or f"{{{arg_name}}}" in endpoint:
+                endpoint = endpoint.replace(f"{{{arg_name}}}", str(val_to_use))
+            elif loc == "header":
+                headers[arg_name] = str(val_to_use)
+            elif loc == "body":
+                body_params[arg_name] = val_to_use
+            else:
+                query_params[arg_name] = val_to_use
+
+        # 2. Fill defaults or empty-included parameters for missing parameters
+        for p in parameters_def:
+            p_name = p.get("name")
+            if not p_name or p_name in (arguments or {}):
+                continue
+
+            include_empty = bool(p.get("include_empty") or p.get("allow_empty"))
+            has_default = "default" in p and p["default"] is not None and str(p["default"]).strip() != ""
+
+            if has_default or include_empty:
+                loc = p.get("in", "query").lower()
+                raw_def = p.get("default") if has_default else ""
+                def_val = raw_def if raw_def is not None else ""
+                def_val = self._cast_param_value(def_val, p.get("type", "string"))
+
+                if loc == "path" and f"{{{p_name}}}" in endpoint:
+                    endpoint = endpoint.replace(f"{{{p_name}}}", str(def_val))
+                elif loc == "header" and p_name not in headers:
+                    headers[p_name] = str(def_val)
+                elif loc == "body" and p_name not in body_params:
+                    body_params[p_name] = def_val
+                elif loc == "query" and p_name not in query_params:
+                    query_params[p_name] = def_val
+
+        # 3. Check required params
+        for p in parameters_def:
+            p_name = p.get("name")
+            if not p_name:
+                continue
+            include_empty = bool(p.get("include_empty") or p.get("allow_empty"))
+            has_default = "default" in p and p["default"] is not None and str(p["default"]).strip() != ""
+            if p.get("required") and not include_empty and not has_default and p_name not in (arguments or {}):
+                raise ValueError(f"Missing required parameter '{p_name}'")
+
+        # 4. Resolve JSON Body
+        req_json = None
+        if method in ["POST", "PUT", "PATCH"]:
+            body_template = config.get("body_template") or config.get("body_raw")
+            if isinstance(body_template, dict):
+                merged = body_template.copy()
+                merged.update(body_params)
+                req_json = merged
+            elif body_template and isinstance(body_template, str) and body_template.strip():
+                templated_body = body_template
+                all_resolved = {}
+                for p in parameters_def:
+                    pname = p.get("name")
+                    if pname:
+                        if pname in body_params:
+                            all_resolved[pname] = body_params[pname]
+                        elif pname in query_params:
+                            all_resolved[pname] = query_params[pname]
+                all_resolved.update(arguments or {})
+
+                for k, v in all_resolved.items():
+                    if isinstance(v, (dict, list)):
+                        json_str = json.dumps(v)
+                    elif isinstance(v, bool):
+                        json_str = "true" if v else "false"
+                    elif isinstance(v, (int, float)):
+                        json_str = str(v)
+                    else:
+                        json_str = str(v)
+                    templated_body = templated_body.replace(f"{{{k}}}", json_str)
+                try:
+                    req_json = json.loads(templated_body)
+                except Exception as parse_err:
+                    logger.warning(f"Could not parse templated body as JSON: {parse_err}. Falling back to body_params.")
+                    req_json = body_params or None
+            else:
+                req_json = body_params if body_params else (arguments if method == "POST" and not query_params else None)
+
+            # Ensure Content-Type is application/json if sending JSON
+            if req_json is not None:
+                has_content_type = any(k.lower() == "content-type" for k in headers)
+                if not has_content_type:
+                    headers["Content-Type"] = "application/json"
+
+        # 5. URL query string normalization
+        if endpoint and "?" in endpoint:
+            parsed = urllib.parse.urlsplit(endpoint)
+            endpoint = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, '', ''))
+            existing_query = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
+            merged_params = existing_query.copy()
+            merged_params.update(query_params or {})
+            query_params = merged_params
+
+        return endpoint, method, headers, (query_params if query_params else None), req_json
+
     async def execute_tool_call(self, config: Dict[str, Any], arguments: Dict[str, Any]) -> Dict[str, Any]:
         """
         Executes an on-demand API tool call with parameter mapping:
@@ -338,66 +486,8 @@ class APIIngester:
         if not isinstance(config, dict):
             config = {}
         start_time = time.time()
-        endpoint = config.get("endpoint", "")
-        method = config.get("method", "GET").upper()
-        headers = config.get("headers", {}).copy()
-        parameters_def = config.get("parameters", [])
 
-        query_params = {}
-        body_params = {}
-        param_specs = {p.get("name"): p for p in parameters_def if p.get("name")}
-
-        # Process passed arguments
-        for arg_name, arg_val in (arguments or {}).items():
-            spec = param_specs.get(arg_name, {})
-            include_empty = bool(spec.get("include_empty") or spec.get("allow_empty"))
-
-            # Skip empty or null parameters unless include_empty is enabled
-            if (arg_val is None or (isinstance(arg_val, str) and str(arg_val).strip() == "")) and not include_empty:
-                continue
-
-            val_to_use = "" if (arg_val is None or (isinstance(arg_val, str) and str(arg_val).strip() == "")) and include_empty else arg_val
-
-            loc = spec.get("in", "query").lower()
-            
-            if loc == "path" or f"{{{arg_name}}}" in endpoint:
-                endpoint = endpoint.replace(f"{{{arg_name}}}", str(val_to_use))
-            elif loc == "header":
-                headers[arg_name] = str(val_to_use)
-            elif loc == "body":
-                body_params[arg_name] = val_to_use
-            else:
-                query_params[arg_name] = val_to_use
-
-        # Fill defaults or empty-included parameters for missing parameters
-        for p in parameters_def:
-            p_name = p.get("name")
-            if not p_name or p_name in (arguments or {}):
-                continue
-
-            include_empty = bool(p.get("include_empty") or p.get("allow_empty"))
-            has_default = "default" in p and p["default"] is not None and str(p["default"]).strip() != ""
-
-            if has_default or include_empty:
-                loc = p.get("in", "query").lower()
-                def_val = p.get("default") if p.get("default") is not None and str(p.get("default")).strip() != "" else ""
-                if loc == "path" and f"{{{p_name}}}" in endpoint:
-                    endpoint = endpoint.replace(f"{{{p_name}}}", str(def_val))
-                elif loc == "header" and p_name not in headers:
-                    headers[p_name] = str(def_val)
-                elif loc == "body" and p_name not in body_params:
-                    body_params[p_name] = def_val
-                elif loc == "query" and p_name not in query_params:
-                    query_params[p_name] = def_val
-
-        # Check required params
-        for p in parameters_def:
-            p_name = p.get("name")
-            if not p_name:
-                continue
-            include_empty = bool(p.get("include_empty") or p.get("allow_empty"))
-            if p.get("required") and not include_empty and p_name not in (arguments or {}) and (p.get("default") is None or str(p.get("default", "")).strip() == ""):
-                raise ValueError(f"Missing required parameter '{p_name}'")
+        endpoint, method, headers, query_params, req_json = self._prepare_request_params(config, arguments)
 
         # Handle Auth
         auth_config = config.get("auth", {})
@@ -410,32 +500,10 @@ class APIIngester:
                     token_prefix = "Bearer "
                 headers[header_name] = f"{token_prefix}{token}".strip() if token_prefix else str(token)
 
-        req_json = None
-        if method in ["POST", "PUT", "PATCH"]:
-            body_template = config.get("body_template")
-            if body_template and isinstance(body_template, str) and body_template.strip():
-                templated_body = body_template
-                for k, v in (arguments or {}).items():
-                    templated_body = templated_body.replace(f"{{{k}}}", json.dumps(v) if isinstance(v, (dict, list)) else str(v))
-                try:
-                    req_json = json.loads(templated_body)
-                except Exception:
-                    req_json = body_params or None
-            else:
-                req_json = body_params if body_params else (arguments if method == "POST" and not query_params else None)
-
-        import urllib.parse
-        if endpoint and "?" in endpoint:
-            parsed = urllib.parse.urlsplit(endpoint)
-            endpoint = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, '', ''))
-            existing_query = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
-            merged_params = existing_query.copy()
-            merged_params.update(query_params or {})
-            query_params = merged_params
-
         verify_ssl = self._get_verify_ssl(config)
+        follow_redirects = config.get("follow_redirects", True)
         async def _do_exec_call(v_ssl: bool):
-            async with httpx.AsyncClient(timeout=30.0, verify=v_ssl) as client:
+            async with httpx.AsyncClient(timeout=30.0, verify=v_ssl, follow_redirects=follow_redirects) as client:
                 if method == "GET":
                     return await client.get(endpoint, headers=headers, params=query_params)
                 elif method == "POST":
@@ -527,61 +595,8 @@ class APIIngester:
         if not isinstance(config, dict):
             config = {}
         start_time = time.time()
-        endpoint = config.get("endpoint", "")
-        method = config.get("method", "GET").upper()
-        headers = config.get("headers", {}).copy()
-        parameters_def = config.get("parameters", [])
 
-        query_params = {}
-        body_params = {}
-        param_specs = {p.get("name"): p for p in parameters_def if p.get("name")}
-
-        for arg_name, arg_val in (arguments or {}).items():
-            spec = param_specs.get(arg_name, {})
-            include_empty = bool(spec.get("include_empty") or spec.get("allow_empty"))
-
-            # Skip empty or null parameters unless include_empty is enabled
-            if (arg_val is None or (isinstance(arg_val, str) and str(arg_val).strip() == "")) and not include_empty:
-                continue
-
-            val_to_use = "" if (arg_val is None or (isinstance(arg_val, str) and str(arg_val).strip() == "")) and include_empty else arg_val
-            loc = spec.get("in", "query").lower()
-            if loc == "path" or f"{{{arg_name}}}" in endpoint:
-                endpoint = endpoint.replace(f"{{{arg_name}}}", str(val_to_use))
-            elif loc == "header":
-                headers[arg_name] = str(val_to_use)
-            elif loc == "body":
-                body_params[arg_name] = val_to_use
-            else:
-                query_params[arg_name] = val_to_use
-
-        for p in parameters_def:
-            p_name = p.get("name")
-            if not p_name or p_name in (arguments or {}):
-                continue
-
-            include_empty = bool(p.get("include_empty") or p.get("allow_empty"))
-            has_default = "default" in p and p["default"] is not None and str(p["default"]).strip() != ""
-
-            if has_default or include_empty:
-                loc = p.get("in", "query").lower()
-                def_val = p.get("default") if p.get("default") is not None and str(p.get("default")).strip() != "" else ""
-                if loc == "path" and f"{{{p_name}}}" in endpoint:
-                    endpoint = endpoint.replace(f"{{{p_name}}}", str(def_val))
-                elif loc == "header" and p_name not in headers:
-                    headers[p_name] = str(def_val)
-                elif loc == "body" and p_name not in body_params:
-                    body_params[p_name] = def_val
-                elif loc == "query" and p_name not in query_params:
-                    query_params[p_name] = def_val
-
-        for p in parameters_def:
-            p_name = p.get("name")
-            if not p_name:
-                continue
-            include_empty = bool(p.get("include_empty") or p.get("allow_empty"))
-            if p.get("required") and not include_empty and p_name not in (arguments or {}) and (p.get("default") is None or str(p.get("default", "")).strip() == ""):
-                raise ValueError(f"Missing required parameter '{p_name}'")
+        endpoint, method, headers, query_params, req_json = self._prepare_request_params(config, arguments)
 
         auth_config = config.get("auth", {})
         if auth_config:
@@ -593,32 +608,10 @@ class APIIngester:
                     token_prefix = "Bearer "
                 headers[header_name] = f"{token_prefix}{token}".strip() if token_prefix else str(token)
 
-        req_json = None
-        if method in ["POST", "PUT", "PATCH"]:
-            body_template = config.get("body_template")
-            if body_template and isinstance(body_template, str) and body_template.strip():
-                templated_body = body_template
-                for k, v in (arguments or {}).items():
-                    templated_body = templated_body.replace(f"{{{k}}}", json.dumps(v) if isinstance(v, (dict, list)) else str(v))
-                try:
-                    req_json = json.loads(templated_body)
-                except Exception:
-                    req_json = body_params or None
-            else:
-                req_json = body_params if body_params else (arguments if method == "POST" and not query_params else None)
-
-        import urllib.parse
-        if endpoint and "?" in endpoint:
-            parsed = urllib.parse.urlsplit(endpoint)
-            endpoint = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, '', ''))
-            existing_query = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
-            merged_params = existing_query.copy()
-            merged_params.update(query_params or {})
-            query_params = merged_params
-
         verify_ssl = self._get_verify_ssl(config)
+        follow_redirects = config.get("follow_redirects", True)
         def _do_sync_call(v_ssl: bool):
-            with httpx.Client(timeout=30.0, verify=v_ssl) as client:
+            with httpx.Client(timeout=30.0, verify=v_ssl, follow_redirects=follow_redirects) as client:
                 if method == "GET":
                     return client.get(endpoint, headers=headers, params=query_params)
                 elif method == "POST":

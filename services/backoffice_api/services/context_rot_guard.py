@@ -463,7 +463,7 @@ class ContextRotGuard:
                 return "company"
             if any(k in q_lower for k in ["rekening", "bank", "transaksi", "mutasi", "keuangan", "saldo"]):
                 return "banking"
-            if any(k in q_lower for k in ["hukum", "pasal", "undang-undang", "uu ", "pidana", "peraturan", "kpk", "korupsi"]):
+            if any(k in q_lower for k in ["hukum", "pasal", "undang-undang", "uu ", "pidana", "peraturan", "sop", "intelijen"]):
                 return "legal"
             return "general"
 

@@ -37,6 +37,8 @@ dev: init-data
 
 prod: init-data
 	docker compose $(DC_PROD) up -d
+	@# Nginx caches upstream IPs at startup; restart so it picks up recreated containers
+	docker compose $(DC_PROD) restart nginx
 	@echo "✅ Production stack started."
 	@echo "   Nginx Reverse Proxy → http://localhost (ports 80/443)"
 	@echo "   Direct MCP Server   → http://localhost:8001"
@@ -44,6 +46,8 @@ prod: init-data
 
 prod-build: init-data
 	docker compose $(DC_PROD) up -d --build
+	@# Nginx caches upstream IPs at startup; restart so it picks up recreated containers
+	docker compose $(DC_PROD) restart nginx
 	@echo "✅ Production stack started."
 	@echo "   Nginx Reverse Proxy → http://localhost (ports 80/443)"
 	@echo "   Direct MCP Server   → http://localhost:8001"

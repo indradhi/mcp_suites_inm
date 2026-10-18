@@ -537,11 +537,17 @@ async def fetch_dynamic_api_tools() -> List[Dict[str, Any]]:
                         elif p_type in ["boolean", "bool"]:
                             schema_type = "boolean"
 
-                        properties[p_name] = {
+                        prop_def = {
                             "type": schema_type,
                             "description": p.get("description") or f"Parameter {p_name}"
                         }
-                        if p.get("required"):
+                        if "default" in p and p["default"] is not None and str(p["default"]).strip() != "":
+                            prop_def["default"] = p["default"]
+                        properties[p_name] = prop_def
+
+                        include_empty = bool(p.get("include_empty") or p.get("allow_empty"))
+                        has_default = "default" in p and p["default"] is not None and str(p["default"]).strip() != ""
+                        if p.get("required") and not include_empty and not has_default:
                             required_fields.append(p_name)
 
                     field_defs = item.get("field_definitions") or (item.get("config", {}) or {}).get("field_definitions", [])
@@ -782,12 +788,12 @@ async def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
             "tool": name,
             "status": "success (local synthesis)",
             "guidelines": {
-                "core_mission": "Analis Intelijen & Penyelidikan KPK. Melakukan penelaahan bukti, penelusuran aset, profiling entitas terduga, verifikasi silang dokumen & data lapangan, serta menjaga integritas anti-halusinasi dan isolasi konteks.",
+                "core_mission": "Analis Intelijen & Penyelidikan Strategis. Melakukan penelaahan bukti, penelusuran aset, profiling entitas terduga, verifikasi silang dokumen & data lapangan, serta menjaga integritas anti-halusinasi dan isolasi konteks.",
                 "personality": {
-                    "name": "Analis Intelijen & Penyelidikan KPK",
-                    "role": "Analis Intelijen & Penyelidikan Korupsi",
+                    "name": "Analis Intelijen & Penyelidikan Strategis",
+                    "role": "Analis Intelijen & Penyelidikan Strategis",
                     "tone_of_voice": "Formal, lugas, analitis, presisi, objektif, berintegritas tinggi",
-                    "preset": "kpk_investigator"
+                    "preset": "strategic_investigator"
                 },
                 "input_processing_protocol": [
                     {
@@ -1078,7 +1084,7 @@ async def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
                         "success": res.status_code == 200 and res_data.get("success", True),
                         "status_code": res_data.get("status_code", res.status_code),
                         "arguments": args,
-                        "data_priority": "PRIORITAS_UTAMA_MUTLAK (Data diambil langsung secara real-time dari database/source data resmi KPK)",
+                        "data_priority": "PRIORITAS_UTAMA_MUTLAK (Data diambil langsung secara real-time dari database/source data resmi internal organisasi)",
                         "fetch_mode": "LIVE_DIRECT_DATABASE_QUERY",
                         "data": res_data.get("data"),
                         "text": res_data.get("text"),
@@ -1454,7 +1460,7 @@ async def rpc_endpoint(req: JsonRpcRequest):
 
     elif method == "prompts/list":
         # Dynamic discovery of MCP default personality prompt
-        p_name = "Analis Intelijen & Penyelidikan KPK"
+        p_name = "Analis Intelijen & Penyelidikan Strategis"
         p_desc = "Default personality and system instructions for this MCP knowledge assistant (configured via Backoffice)"
         try:
             async with httpx.AsyncClient(timeout=4.0) as client:
@@ -1508,8 +1514,8 @@ async def rpc_endpoint(req: JsonRpcRequest):
 
         if not system_instruction:
             system_instruction = (
-                "Anda adalah asisten AI resmi KPK (Komisi Pemberantasan Korupsi) dengan spesialisasi "
-                "sebagai Analis Intelijen & Penyelidikan. Tugas utama Anda adalah membantu analisis kasus, "
+                "Anda adalah Asisten Resmi Knowledge Management dan Analis Intelijen & Penyelidikan Strategis. "
+                "Tugas utama Anda adalah membantu analisis kasus, "
                 "penelusuran aset, profiling entitas, dan verifikasi silang data.\n"
                 "Gunakan Bahasa Indonesia yang formal, lugas, presisi, objektif, dan berlandaskan fakta hukum. "
                 "Jangan pernah mengarang informasi (anti-halusinasi)."

@@ -3,7 +3,7 @@ import httpx
 import json
 
 BASE_URL = "http://mcp_nginx:80"
-# Atau bisa diganti dengan "http://togian.kpk.go.id:8092"
+# Atau bisa diganti dengan "http://togian.internal.domain:8092"
 API_KEY = "mcp_df2a74914275848566234169d00943583ea9c856163dd669ba67658f73ce36e5"
 
 HEADERS = {

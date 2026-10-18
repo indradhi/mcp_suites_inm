@@ -99,6 +99,10 @@ export function parseCurl(curlText) {
         dataBodies.push(token.substring(2).replace(/^['"]|['"]$/g, ''));
       } else if (token === '-k' || token === '--insecure') {
         insecure = true;
+      } else if (token === '-L' || token === '--location' || token === '--location-trusted') {
+        // Handled: curl follow redirects flag
+      } else if (['--compressed', '-s', '--silent', '-v', '--verbose', '-i', '--include'].includes(token)) {
+        // Safe skip for common curl CLI flags
       } else if (token === '--url') {
         if (i + 1 < tokens.length) {
           rawUrl = tokens[++i].replace(/^['"]|['"]$/g, '');
@@ -254,9 +258,9 @@ export function parseCurl(curlText) {
               includeEmpty = true;
             } else if (pType === 'number') {
               pType = Number.isInteger(val) ? 'integer' : 'number';
-              defVal = String(val);
+              defVal = val;
             } else if (pType === 'boolean') {
-              defVal = String(val);
+              defVal = val;
             } else if (pType === 'string') {
               includeEmpty = val === '';
             } else if (pType === 'object') {
@@ -351,6 +355,7 @@ export function parseCurl(curlText) {
       authMode,
       bearerToken,
       verifySsl: !insecure,
+      followRedirects: true,
       parameters,
       testArgs,
       bodyRaw: combinedBody,
@@ -365,3 +370,70 @@ export function parseCurl(curlText) {
     };
   }
 }
+
+/**
+ * Utility to parse raw JSON body strings directly into structured API Tool parameters.
+ */
+export function parseRawJsonBody(jsonText) {
+  if (!jsonText || typeof jsonText !== 'string' || !jsonText.trim()) {
+    return { success: false, error: 'Teks JSON tidak boleh kosong.' };
+  }
+
+  try {
+    const parsed = JSON.parse(jsonText.trim());
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { success: false, error: 'JSON harus berupa object key-value (contoh: { "NIK": "", "NAMA": "..." }).' };
+    }
+
+    const parameters = [];
+    const testArgs = {};
+
+    Object.entries(parsed).forEach(([key, val]) => {
+      let pType = typeof val;
+      let defVal = val;
+      let includeEmpty = false;
+
+      if (val === null || val === undefined) {
+        pType = 'string';
+        defVal = '';
+        includeEmpty = true;
+      } else if (pType === 'number') {
+        pType = Number.isInteger(val) ? 'integer' : 'number';
+        defVal = val;
+      } else if (pType === 'boolean') {
+        defVal = val;
+      } else if (pType === 'string') {
+        includeEmpty = val === '';
+      } else if (pType === 'object') {
+        pType = 'string';
+        defVal = JSON.stringify(val);
+      }
+
+      parameters.push({
+        name: key,
+        in: 'body',
+        type: pType,
+        description: `Body parameter ${key}`,
+        required: true,
+        default: defVal,
+        include_empty: includeEmpty
+      });
+
+      testArgs[key] = defVal;
+    });
+
+    return {
+      success: true,
+      parameters,
+      testArgs,
+      rawJson: JSON.stringify(parsed, null, 2),
+      count: parameters.length
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: `Format JSON tidak valid: ${err.message}`
+    };
+  }
+}
+
