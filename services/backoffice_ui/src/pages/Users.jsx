@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Users as UsersIcon, Plus, Trash2, Shield, UserCheck, X } from 'lucide-react';
+import { Users as UsersIcon, Plus, Trash2, Shield, UserCheck, X, KeyRound } from 'lucide-react';
 import api from '../api/client';
+import ChangePasswordModal from '../components/modals/ChangePasswordModal';
 
 export default function Users() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [passwordModalUser, setPasswordModalUser] = useState(null);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -127,15 +129,26 @@ export default function Users() {
                     </span>
                   </td>
                   <td style={{ padding: '14px 12px', textAlign: 'right' }}>
-                    {u.username !== 'admin' && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '6px' }}>
                       <button
-                        className="btn-danger"
-                        style={{ padding: '6px 10px' }}
-                        onClick={() => handleDeleteUser(u.id)}
+                        className="btn-ghost"
+                        style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}
+                        title="Ganti Password"
+                        onClick={() => setPasswordModalUser(u)}
                       >
-                        <Trash2 size={14} />
+                        <KeyRound size={14} />
                       </button>
-                    )}
+                      {u.username !== 'admin' && (
+                        <button
+                          className="btn-danger"
+                          style={{ padding: '6px 10px' }}
+                          title="Hapus User"
+                          onClick={() => handleDeleteUser(u.id)}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))
@@ -234,6 +247,14 @@ export default function Users() {
           </div>
         </div>
       )}
+
+      <ChangePasswordModal
+        isOpen={!!passwordModalUser}
+        onClose={() => setPasswordModalUser(null)}
+        mode="admin"
+        targetUser={passwordModalUser}
+        onSuccess={() => fetchUsers()}
+      />
     </div>
   );
 }

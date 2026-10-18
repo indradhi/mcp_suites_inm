@@ -44,16 +44,18 @@ export default function Login() {
             <label className="block text-sm font-semibold text-base-content/70 mb-2">
               Username
             </label>
-            <div className="relative">
+            <div className="relative flex items-center">
+              <User size={18} className="text-base-content/40 absolute left-3.5 pointer-events-none" />
               <input
                 type="text"
-                className="input-field pl-10"
-                placeholder="admin"
+                className="input-field"
+                style={{ paddingLeft: '42px' }}
+                placeholder=""
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
                 required
               />
-              <User size={18} className="text-base-content/40 absolute left-3 top-1/2 -translate-y-1/2" />
             </div>
           </div>
 
@@ -61,16 +63,18 @@ export default function Login() {
             <label className="block text-sm font-semibold text-base-content/70 mb-2">
               Password
             </label>
-            <div className="relative">
+            <div className="relative flex items-center">
+              <Lock size={18} className="text-base-content/40 absolute left-3.5 pointer-events-none" />
               <input
                 type="password"
-                className="input-field pl-10"
-                placeholder="admin123"
+                className="input-field"
+                style={{ paddingLeft: '42px' }}
+                placeholder=""
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
                 required
               />
-              <Lock size={18} className="text-base-content/40 absolute left-3 top-1/2 -translate-y-1/2" />
             </div>
           </div>
 

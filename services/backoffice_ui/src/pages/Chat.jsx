@@ -58,6 +58,7 @@ import ReasoningCard from '../components/chat/ReasoningCard';
 import RecommendationChips, { generateContextualRecommendations } from '../components/chat/RecommendationChips';
 import ExploreToolsModal from '../components/chat/ExploreToolsModal';
 import ChatHistoryDrawer from '../components/chat/ChatHistoryDrawer';
+import { useAuthStore } from '../store/authStore';
 
 /**
  * Normalizes any image source string into a valid browser image src.
@@ -153,54 +154,104 @@ const DEFAULT_WELCOME_MESSAGE = {
   metrics: null
 };
 
-export default function Chat() {
-  const [sessions, setSessions] = useState(() => {
-    try {
-      const saved = localStorage.getItem(SESSIONS_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
+// ── Per-User Session Storage Helpers ──────────────────────────────────────────
+const getUserSessionKey = (user) => {
+  const uid = user?.id ? String(user.id) : (user?.username || 'anonymous');
+  return `mcp_chat_sessions_u_${uid}`;
+};
+
+const getUserActiveSessionKey = (user) => {
+  const uid = user?.id ? String(user.id) : (user?.username || 'anonymous');
+  return `mcp_active_session_u_${uid}`;
+};
+
+const loadUserSessionsFromStorage = (user) => {
+  const key = getUserSessionKey(user);
+  try {
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
       }
-    } catch (e) {
-      console.warn('Failed to load chat sessions:', e);
     }
-    const defaultSession = {
-      id: `session-${Date.now()}`,
-      title: 'Obrolan Baru',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      model: '',
-      messages: [DEFAULT_WELCOME_MESSAGE]
-    };
-    return [defaultSession];
-  });
+    // Check if legacy sessions exist and migrate for admin
+    const legacy = localStorage.getItem(SESSIONS_STORAGE_KEY);
+    if (legacy && (user?.username === 'admin' || !user)) {
+      const parsed = JSON.parse(legacy);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        try {
+          localStorage.setItem(key, legacy);
+        } catch (e) {}
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load user chat sessions:', e);
+  }
+  return [{
+    id: `session-${Date.now()}`,
+    title: 'Obrolan Baru',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    model: '',
+    messages: [DEFAULT_WELCOME_MESSAGE]
+  }];
+};
+
+const loadUserActiveSessionId = (user, userSessions) => {
+  const key = getUserActiveSessionKey(user);
+  try {
+    const savedId = localStorage.getItem(key);
+    if (savedId && userSessions.some(s => s.id === savedId)) {
+      return savedId;
+    }
+    if (user?.username === 'admin' || !user) {
+      const legacyId = localStorage.getItem('mcp_active_session_id');
+      if (legacyId && userSessions.some(s => s.id === legacyId)) {
+        return legacyId;
+      }
+    }
+  } catch (e) {}
+  return userSessions[0]?.id || `session-${Date.now()}`;
+};
+
+export default function Chat() {
+  const { user } = useAuthStore();
+  const userIdRef = useRef(user?.id ? String(user.id) : (user?.username || 'anonymous'));
+
+  const [sessions, setSessions] = useState(() => loadUserSessionsFromStorage(user));
 
   const [activeSessionId, setActiveSessionId] = useState(() => {
-    try {
-      const lastActive = localStorage.getItem('mcp_active_session_id');
-      if (lastActive) return lastActive;
-    } catch (e) {}
-    return 'default';
+    const initialSessions = loadUserSessionsFromStorage(user);
+    return loadUserActiveSessionId(user, initialSessions);
   });
 
   const [messages, setMessages] = useState(() => {
-    try {
-      const saved = localStorage.getItem(SESSIONS_STORAGE_KEY);
-      const lastActive = localStorage.getItem('mcp_active_session_id');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const found = parsed.find(s => s.id === lastActive) || parsed[0];
-          if (found && found.messages && found.messages.length > 0) {
-            return found.messages;
-          }
-        }
-      }
-    } catch (e) {}
-    return [DEFAULT_WELCOME_MESSAGE];
+    const initialSessions = loadUserSessionsFromStorage(user);
+    const initialActiveId = loadUserActiveSessionId(user, initialSessions);
+    const found = initialSessions.find(s => s.id === initialActiveId) || initialSessions[0];
+    return found?.messages && found.messages.length > 0 ? found.messages : [DEFAULT_WELCOME_MESSAGE];
   });
+
+  // Handle user account switch: reload isolated sessions
+  useEffect(() => {
+    const currentUid = user?.id ? String(user.id) : (user?.username || 'anonymous');
+    if (userIdRef.current !== currentUid) {
+      userIdRef.current = currentUid;
+      const loaded = loadUserSessionsFromStorage(user);
+      const activeId = loadUserActiveSessionId(user, loaded);
+      const activeSession = loaded.find(s => s.id === activeId) || loaded[0];
+
+      setSessions(loaded);
+      setActiveSessionId(activeId);
+      setMessages(activeSession?.messages && activeSession.messages.length > 0 ? activeSession.messages : [DEFAULT_WELCOME_MESSAGE]);
+      setContextResetIndex(0);
+      if (activeSession?.model) {
+        setSelectedModelName(activeSession.model);
+      }
+    }
+  }, [user?.id, user?.username]);
 
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
   const [isExploreToolsModalOpen, setIsExploreToolsModalOpen] = useState(false);
@@ -326,14 +377,14 @@ export default function Chat() {
       };
 
       try {
-        localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(updated));
-        localStorage.setItem('mcp_active_session_id', activeSessionId);
+        localStorage.setItem(getUserSessionKey(user), JSON.stringify(updated));
+        localStorage.setItem(getUserActiveSessionKey(user), activeSessionId);
       } catch (err) {
         console.warn('LocalStorage save error:', err);
       }
       return updated;
     });
-  }, [messages, activeSessionId, selectedModelName]);
+  }, [messages, activeSessionId, selectedModelName, user?.id, user?.username]);
 
   const handleSelectSession = (sessionId) => {
     const session = sessions.find(s => s.id === sessionId);
@@ -344,7 +395,9 @@ export default function Chat() {
     if (session.model) {
       setSelectedModelName(session.model);
     }
-    localStorage.setItem('mcp_active_session_id', sessionId);
+    try {
+      localStorage.setItem(getUserActiveSessionKey(user), sessionId);
+    } catch (e) {}
   };
 
   const handleNewChat = () => {
@@ -362,8 +415,8 @@ export default function Chat() {
     setMessages([DEFAULT_WELCOME_MESSAGE]);
     setContextResetIndex(0);
     try {
-      localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(updated));
-      localStorage.setItem('mcp_active_session_id', newSession.id);
+      localStorage.setItem(getUserSessionKey(user), JSON.stringify(updated));
+      localStorage.setItem(getUserActiveSessionKey(user), newSession.id);
     } catch (e) {}
   };
 
@@ -393,16 +446,22 @@ export default function Chat() {
       setSessions([fresh]);
       setActiveSessionId(fresh.id);
       setMessages([DEFAULT_WELCOME_MESSAGE]);
-      localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify([fresh]));
-      localStorage.setItem('mcp_active_session_id', fresh.id);
+      try {
+        localStorage.setItem(getUserSessionKey(user), JSON.stringify([fresh]));
+        localStorage.setItem(getUserActiveSessionKey(user), fresh.id);
+      } catch (e) {}
     } else {
       setSessions(remaining);
-      localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(remaining));
+      try {
+        localStorage.setItem(getUserSessionKey(user), JSON.stringify(remaining));
+      } catch (e) {}
       if (activeSessionId === sessionId) {
         const next = remaining[0];
         setActiveSessionId(next.id);
         setMessages(next.messages || [DEFAULT_WELCOME_MESSAGE]);
-        localStorage.setItem('mcp_active_session_id', next.id);
+        try {
+          localStorage.setItem(getUserActiveSessionKey(user), next.id);
+        } catch (e) {}
       }
     }
   };
@@ -410,7 +469,9 @@ export default function Chat() {
   const handleRenameSession = (sessionId, newTitle) => {
     const updated = sessions.map(s => s.id === sessionId ? { ...s, title: newTitle, updated_at: new Date().toISOString() } : s);
     setSessions(updated);
-    localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(updated));
+    try {
+      localStorage.setItem(getUserSessionKey(user), JSON.stringify(updated));
+    } catch (e) {}
   };
 
   const handleImportOpenAI = (importedData) => {
@@ -429,8 +490,10 @@ export default function Chat() {
     if (importedData.model) {
       setSelectedModelName(importedData.model);
     }
-    localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(updated));
-    localStorage.setItem('mcp_active_session_id', newSession.id);
+    try {
+      localStorage.setItem(getUserSessionKey(user), JSON.stringify(updated));
+      localStorage.setItem(getUserActiveSessionKey(user), newSession.id);
+    } catch (e) {}
   };
 
   const toggleSourceSelection = (sourceId) => {
