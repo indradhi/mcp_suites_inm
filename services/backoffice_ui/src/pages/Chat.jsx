@@ -418,7 +418,7 @@ export default function Chat() {
     setContextResetIndex(messages.length + 1);
   };
 
-  const handleDeleteSession = (sessionId) => {
+  const handleDeleteSession = async (sessionId) => {
     const remaining = sessions.filter(s => s.id !== sessionId);
     if (remaining.length === 0) {
       // Create a brand‑new session both in UI state and on the backend
