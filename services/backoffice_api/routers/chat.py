@@ -11,10 +11,12 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
+from datetime import datetime
 from database import get_db
 from security import get_current_user
 from models.knowledge_source import KnowledgeSource
 from models.chat_feedback import ChatFeedback
+from models.chat_session import ChatSession
 from services.chat_service import chat_service
 from services.document_parser import document_parser
 from services.media_cache_service import media_cache_service
@@ -1240,5 +1242,158 @@ def convert_media(
             "data": converted_data,
             "media": converted_media
         }
+
+
+# ── Persistent Chat Session Endpoints ──────────────────────────────────────────
+
+class ChatSessionUpsert(BaseModel):
+    id: str
+    title: Optional[str] = "Obrolan Baru"
+    model: Optional[str] = ""
+    messages: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+
+class ChatSessionBatchSync(BaseModel):
+    sessions: List[ChatSessionUpsert]
+
+class RenameSessionRequest(BaseModel):
+    title: str
+
+
+@router.get("/sessions", summary="List all chat sessions for the current user")
+def list_chat_sessions(
+    user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    sessions = db.query(ChatSession).filter(
+        ChatSession.user_id == user.id
+    ).order_by(ChatSession.updated_at.desc()).all()
+    return [s.to_dict() for s in sessions]
+
+
+@router.post("/sessions", summary="Create or update a chat session")
+def save_chat_session(
+    payload: ChatSessionUpsert,
+    user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    session = db.query(ChatSession).filter(
+        ChatSession.id == payload.id,
+        ChatSession.user_id == user.id
+    ).first()
+
+    now = datetime.utcnow()
+    if session:
+        if payload.title:
+            session.title = payload.title
+        if payload.model is not None:
+            session.model = payload.model
+        if payload.messages is not None:
+            session.messages = payload.messages
+        session.updated_at = now
+    else:
+        session = ChatSession(
+            id=payload.id,
+            user_id=user.id,
+            title=payload.title or "Obrolan Baru",
+            model=payload.model or "",
+            messages=payload.messages or [],
+            created_at=now,
+            updated_at=now
+        )
+        db.add(session)
+
+    db.commit()
+    db.refresh(session)
+    return session.to_dict()
+
+
+@router.post("/sessions/sync", summary="Batch synchronize client sessions with database")
+def sync_chat_sessions(
+    payload: ChatSessionBatchSync,
+    user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    existing = {
+        s.id: s for s in db.query(ChatSession).filter(ChatSession.user_id == user.id).all()
+    }
+    now = datetime.utcnow()
+
+    for cs in payload.sessions:
+        if not cs.id:
+            continue
+        
+        is_empty_default = (
+            len(cs.messages or []) <= 1 and 
+            all(m.get('id') == 'welcome-msg' or m.get('role') == 'assistant' for m in (cs.messages or []))
+        )
+
+        if cs.id in existing:
+            s = existing[cs.id]
+            if cs.messages and len(cs.messages) > 0 and not is_empty_default:
+                s.messages = cs.messages
+                if cs.title:
+                    s.title = cs.title
+                if cs.model:
+                    s.model = cs.model
+                s.updated_at = now
+        else:
+            if is_empty_default and len(existing) > 0:
+                continue
+            new_s = ChatSession(
+                id=cs.id,
+                user_id=user.id,
+                title=cs.title or "Obrolan Baru",
+                model=cs.model or "",
+                messages=cs.messages or [],
+                created_at=now,
+                updated_at=now
+            )
+            db.add(new_s)
+            existing[cs.id] = new_s
+
+    db.commit()
+
+    all_sessions = db.query(ChatSession).filter(
+        ChatSession.user_id == user.id
+    ).order_by(ChatSession.updated_at.desc()).all()
+    return [s.to_dict() for s in all_sessions]
+
+
+@router.patch("/sessions/{session_id}", summary="Rename a chat session")
+def rename_chat_session(
+    session_id: str,
+    payload: RenameSessionRequest,
+    user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    session = db.query(ChatSession).filter(
+        ChatSession.id == session_id,
+        ChatSession.user_id == user.id
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    session.title = payload.title
+    session.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(session)
+    return session.to_dict()
+
+
+@router.delete("/sessions/{session_id}", summary="Delete a chat session")
+def delete_chat_session(
+    session_id: str,
+    user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    session = db.query(ChatSession).filter(
+        ChatSession.id == session_id,
+        ChatSession.user_id == user.id
+    ).first()
+    if session:
+        db.delete(session)
+        db.commit()
+        return {"status": "deleted", "id": session_id}
+    return {"status": "not_found", "id": session_id}
+
 
 

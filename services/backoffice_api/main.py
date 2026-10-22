@@ -13,6 +13,7 @@ from models.llm_backend import LLMBackend
 from models.chat_feedback import ChatFeedback
 from models.chat_media_cache import ChatMediaCache
 from models.api_key import ApiKey
+from models.chat_session import ChatSession
 from security import get_current_user
 
 from routers import auth, users, knowledge, jobs, graph, llm_backends, chat, face, personality, orchestrator, api_keys, database_settings

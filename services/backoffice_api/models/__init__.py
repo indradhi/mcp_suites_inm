@@ -8,6 +8,7 @@ from models.chat_media_cache import ChatMediaCache
 from models.system_setting import SystemSetting
 from models.orchestration_flow import OrchestrationFlow
 from models.api_key import ApiKey
+from models.chat_session import ChatSession
 
 __all__ = [
     "Base",
@@ -23,6 +24,6 @@ __all__ = [
     "ChatMediaCache",
     "SystemSetting",
     "OrchestrationFlow",
-    "ApiKey"
+    "ApiKey",
+    "ChatSession"
 ]
-
