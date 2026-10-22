@@ -1247,7 +1247,7 @@ def convert_media(
 # ── Persistent Chat Session Endpoints ──────────────────────────────────────────
 
 class ChatSessionUpsert(BaseModel):
-    id: str
+    id: Optional[str] = None
     title: Optional[str] = "Obrolan Baru"
     model: Optional[str] = ""
     messages: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
