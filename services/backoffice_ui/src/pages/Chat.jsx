@@ -278,28 +278,23 @@ export default function Chat() {
             localStorage.setItem(getUserSessionKey(user), JSON.stringify(serverSessions));
           } catch (e) {}
 
-          setActiveSessionId(prevId => {
-            const exists = serverSessions.find(s => s.id === prevId);
-            if (exists) {
-              setMessages(exists.messages && exists.messages.length > 0 ? exists.messages : [DEFAULT_WELCOME_MESSAGE]);
-              return prevId;
-            }
-            const target = serverSessions[0];
-            if (target) {
-              setMessages(target.messages && target.messages.length > 0 ? target.messages : [DEFAULT_WELCOME_MESSAGE]);
-              if (target.model) setSelectedModelName(target.model);
-              try {
-                localStorage.setItem(getUserActiveSessionKey(user), target.id);
-              } catch (e) {}
-              return target.id;
-            }
-            return prevId;
-          });
+          const currentActive = serverSessions.find(s => s.id === activeSessionId);
+          const chosen = currentActive || serverSessions[0];
+          if (chosen) {
+            setActiveSessionId(chosen.id);
+            setMessages(chosen.messages && chosen.messages.length > 0 ? chosen.messages : [DEFAULT_WELCOME_MESSAGE]);
+            if (chosen.model) setSelectedModelName(chosen.model);
+            try {
+              localStorage.setItem(getUserActiveSessionKey(user), chosen.id);
+            } catch (e) {}
+          }
         }
       } catch (err) {
         console.warn('Chat sessions backend sync notice:', err);
       } finally {
-        isSyncingRef.current = false;
+        setTimeout(() => {
+          isSyncingRef.current = false;
+        }, 500);
       }
     };
 
@@ -447,7 +442,7 @@ export default function Chat() {
     });
 
     // Debounced save to server database so history persists across devices
-    if (user && sessionToPersist) {
+    if (user && sessionToPersist && !isSyncingRef.current) {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
