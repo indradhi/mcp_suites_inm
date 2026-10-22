@@ -154,155 +154,88 @@ const DEFAULT_WELCOME_MESSAGE = {
   metrics: null
 };
 
-// ── Per-User Session Storage Helpers ──────────────────────────────────────────
-const getUserSessionKey = (user) => {
-  const uid = user?.id ? String(user.id) : (user?.username || 'anonymous');
-  return `mcp_chat_sessions_u_${uid}`;
-};
-
-const getUserActiveSessionKey = (user) => {
-  const uid = user?.id ? String(user.id) : (user?.username || 'anonymous');
-  return `mcp_active_session_u_${uid}`;
-};
-
-const loadUserSessionsFromStorage = (user) => {
-  const key = getUserSessionKey(user);
+// ── Backend Session Helpers ──────────────────────────────────────────
+// Fetch all chat sessions for the current user from the backend
+const fetchSessionsFromServer = async (user) => {
   try {
-    const saved = localStorage.getItem(key);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-    // Check if legacy sessions exist and migrate for admin
-    const legacy = localStorage.getItem(SESSIONS_STORAGE_KEY);
-    if (legacy && (user?.username === 'admin' || !user)) {
-      const parsed = JSON.parse(legacy);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        try {
-          localStorage.setItem(key, legacy);
-        } catch (e) {}
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.warn('Failed to load user chat sessions:', e);
+    const res = await api.get('/chat/sessions');
+    return res.data || [];
+  } catch (err) {
+    console.warn('Failed to fetch chat sessions from server:', err);
+    return [];
   }
-  return [{
+};
+
+// Create a new empty session on the backend
+const createNewSessionOnServer = async (user, modelName = '') => {
+  const fresh = {
     id: `session-${Date.now()}`,
     title: 'Obrolan Baru',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    model: '',
+    model: modelName,
     messages: [DEFAULT_WELCOME_MESSAGE]
-  }];
+  };
+  try {
+    await api.post('/chat/sessions', fresh);
+  } catch (err) {
+    console.warn('Failed to create new session on server:', err);
+  }
+  return fresh;
 };
 
-const loadUserActiveSessionId = (user, userSessions) => {
-  const key = getUserActiveSessionKey(user);
+// Save (upsert) a session to the backend
+const saveSessionToServer = async (session) => {
   try {
-    const savedId = localStorage.getItem(key);
-    if (savedId && userSessions.some(s => s.id === savedId)) {
-      return savedId;
-    }
-    if (user?.username === 'admin' || !user) {
-      const legacyId = localStorage.getItem('mcp_active_session_id');
-      if (legacyId && userSessions.some(s => s.id === legacyId)) {
-        return legacyId;
-      }
-    }
-  } catch (e) {}
-  return userSessions[0]?.id || `session-${Date.now()}`;
+    await api.post('/chat/sessions', session);
+  } catch (err) {
+    console.warn('Failed to save session to server:', err);
+  }
+};
+
+// Delete a session on the backend
+const deleteSessionOnServer = async (sessionId) => {
+  try {
+    await api.delete(`/chat/sessions/${sessionId}`);
+  } catch (err) {
+    console.warn('Failed to delete session on server:', err);
+  }
 };
 
 export default function Chat() {
   const { user } = useAuthStore();
   const userIdRef = useRef(user?.id ? String(user.id) : (user?.username || 'anonymous'));
 
-  const [sessions, setSessions] = useState(() => loadUserSessionsFromStorage(user));
+  // Initialize with empty state; real data will be loaded from the backend in the effect below
+  const [sessions, setSessions] = useState([]);
+  const [activeSessionId, setActiveSessionId] = useState(null);
 
-  const [activeSessionId, setActiveSessionId] = useState(() => {
-    const initialSessions = loadUserSessionsFromStorage(user);
-    return loadUserActiveSessionId(user, initialSessions);
-  });
-
-  const [messages, setMessages] = useState(() => {
-    const initialSessions = loadUserSessionsFromStorage(user);
-    const initialActiveId = loadUserActiveSessionId(user, initialSessions);
-    const found = initialSessions.find(s => s.id === initialActiveId) || initialSessions[0];
-    return found?.messages && found.messages.length > 0 ? found.messages : [DEFAULT_WELCOME_MESSAGE];
-  });
+  const [messages, setMessages] = useState(() => [DEFAULT_WELCOME_MESSAGE]);
 
   // Handle user account switch: reload isolated sessions
-  useEffect(() => {
-    const currentUid = user?.id ? String(user.id) : (user?.username || 'anonymous');
-    if (userIdRef.current !== currentUid) {
-      userIdRef.current = currentUid;
-      const loaded = loadUserSessionsFromStorage(user);
-      const activeId = loadUserActiveSessionId(user, loaded);
-      const activeSession = loaded.find(s => s.id === activeId) || loaded[0];
+  // Account switch handling removed; sessions are managed via backend.
+  useEffect(() => {}, [user?.id, user?.username]);
 
-      setSessions(loaded);
-      setActiveSessionId(activeId);
-      setMessages(activeSession?.messages && activeSession.messages.length > 0 ? activeSession.messages : [DEFAULT_WELCOME_MESSAGE]);
-      setContextResetIndex(0);
-      if (activeSession?.model) {
-        setSelectedModelName(activeSession.model);
-      }
-    }
-  }, [user?.id, user?.username]);
-
-  // Synchronize chat sessions with backend database so history persists across computers/browsers
-  const isSyncingRef = useRef(false);
-  const saveTimeoutRef = useRef(null);
-
+  // Load chat sessions from the backend when the user logs in or changes
   useEffect(() => {
     if (!user) return;
-
-    let isMounted = true;
-    const syncWithBackend = async () => {
-      try {
-        isSyncingRef.current = true;
-        const localSessions = loadUserSessionsFromStorage(user);
-
-        // Batch sync: upload local history and retrieve consolidated server history
-        const res = await api.post('/chat/sessions/sync', { sessions: localSessions });
-        if (!isMounted) return;
-
-        if (Array.isArray(res.data) && res.data.length > 0) {
-          const serverSessions = res.data;
-          setSessions(serverSessions);
-
-          try {
-            localStorage.setItem(getUserSessionKey(user), JSON.stringify(serverSessions));
-          } catch (e) {}
-
-          const currentActive = serverSessions.find(s => s.id === activeSessionId);
-          const chosen = currentActive || serverSessions[0];
-          if (chosen) {
-            setActiveSessionId(chosen.id);
-            setMessages(chosen.messages && chosen.messages.length > 0 ? chosen.messages : [DEFAULT_WELCOME_MESSAGE]);
-            if (chosen.model) setSelectedModelName(chosen.model);
-            try {
-              localStorage.setItem(getUserActiveSessionKey(user), chosen.id);
-            } catch (e) {}
-          }
-        }
-      } catch (err) {
-        console.warn('Chat sessions backend sync notice:', err);
-      } finally {
-        setTimeout(() => {
-          isSyncingRef.current = false;
-        }, 500);
+    (async () => {
+      const serverSessions = await fetchSessionsFromServer(user);
+      if (serverSessions.length > 0) {
+        setSessions(serverSessions);
+        const first = serverSessions[0];
+        setActiveSessionId(first.id);
+        setMessages(first.messages && first.messages.length > 0 ? first.messages : [DEFAULT_WELCOME_MESSAGE]);
+        if (first.model) setSelectedModelName(first.model);
+      } else {
+        // No existing sessions; create a fresh one
+        const fresh = await createNewSessionOnServer(user);
+        setSessions([fresh]);
+        setActiveSessionId(fresh.id);
+        setMessages(fresh.messages);
+        if (fresh.model) setSelectedModelName(fresh.model);
       }
-    };
-
-    syncWithBackend();
-
-    return () => {
-      isMounted = false;
-    };
+    })();
   }, [user?.id, user?.username]);
 
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
@@ -402,61 +335,38 @@ export default function Chat() {
     }
   }, [sessions, activeSessionId]);
 
-  // Synchronize messages with sessions in localStorage and database
+  // Persist session changes to the backend (debounced)
   useEffect(() => {
     if (!activeSessionId) return;
+    const current = sessions.find(s => s.id === activeSessionId);
+    if (!current) return;
 
-    let sessionToPersist = null;
-
-    setSessions(prevSessions => {
-      const idx = prevSessions.findIndex(s => s.id === activeSessionId);
-      if (idx === -1) return prevSessions;
-
-      const current = prevSessions[idx];
-      let title = current.title;
-      if (!title || title === 'Obrolan Baru' || title === 'New Chat') {
-        const firstUserMsg = messages.find(m => m.role === 'user');
-        if (firstUserMsg && firstUserMsg.content) {
-          title = firstUserMsg.content.slice(0, 36) + (firstUserMsg.content.length > 36 ? '...' : '');
-        }
+    // Derive title if still default
+    let title = current.title;
+    if (!title || title === 'Obrolan Baru' || title === 'New Chat') {
+      const firstUserMsg = messages.find(m => m.role === 'user');
+      if (firstUserMsg && firstUserMsg.content) {
+        title = firstUserMsg.content.slice(0, 36) + (firstUserMsg.content.length > 36 ? '...' : '');
       }
-
-      const updated = [...prevSessions];
-      const newSessionObj = {
-        ...current,
-        title,
-        updated_at: new Date().toISOString(),
-        model: selectedModelName || current.model,
-        messages
-      };
-      updated[idx] = newSessionObj;
-      sessionToPersist = newSessionObj;
-
-      try {
-        localStorage.setItem(getUserSessionKey(user), JSON.stringify(updated));
-        localStorage.setItem(getUserActiveSessionKey(user), activeSessionId);
-      } catch (err) {
-        console.warn('LocalStorage save error:', err);
-      }
-      return updated;
-    });
-
-    // Debounced save to server database so history persists across devices
-    if (user && sessionToPersist && !isSyncingRef.current) {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-      saveTimeoutRef.current = setTimeout(() => {
-        api.post('/chat/sessions', {
-          id: sessionToPersist.id,
-          title: sessionToPersist.title,
-          model: sessionToPersist.model,
-          messages: sessionToPersist.messages
-        }).catch(err => {
-          console.warn('Backend session save warning:', err);
-        });
-      }, 1000);
     }
+
+    const updatedSession = {
+      ...current,
+      title,
+      updated_at: new Date().toISOString(),
+      model: selectedModelName || current.model,
+      messages
+    };
+
+    // Update state
+    setSessions(prev => prev.map(s => (s.id === activeSessionId ? updatedSession : s)));
+    setActiveSessionId(updatedSession.id);
+
+    // Debounced backend save
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      saveSessionToServer(updatedSession);
+    }, 1000);
   }, [messages, activeSessionId, selectedModelName, user?.id, user?.username]);
 
   const handleSelectSession = (sessionId) => {
@@ -468,9 +378,7 @@ export default function Chat() {
     if (session.model) {
       setSelectedModelName(session.model);
     }
-    try {
-      localStorage.setItem(getUserActiveSessionKey(user), sessionId);
-    } catch (e) {}
+    // Active session persistence handled by backend; no localStorage.
   };
 
   const handleNewChat = () => {
@@ -487,11 +395,7 @@ export default function Chat() {
     setActiveSessionId(newSession.id);
     setMessages([DEFAULT_WELCOME_MESSAGE]);
     setContextResetIndex(0);
-    try {
-      localStorage.setItem(getUserSessionKey(user), JSON.stringify(updated));
-      localStorage.setItem(getUserActiveSessionKey(user), newSession.id);
-    } catch (e) {}
-
+    // Session persistence handled by backend; no localStorage.
     if (user) {
       api.post('/chat/sessions', {
         id: newSession.id,
@@ -517,55 +421,28 @@ export default function Chat() {
   const handleDeleteSession = (sessionId) => {
     const remaining = sessions.filter(s => s.id !== sessionId);
     if (remaining.length === 0) {
-      const fresh = {
-        id: `session-${Date.now()}`,
-        title: 'Obrolan Baru',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        model: selectedModelName || '',
-        messages: [DEFAULT_WELCOME_MESSAGE]
-      };
+      // Create a brand‑new session both in UI state and on the backend
+      const fresh = await createNewSessionOnServer(user, selectedModelName);
       setSessions([fresh]);
       setActiveSessionId(fresh.id);
-      setMessages([DEFAULT_WELCOME_MESSAGE]);
-      try {
-        localStorage.setItem(getUserSessionKey(user), JSON.stringify([fresh]));
-        localStorage.setItem(getUserActiveSessionKey(user), fresh.id);
-      } catch (e) {}
-      if (user) {
-        api.delete(`/chat/sessions/${sessionId}`).catch(() => {});
-        api.post('/chat/sessions', {
-          id: fresh.id,
-          title: fresh.title,
-          model: fresh.model,
-          messages: fresh.messages
-        }).catch(() => {});
-      }
+      setMessages(fresh.messages);
     } else {
+      // Delete the session locally and on the backend
       setSessions(remaining);
-      try {
-        localStorage.setItem(getUserSessionKey(user), JSON.stringify(remaining));
-      } catch (e) {}
       if (activeSessionId === sessionId) {
         const next = remaining[0];
         setActiveSessionId(next.id);
         setMessages(next.messages || [DEFAULT_WELCOME_MESSAGE]);
-        try {
-          localStorage.setItem(getUserActiveSessionKey(user), next.id);
-        } catch (e) {}
       }
-      if (user) {
-        api.delete(`/chat/sessions/${sessionId}`).catch(() => {});
-      }
+      // Backend deletion
+      await deleteSessionOnServer(sessionId);
     }
   };
 
   const handleRenameSession = (sessionId, newTitle) => {
     const updated = sessions.map(s => s.id === sessionId ? { ...s, title: newTitle, updated_at: new Date().toISOString() } : s);
     setSessions(updated);
-    try {
-      localStorage.setItem(getUserSessionKey(user), JSON.stringify(updated));
-    } catch (e) {}
+    // Session rename persisted via backend; no localStorage.
     if (user) {
       api.patch(`/chat/sessions/${sessionId}`, { title: newTitle }).catch(() => {});
     }
