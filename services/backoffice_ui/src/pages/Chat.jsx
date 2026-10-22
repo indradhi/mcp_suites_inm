@@ -253,6 +253,63 @@ export default function Chat() {
     }
   }, [user?.id, user?.username]);
 
+  // Synchronize chat sessions with backend database so history persists across computers/browsers
+  const isSyncingRef = useRef(false);
+  const saveTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    if (!user) return;
+
+    let isMounted = true;
+    const syncWithBackend = async () => {
+      try {
+        isSyncingRef.current = true;
+        const localSessions = loadUserSessionsFromStorage(user);
+
+        // Batch sync: upload local history and retrieve consolidated server history
+        const res = await api.post('/chat/sessions/sync', { sessions: localSessions });
+        if (!isMounted) return;
+
+        if (Array.isArray(res.data) && res.data.length > 0) {
+          const serverSessions = res.data;
+          setSessions(serverSessions);
+
+          try {
+            localStorage.setItem(getUserSessionKey(user), JSON.stringify(serverSessions));
+          } catch (e) {}
+
+          setActiveSessionId(prevId => {
+            const exists = serverSessions.find(s => s.id === prevId);
+            if (exists) {
+              setMessages(exists.messages && exists.messages.length > 0 ? exists.messages : [DEFAULT_WELCOME_MESSAGE]);
+              return prevId;
+            }
+            const target = serverSessions[0];
+            if (target) {
+              setMessages(target.messages && target.messages.length > 0 ? target.messages : [DEFAULT_WELCOME_MESSAGE]);
+              if (target.model) setSelectedModelName(target.model);
+              try {
+                localStorage.setItem(getUserActiveSessionKey(user), target.id);
+              } catch (e) {}
+              return target.id;
+            }
+            return prevId;
+          });
+        }
+      } catch (err) {
+        console.warn('Chat sessions backend sync notice:', err);
+      } finally {
+        isSyncingRef.current = false;
+      }
+    };
+
+    syncWithBackend();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id, user?.username]);
+
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
   const [isExploreToolsModalOpen, setIsExploreToolsModalOpen] = useState(false);
   const [contextResetIndex, setContextResetIndex] = useState(0);
@@ -350,9 +407,11 @@ export default function Chat() {
     }
   }, [sessions, activeSessionId]);
 
-  // Synchronize messages with sessions in localStorage
+  // Synchronize messages with sessions in localStorage and database
   useEffect(() => {
     if (!activeSessionId) return;
+
+    let sessionToPersist = null;
 
     setSessions(prevSessions => {
       const idx = prevSessions.findIndex(s => s.id === activeSessionId);
@@ -368,13 +427,15 @@ export default function Chat() {
       }
 
       const updated = [...prevSessions];
-      updated[idx] = {
+      const newSessionObj = {
         ...current,
         title,
         updated_at: new Date().toISOString(),
         model: selectedModelName || current.model,
         messages
       };
+      updated[idx] = newSessionObj;
+      sessionToPersist = newSessionObj;
 
       try {
         localStorage.setItem(getUserSessionKey(user), JSON.stringify(updated));
@@ -384,6 +445,23 @@ export default function Chat() {
       }
       return updated;
     });
+
+    // Debounced save to server database so history persists across devices
+    if (user && sessionToPersist) {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      saveTimeoutRef.current = setTimeout(() => {
+        api.post('/chat/sessions', {
+          id: sessionToPersist.id,
+          title: sessionToPersist.title,
+          model: sessionToPersist.model,
+          messages: sessionToPersist.messages
+        }).catch(err => {
+          console.warn('Backend session save warning:', err);
+        });
+      }, 1000);
+    }
   }, [messages, activeSessionId, selectedModelName, user?.id, user?.username]);
 
   const handleSelectSession = (sessionId) => {
@@ -418,6 +496,15 @@ export default function Chat() {
       localStorage.setItem(getUserSessionKey(user), JSON.stringify(updated));
       localStorage.setItem(getUserActiveSessionKey(user), newSession.id);
     } catch (e) {}
+
+    if (user) {
+      api.post('/chat/sessions', {
+        id: newSession.id,
+        title: newSession.title,
+        model: newSession.model,
+        messages: newSession.messages
+      }).catch(err => console.warn('Failed to create new session on server:', err));
+    }
   };
 
   const handleNewTopic = () => {
@@ -450,6 +537,15 @@ export default function Chat() {
         localStorage.setItem(getUserSessionKey(user), JSON.stringify([fresh]));
         localStorage.setItem(getUserActiveSessionKey(user), fresh.id);
       } catch (e) {}
+      if (user) {
+        api.delete(`/chat/sessions/${sessionId}`).catch(() => {});
+        api.post('/chat/sessions', {
+          id: fresh.id,
+          title: fresh.title,
+          model: fresh.model,
+          messages: fresh.messages
+        }).catch(() => {});
+      }
     } else {
       setSessions(remaining);
       try {
@@ -463,6 +559,9 @@ export default function Chat() {
           localStorage.setItem(getUserActiveSessionKey(user), next.id);
         } catch (e) {}
       }
+      if (user) {
+        api.delete(`/chat/sessions/${sessionId}`).catch(() => {});
+      }
     }
   };
 
@@ -472,6 +571,9 @@ export default function Chat() {
     try {
       localStorage.setItem(getUserSessionKey(user), JSON.stringify(updated));
     } catch (e) {}
+    if (user) {
+      api.patch(`/chat/sessions/${sessionId}`, { title: newTitle }).catch(() => {});
+    }
   };
 
   const handleImportOpenAI = (importedData) => {
@@ -494,6 +596,14 @@ export default function Chat() {
       localStorage.setItem(getUserSessionKey(user), JSON.stringify(updated));
       localStorage.setItem(getUserActiveSessionKey(user), newSession.id);
     } catch (e) {}
+    if (user) {
+      api.post('/chat/sessions', {
+        id: newSession.id,
+        title: newSession.title,
+        model: newSession.model,
+        messages: newSession.messages
+      }).catch(() => {});
+    }
   };
 
   const toggleSourceSelection = (sourceId) => {
